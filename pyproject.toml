@@ -12,6 +12,9 @@ dynamic = ["dependencies"]
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+"quant_lab.terminal" = ["static/dist/**"]
+
 [tool.setuptools.dynamic]
 dependencies = { file = ["requirements.txt"] }
 

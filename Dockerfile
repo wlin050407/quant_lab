@@ -24,10 +24,9 @@ COPY requirements.txt pyproject.toml ./
 COPY src ./src
 COPY config ./config
 COPY scripts/start_terminal_prod.py ./scripts/start_terminal_prod.py
+COPY --from=ui /app/src/quant_lab/terminal/static/dist ./src/quant_lab/terminal/static/dist
 
 RUN pip install --no-cache-dir .
-
-COPY --from=ui /app/src/quant_lab/terminal/static/dist ./src/quant_lab/terminal/static/dist
 
 RUN mkdir -p data/raw data/processed
 
