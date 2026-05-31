@@ -1,0 +1,36 @@
+# SpotGamma / public-source calibration references for SPY GEX.
+#
+# Fill `net_gex_bn_per_1pct` and `flip_level` from a SpotGamma Founder Note
+# or chart screenshot when you have subscription access. Direction-only entries
+# use public blog narratives and are checked automatically.
+#
+# Units: net_gex_bn_per_1pct = billions of $ dealer hedge flow per 1% SPY move
+#        (SpotGamma "Gamma Notional" headline scale).
+
+references:
+  - date: "2024-08-05"
+    source: "SpotGamma blog — carry unwind / VIX spike day; negative gamma below spot"
+    url: "https://spotgamma.com/the-opex-effect-august-2024-analyzing-options-expiration-strategies-for-tsm-nvidia-vault-crowdstrike-and-vix-ahead-of-the-election/"
+    regime: short_gamma
+    spot_below_flip: true
+    # net_gex_bn_per_1pct: null  # paste from Founder Note when available
+
+  - date: "2024-08-06"
+    source: "SpotGamma blog — unstable below SPX 5315 (~SPY 531.5); risk-off"
+    url: "https://spotgamma.com/how-we-nailed-the-volatile-markets-last-week-and-how-you-can-too/"
+    regime: short_gamma
+    spot_below_flip: true
+
+  - date: "2022-06-13"
+    source: "2022 bear market — sustained short-gamma regime (internal sanity)"
+    regime: short_gamma
+    # flip_level often NaN when net GEX stays negative across ±10% spot grid
+
+  - date: "2024-12-04"
+    source: "2024 Q4 rally — long-gamma regime (internal sanity)"
+    regime: long_gamma
+    spot_above_flip: true
+
+  # Unusual Whales worked example (single trade, not chain aggregate):
+  # 25_000 SPY 542C, gamma=0.0589 → $147,250 per 1% move (UW convention).
+  # Tested in tests/test_calibration.py — not a chain-level reference.

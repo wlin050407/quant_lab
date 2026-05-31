@@ -1,0 +1,225 @@
+/**
+ * Panel system — surfaces + side panels (loads after terminal.css base).
+ */
+
+:root {
+  --panel-radius: 10px;
+  --panel-inset-highlight: rgba(255, 255, 255, 0.035);
+  --panel-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
+  --panel-head-rule: rgba(148, 163, 184, 0.08);
+  --panel-inner-bg: var(--surface-2);
+  --panel-inner-border: rgba(148, 163, 184, 0.08);
+}
+
+/* ── Base panel surface ── */
+.panel,
+.card-spotlight.panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0.65rem 0.7rem;
+  border-radius: var(--panel-radius);
+  border: 1px solid var(--surface-border);
+  background: linear-gradient(
+    168deg,
+    color-mix(in srgb, var(--surface-2) 90%, #000) 0%,
+    var(--surface-1) 52%,
+    color-mix(in srgb, var(--surface-0) 94%, #000) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 var(--panel-inset-highlight),
+    var(--panel-shadow);
+  backdrop-filter: blur(4px);
+  transition:
+    border-color var(--motion-fast) var(--ease-out),
+    box-shadow var(--motion-base) var(--ease-out);
+}
+
+.panel:hover,
+.card-spotlight.panel:hover {
+  border-color: rgba(148, 163, 184, 0.14);
+}
+
+/* ── Panel header (impeccable label hierarchy) ── */
+.panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding-bottom: 0.5rem;
+  margin-bottom: 0.5rem;
+  border-bottom: 1px solid var(--panel-head-rule);
+  flex-shrink: 0;
+}
+
+.panel-head h2 {
+  font-family: var(--font-display);
+  font-size: 0.58rem;
+  font-weight: 600;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: rgba(148, 163, 184, 0.72);
+  margin: 0;
+}
+
+.panel-hint {
+  font-family: var(--mono);
+  font-size: 0.56rem;
+  letter-spacing: 0.05em;
+  color: rgba(148, 163, 184, 0.42);
+  white-space: nowrap;
+}
+
+/* ── Price ladder ── */
+.card-spotlight.panel.ladder-panel {
+  gap: 0;
+}
+
+.pin-gauge {
+  padding: 0.5rem 0.55rem;
+  margin-bottom: 0.65rem;
+  border-radius: 8px;
+  background: var(--panel-inner-bg);
+  border: 1px solid var(--panel-inner-border);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
+}
+
+.pin-head strong {
+  color: rgba(226, 232, 240, 0.95);
+}
+
+.pin-track {
+  height: 5px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(148, 163, 184, 0.1);
+  border-radius: 999px;
+}
+
+.pin-fill {
+  background: linear-gradient(90deg, var(--brand-teal), var(--brand-mint));
+}
+
+.price-ladder {
+  gap: 3px;
+}
+
+.ladder-row {
+  background: var(--panel-inner-bg);
+  border: 1px solid transparent;
+  border-radius: 6px;
+  transition:
+    background var(--motion-fast) var(--ease-out),
+    border-color var(--motion-fast) var(--ease-out);
+}
+
+.ladder-row:hover {
+  background: color-mix(in srgb, var(--surface-2) 75%, rgba(255, 255, 255, 0.05));
+  border-color: rgba(148, 163, 184, 0.1);
+}
+
+.ladder-row.king {
+  background: rgba(245, 158, 11, 0.05);
+  border-color: rgba(245, 158, 11, 0.12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.ladder-spot {
+  margin-top: 0.4rem;
+  background: rgba(20, 184, 166, 0.06);
+  border: 1px solid rgba(20, 184, 166, 0.2);
+  border-radius: 6px;
+}
+
+/* ── Right rail ── */
+.card-spotlight.panel.right-rail,
+.right-rail {
+  padding: 0;
+  gap: 0;
+}
+
+.rail-tabs {
+  padding: 0.4rem 0.5rem 0;
+  background: rgba(0, 0, 0, 0.18);
+  border-bottom: 1px solid var(--panel-head-rule);
+}
+
+.rail-tab {
+  font-size: 0.62rem;
+  letter-spacing: 0.04em;
+  border-bottom-width: 2px;
+  transition:
+    color var(--motion-fast) var(--ease-out),
+    border-color var(--motion-fast) var(--ease-out),
+    background var(--motion-fast) var(--ease-out);
+}
+
+.rail-tab.active {
+  color: rgba(226, 232, 240, 0.95);
+  border-bottom-color: var(--brand-teal);
+}
+
+.rail-panel-host {
+  padding: 0.5rem 0.55rem 0.55rem;
+}
+
+.rail-panel-host .panel,
+.rail-panel-host .rail-content {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  backdrop-filter: none;
+}
+
+.rail-content {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* ── Inner cards (playbook / regime) ── */
+.regime-card,
+.strategy-card,
+.playbook-phase,
+.playbook-size,
+.playbook-check,
+.playbook-exit,
+.playbook-structure,
+.gate {
+  background: var(--panel-inner-bg);
+  border: 1px solid var(--panel-inner-border);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
+}
+
+.regime-icon.long_gamma,
+.regime-icon.short_gamma {
+  box-shadow: none;
+}
+
+.playbook-size.actionable {
+  border-color: rgba(20, 184, 166, 0.35);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.playbook-phase.phase-entry {
+  border-color: rgba(20, 184, 166, 0.28);
+  background: rgba(20, 184, 166, 0.05);
+}
+
+.strategy-card {
+  border-left: 2px solid var(--brand-teal);
+}
+
+/* Chart profile wraps — see charts.css */
+.exposure-profile-wrap,
+.gamma-profile-wrap {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+.card-spotlight--terminal:not(.panel) {
+  border-color: var(--surface-border);
+  background: var(--panel-inner-bg);
+}

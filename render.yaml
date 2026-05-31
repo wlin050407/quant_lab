@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: quantlab-terminal
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: starter
+    healthCheckPath: /api/health
+    envVars:
+      - key: TERMINAL_HISTORY_DAYS
+        value: "14"
+      - key: THETADATA_EMAIL
+        sync: false
+      - key: THETADATA_PASSWORD
+        sync: false
+      - key: TERMINAL_AUTH_USER
+        sync: false
+      - key: TERMINAL_AUTH_PASSWORD
+        sync: false

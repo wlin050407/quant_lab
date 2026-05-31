@@ -1,0 +1,25 @@
+.rb-gradient-text {
+  display: inline-block;
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: rb-gradient-shift 6s ease-in-out infinite;
+}
+
+@keyframes rb-gradient-shift {
+  0%,
+  100% {
+    background-position: 0% center;
+  }
+  50% {
+    background-position: 100% center;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rb-gradient-text {
+    animation: none;
+    background-position: 0% center;
+  }
+}

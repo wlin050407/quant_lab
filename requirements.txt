@@ -1,0 +1,19 @@
+pandas>=2.2
+numpy>=1.26
+scipy>=1.13              # norm.pdf for BS gamma in factors/gex.py
+pillow>=10.0                 # rounded terminal favicon generation (scripts/generate_terminal_favicon.py)
+pyarrow>=15.0
+yfinance>=0.2.40
+requests>=2.32
+pyyaml>=6.0
+python-dateutil>=2.9
+python-dotenv>=1.0          # load secrets from project-root .env
+fastapi>=0.115              # Ultimate Terminal M4 local web API
+uvicorn[standard]>=0.32      # serve Terminal UI
+httpx>=0.27                 # FastAPI TestClient in tests
+thetadata>=0.9              # Phase 4 ThetaData v3 Python library (SPX/SPXW intraday)
+
+pytest>=8.0
+pytest-mock>=3.12
+
+ruff>=0.5

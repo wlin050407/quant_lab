@@ -1,0 +1,229 @@
+/**
+ * Right-rail Pin panel — magnet ladder + pin score breakdown.
+ */
+
+.pin-panel {
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.pin-panel-empty,
+.pin-disclaimer,
+.pin-crosslink {
+  font-size: 0.58rem;
+  color: var(--text-dim);
+  line-height: 1.4;
+  margin: 0;
+}
+
+.pin-panel-empty {
+  padding: 0.35rem 0;
+}
+
+.pin-primary {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.5rem;
+  padding: 0.45rem 0.5rem;
+  margin: 0.35rem 0 0.45rem;
+  border-radius: 6px;
+  border: 1px solid rgba(245, 158, 11, 0.28);
+  background: rgba(245, 158, 11, 0.06);
+  font-family: var(--mono);
+}
+
+.pin-primary-k {
+  font-size: 0.48rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.pin-primary strong {
+  font-size: 0.92rem;
+  color: var(--king);
+}
+
+.pin-primary-tag {
+  font-size: 0.52rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--king);
+  opacity: 0.85;
+}
+
+.pin-section {
+  margin-top: 0.55rem;
+}
+
+.pin-section-title {
+  margin: 0 0 0.35rem;
+  font-size: 0.52rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(148, 163, 184, 0.62);
+}
+
+.pin-breakdown {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.28rem;
+}
+
+.pin-breakdown-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) 28px;
+  align-items: center;
+  gap: 0.35rem;
+  font-family: var(--mono);
+  font-size: 0.56rem;
+}
+
+.pin-breakdown-k {
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pin-breakdown-track {
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+}
+
+.pin-breakdown-fill {
+  height: 100%;
+  background: var(--brand-teal);
+  border-radius: 999px;
+}
+
+.pin-breakdown-v {
+  text-align: right;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.pin-magnet-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.pin-magnet-row {
+  padding: 0.38rem 0.42rem;
+  border-radius: 6px;
+  border: 1px solid rgba(148, 163, 184, 0.1);
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.pin-magnet-row--anchor {
+  opacity: 0.72;
+  border-style: dashed;
+}
+
+.pin-magnet-row-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.35rem;
+  margin-bottom: 0.22rem;
+}
+
+.pin-magnet-strike {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.pin-magnet-weight {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--brand-mint);
+}
+
+.pin-magnet-bar-track {
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+  margin-bottom: 0.25rem;
+}
+
+.pin-magnet-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, rgba(20, 184, 166, 0.55), rgba(110, 231, 183, 0.85));
+  border-radius: 999px;
+}
+
+.pin-magnet-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.5rem;
+  font-family: var(--mono);
+  font-size: 0.52rem;
+  color: var(--text-dim);
+}
+
+.pin-magnet-tags {
+  display: inline-flex;
+  gap: 0.25rem;
+}
+
+.pin-magnet-tag {
+  font-size: 0.48rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 0.04rem 0.28rem;
+  border-radius: 3px;
+  border: 1px solid transparent;
+}
+
+.pin-magnet-tag--king {
+  color: var(--king);
+  border-color: rgba(245, 158, 11, 0.35);
+  background: rgba(245, 158, 11, 0.1);
+}
+
+.pin-magnet-tag--max_pain {
+  color: #fb7185;
+  border-color: rgba(251, 113, 133, 0.35);
+  background: rgba(251, 113, 133, 0.08);
+}
+
+.pin-max-pain-ref {
+  margin: 0.35rem 0 0;
+  font-family: var(--mono);
+  font-size: 0.56rem;
+  color: var(--text-dim);
+}
+
+.pin-max-pain-ref strong {
+  color: #fb7185;
+}
+
+.pin-disclaimer {
+  margin-top: 0.55rem;
+  padding-top: 0.45rem;
+  border-top: 1px solid rgba(148, 163, 184, 0.08);
+}
+
+.pin-crosslink {
+  margin-top: 0.35rem;
+  color: rgba(148, 163, 184, 0.55);
+}

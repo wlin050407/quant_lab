@@ -1,0 +1,47 @@
+# Free GEX calibration references (no SpotGamma subscription).
+#
+# Providers:
+#   spotgamma_blog  — public SpotGamma articles (direction-only)
+#   flashalpha      — archived FlashAlpha API snapshots (see scripts/archive_flashalpha_gex.py)
+#   optionsgex      — manual entry from https://optionsgex.com (no API)
+#   gex_metrix      — manual entry from https://www.gexmetrix.com/demo (SPX)
+#
+# Units: net_gex_bn_per_1pct = billions of $ dealer hedge flow per 1% move
+#        (same convention as factors/gex.py → net_gex_bn_per_1pct()).
+
+references:
+  # --- SpotGamma free blogs (also in spotgamma_reference.yaml) ---
+  - date: "2024-08-05"
+    provider: spotgamma_blog
+    source: "SpotGamma blog — carry unwind / VIX spike; negative gamma below spot"
+    url: "https://spotgamma.com/the-opex-effect-august-2024-analyzing-options-expiration-strategies-for-tsm-nvidia-vault-crowdstrike-and-vix-ahead-of-the-election/"
+    regime: short_gamma
+    spot_below_flip: true
+
+  - date: "2022-06-13"
+    provider: spotgamma_blog
+    source: "2022 bear market — sustained short-gamma (public commentary + our gex_history)"
+    regime: short_gamma
+
+  - date: "2024-12-04"
+    provider: spotgamma_blog
+    source: "2024 Q4 rally — long-gamma regime"
+    regime: long_gamma
+    spot_above_flip: true
+
+  # --- FlashAlpha archived snapshots (filled by archive_flashalpha_gex.py) ---
+  # Example entry after running the archiver:
+  # - date: "2026-05-20"
+  #   provider: flashalpha
+  #   source: "FlashAlpha API EoD snapshot"
+  #   net_gex_bn_per_1pct: 2.85
+  #   flip_level: 595.25
+  #   regime: long_gamma
+
+  # --- Manual free-dashboard entries (paste from optionsgex.com / gexmetrix.com) ---
+  # - date: "YYYY-MM-DD"
+  #   provider: optionsgex
+  #   source: "optionsgex.com SPY page screenshot"
+  #   net_gex_bn_per_1pct: null
+  #   flip_level: null
+  #   regime: short_gamma

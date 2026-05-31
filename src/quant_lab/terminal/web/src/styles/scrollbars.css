@@ -1,0 +1,82 @@
+/**
+ * Terminal scrollbars — Warp / Linear density: thin, matte, no OS chrome.
+ * Targets all vertical scroll regions inside the app shell.
+ */
+
+.app,
+.app .heatmap-rows-scroll,
+.app .price-ladder,
+.app .rail-panel-host,
+.app .strategy-card,
+.app .heatmap-body,
+.app .workspace {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.22) transparent;
+}
+
+.app ::-webkit-scrollbar,
+.app ::-webkit-scrollbar-corner {
+  width: 5px;
+  height: 5px;
+  background: transparent;
+}
+
+.app ::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.app ::-webkit-scrollbar-track {
+  background: transparent;
+  margin: 2px 0;
+}
+
+.app ::-webkit-scrollbar-thumb {
+  background-color: rgba(148, 163, 184, 0.18);
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background-clip: padding-box;
+  min-height: 32px;
+  transition: background-color var(--motion-fast) var(--ease-out);
+}
+
+.app ::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(148, 163, 184, 0.38);
+}
+
+.app ::-webkit-scrollbar-thumb:active {
+  background-color: rgba(20, 184, 166, 0.45);
+}
+
+/* Hover-reveal: idle scroll areas stay clean until pointer enters */
+.app .heatmap-rows-scroll,
+.app .price-ladder,
+.app .rail-panel-host,
+.app .strategy-card {
+  scrollbar-color: transparent transparent;
+}
+
+.app .heatmap-rows-scroll:hover,
+.app .heatmap-rows-scroll:focus-within,
+.app .price-ladder:hover,
+.app .price-ladder:focus-within,
+.app .rail-panel-host:hover,
+.app .rail-panel-host:focus-within,
+.app .strategy-card:hover,
+.app .strategy-card:focus-within {
+  scrollbar-color: rgba(148, 163, 184, 0.28) transparent;
+}
+
+.app .heatmap-rows-scroll:not(:hover):not(:focus-within)::-webkit-scrollbar-thumb,
+.app .price-ladder:not(:hover):not(:focus-within)::-webkit-scrollbar-thumb,
+.app .rail-panel-host:not(:hover):not(:focus-within)::-webkit-scrollbar-thumb,
+.app .strategy-card:not(:hover):not(:focus-within)::-webkit-scrollbar-thumb {
+  background-color: rgba(148, 163, 184, 0.08);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app ::-webkit-scrollbar-thumb {
+    transition: none;
+  }
+}

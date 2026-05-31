@@ -1,0 +1,47 @@
+/**
+ * Profile chart base styles.
+ */
+
+.exposure-profile--strike,
+.gamma-profile-chart {
+  display: block;
+  width: 100%;
+  vertical-align: top;
+}
+
+.exposure-profile-scroll {
+  width: 100%;
+  max-width: 100%;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.28) transparent;
+}
+
+.exposure-profile-scroll::-webkit-scrollbar {
+  height: 4px;
+}
+
+.exposure-profile-scroll::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.28);
+  border-radius: 3px;
+}
+
+.profile-bg,
+.profile-bg--exposure {
+  fill: var(--chart-canvas);
+  stroke: rgba(148, 163, 184, 0.05);
+  stroke-width: 1;
+}
+
+.gamma-profile-caption {
+  margin: 0;
+  padding: 0.3rem 0.45rem 0.35rem;
+  font-size: 0.56rem;
+  color: var(--text-dim);
+  border-top: 1px solid rgba(148, 163, 184, 0.06);
+}
+
+.exposure-profile-head {
+  padding: 0.32rem 0.45rem 0.28rem;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.06);
+}

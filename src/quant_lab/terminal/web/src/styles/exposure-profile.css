@@ -1,0 +1,186 @@
+/* Exposure profile — refined strike-level chart */
+
+.exposure-profile-wrap--strike {
+  border: none;
+  background: transparent;
+}
+
+.exposure-profile--strike {
+  display: block;
+  width: 100%;
+}
+
+.exposure-profile-wrap--compact .exposure-profile-head {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-rows: auto auto;
+  align-items: center;
+  gap: 0.12rem 0.4rem;
+  padding: 0.28rem 0.45rem 0.2rem;
+}
+
+.exposure-profile-wrap--compact .exposure-profile-title {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.exposure-profile-wrap--compact .exposure-profile-spot {
+  grid-column: 2;
+  grid-row: 1;
+  margin-left: 0;
+  font-size: 0.56rem;
+}
+
+.exposure-profile-wrap--compact .exposure-profile-metric {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  font-size: 0.54rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.exposure-profile-wrap--compact .exposure-profile-scroll-hint {
+  grid-column: 2;
+  grid-row: 2;
+  justify-self: end;
+  font-size: 0.52rem;
+  color: var(--text-dim);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.exposure-profile-head {
+  flex-wrap: wrap;
+  gap: 0.35rem 0.55rem;
+}
+
+.exposure-profile-stat {
+  font-family: var(--mono);
+  font-size: 0.58rem;
+  color: var(--text-dim);
+  letter-spacing: 0.02em;
+}
+
+.exposure-profile-stat strong {
+  color: var(--king);
+  font-weight: 600;
+}
+
+.exposure-profile-stat-sep {
+  margin: 0 0.2rem;
+  opacity: 0.45;
+}
+
+.profile-bg--exposure {
+  /* fill in charts.css */
+}
+
+.profile-grid-line--zero {
+  stroke: var(--chart-zero, rgba(148, 163, 184, 0.22));
+  stroke-dasharray: none;
+  opacity: 1;
+}
+
+.profile-zero-axis {
+  stroke: var(--chart-grid);
+  stroke-width: 1;
+}
+
+.profile-axis-label--y {
+  font-size: 8px;
+  opacity: 0.85;
+}
+
+.profile-axis-label--x {
+  font-size: 8px;
+  text-anchor: middle;
+  fill: rgba(148, 163, 184, 0.62);
+}
+
+.profile-x-tick-mark {
+  stroke: var(--chart-grid);
+  stroke-width: 1;
+}
+
+.exposure-area--pos,
+.exposure-area--neg {
+  opacity: 1;
+}
+
+.exposure-bar {
+  opacity: 0.78;
+  stroke: transparent;
+  stroke-width: 0;
+  transition: opacity 0.15s ease;
+}
+
+.exposure-bar-spot {
+  opacity: 0.92;
+  stroke: rgba(226, 232, 240, 0.35);
+  stroke-width: 0.75;
+}
+
+.exposure-bar-peak {
+  opacity: 0.86;
+}
+
+.exposure-line {
+  stroke: var(--chart-line);
+  stroke-width: 1.25;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.profile-marker-pill {
+  fill: rgba(10, 14, 22, 0.88);
+  stroke: rgba(148, 163, 184, 0.18);
+  stroke-width: 0.75;
+}
+
+.profile-marker-flip .profile-marker-pill {
+  stroke: rgba(45, 212, 191, 0.35);
+}
+
+.profile-marker-king .profile-marker-pill {
+  stroke: rgba(245, 158, 11, 0.35);
+}
+
+.profile-marker-label {
+  font-size: 7px;
+  letter-spacing: 0.06em;
+}
+
+.profile-spot--exposure .profile-spot-line {
+  stroke: rgba(45, 212, 191, 0.85);
+  stroke-width: 1.25;
+  filter: none;
+}
+
+.profile-spot--exposure .profile-spot-arrow {
+  fill: rgba(45, 212, 191, 0.9);
+}
+
+.profile-spot--exposure .profile-spot-label {
+  fill: rgba(153, 246, 228, 0.95);
+  font-size: 7px;
+}
+
+.exposure-profile-wrap--compact .profile-axis-label--y,
+.exposure-profile-wrap--compact .profile-axis-label--x {
+  font-size: 7px;
+}
+
+.chart-stack .exposure-profile-wrap--strike {
+  border-left: none;
+  border-right: none;
+  border-radius: 0;
+  margin-bottom: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .exposure-bar {
+    transition: none;
+  }
+}

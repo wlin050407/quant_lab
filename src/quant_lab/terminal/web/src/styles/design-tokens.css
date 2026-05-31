@@ -1,0 +1,118 @@
+/**
+
+ * Terminal design tokens
+
+ * - Warp terminal (awesome-design-md): dark IDE density, subtle borders
+
+ * - Impeccable: tinted neutrals, no pure black, purposeful motion via CSS vars
+
+ */
+
+:root {
+
+  --motion-fast: 0.15s;
+
+  --motion-base: 0.28s;
+
+  --motion-slow: 0.45s;
+
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+
+
+
+  /* Surfaces (Warp) */
+
+  --surface-0: #06080d;
+
+  --surface-1: #0c1018;
+
+  --surface-2: #121826;
+
+  --surface-border: rgba(148, 163, 184, 0.1);
+
+  --surface-inset: rgba(255, 255, 255, 0.035);
+
+
+
+  /* Brand */
+
+  --brand-navy: #0b1d3a;
+
+  --brand-teal: #14b8a6;
+
+  --brand-mint: #6ee7b7;
+
+  --accent: var(--brand-teal);
+
+  --accent-muted: rgba(20, 184, 166, 0.14);
+
+
+
+  /* UI chrome — matte, not neon */
+
+  --spot-line: rgba(20, 184, 166, 0.82);
+
+  --spot-label: rgba(153, 246, 228, 0.9);
+
+  --vex-pos: #5eead4;
+
+  --vex-pos-muted: rgba(94, 234, 212, 0.78);
+
+  --call-muted: #7dd3fc;
+
+  --chart-gex-pos: #a3c95a;
+  --chart-gex-pos-mid: #8fb340;
+  --chart-gex-neg: #9b8fd4;
+  --chart-gex-neg-mid: #8578c4;
+  --chart-line: rgba(226, 232, 240, 0.68);
+  --chart-grid: rgba(148, 163, 184, 0.12);
+  --chart-zero: rgba(148, 163, 184, 0.2);
+  --chart-canvas: rgba(10, 14, 22, 0.42);
+
+
+
+  /* Type scale (impeccable hierarchy) */
+
+  --text-2xs: 0.52rem;
+
+  --text-xs: 0.58rem;
+
+  --text-sm: 0.68rem;
+
+  --text-base: 0.78rem;
+
+  --text-md: 0.85rem;
+
+  --text-lg: 1rem;
+
+  --text-xl: 1.35rem;
+
+  --text-2xl: 1.45rem;
+
+
+
+  --panel-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
+
+  --panel-radius: 10px;
+
+}
+
+
+
+@media (prefers-reduced-motion: reduce) {
+
+  :root {
+
+    --motion-fast: 0.01ms;
+
+    --motion-base: 0.01ms;
+
+    --motion-slow: 0.01ms;
+
+  }
+
+}
+
+

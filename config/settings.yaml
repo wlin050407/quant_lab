@@ -1,0 +1,22 @@
+paths:
+  data_root: data
+  raw: data/raw
+  processed: data/processed
+
+defaults:
+  underlying:
+    period: "5y"
+    interval: "1d"
+  option_chain:
+    max_expiries: 12
+    skip_zero_volume_and_oi: false
+
+data_source:
+  active: yfinance
+  yfinance:
+    request_sleep_seconds: 0.4
+  thetadata:
+    option_root: SPX
+    index_symbol: SPX
+    pin_play_times_et: ["10:00:00", "13:00:00", "15:30:00"]
+    strike_range: 40

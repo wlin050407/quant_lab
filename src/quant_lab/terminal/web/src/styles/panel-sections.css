@@ -1,0 +1,363 @@
+/**
+ * Panel sections — predictable sizing:
+ * - Profiles: full width, aspect-ratio height (no letterboxing)
+ * - Strike plot: flex remainder
+ * - Solo (Expand): section fills panel
+ */
+
+.heatmap-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  overflow: hidden;
+  padding: 0 0.08rem 0;
+  min-height: 0;
+}
+
+/* Single: slim regime band, strike owns height */
+.heatmap-panel--single .panel-section--gamma.is-open:not(.is-solo) .gamma-profile-chart {
+  height: clamp(72px, 9vh, 96px);
+  max-height: clamp(72px, 9vh, 96px);
+}
+
+.heatmap-panel--single .panel-section--strike.is-open:not(.is-solo) {
+  min-height: 220px;
+}
+
+.panel-section--exposure.is-collapsed .panel-section__head {
+  opacity: 0.72;
+}
+
+.panel-section--exposure.is-collapsed .panel-section__title::after {
+  content: " · optional";
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  opacity: 0.65;
+}
+
+.panel-section {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-top: 1px solid rgba(148, 163, 184, 0.07);
+  overflow: hidden;
+}
+
+.panel-section:first-child {
+  border-top: none;
+}
+
+.panel-section.is-collapsed {
+  flex: 0 0 auto;
+}
+
+/* Open profile bands — natural height, do not flex-grow */
+.panel-section--gamma.is-open:not(.is-solo),
+.panel-section--exposure.is-open:not(.is-solo) {
+  flex: 0 0 auto;
+}
+
+/* Strike plot — always eats leftover vertical space */
+.panel-section--strike.is-open:not(.is-solo) {
+  flex: 1 1 0;
+  min-height: 160px;
+}
+
+/* Single: gamma + exposure side-by-side, strike gets the rest */
+.heatmap-body--profiles-row {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.heatmap-profiles-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  flex: 0 0 auto;
+  min-height: 0;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.07);
+}
+
+.heatmap-profiles-row .panel-section--gamma {
+  border-top: none;
+  border-right: 1px solid rgba(148, 163, 184, 0.07);
+}
+
+.heatmap-profiles-row .panel-section--exposure {
+  border-top: none;
+}
+
+.heatmap-body--profiles-row .panel-section--gamma.is-open:not(.is-solo) .gamma-profile-chart,
+.heatmap-body--profiles-row .panel-section--exposure.is-open:not(.is-solo) .exposure-profile--strike:not(.exposure-profile--compact) {
+  height: clamp(96px, 12vh, 120px);
+  max-height: clamp(96px, 12vh, 120px);
+}
+
+.heatmap-body--profiles-row .panel-section--strike.is-open:not(.is-solo) {
+  min-height: 200px;
+}
+
+.heatmap-panel--single .panel-section__head {
+  padding: 0.18rem 0.08rem 0.18rem 0;
+  min-height: 26px;
+  flex: 0 0 26px;
+}
+
+/* Expand / solo — one chart owns the panel */
+.panel-section.is-solo.is-open {
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+.panel-section__head {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.22rem 0.1rem 0.22rem 0;
+  flex: 0 0 28px;
+  min-height: 28px;
+}
+
+.panel-section__toggle {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.panel-section__toggle:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+}
+
+.panel-section__chev {
+  display: block;
+  width: 6px;
+  height: 6px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(45deg) translate(-1px, -1px);
+  transition: transform 0.22s var(--ease-out, ease);
+}
+
+.panel-section.is-collapsed .panel-section__chev {
+  transform: rotate(-45deg) translate(-1px, 1px);
+}
+
+.panel-section__title {
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.panel-section.is-solo.is-open .panel-section__title {
+  color: rgba(153, 246, 228, 0.9);
+}
+
+.panel-section__hint {
+  font-family: var(--mono);
+  font-size: 0.54rem;
+  color: var(--text-dim);
+  opacity: 0.72;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.panel-section__actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-shrink: 0;
+}
+
+.panel-section__action {
+  font-size: 0.54rem;
+  letter-spacing: 0.04em;
+  padding: 0.12rem 0.38rem;
+  border-radius: 4px;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  background: rgba(0, 0, 0, 0.2);
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: color 0.16s ease, border-color 0.16s ease, background 0.16s ease;
+}
+
+.panel-section__action:hover {
+  color: var(--text);
+  border-color: rgba(148, 163, 184, 0.28);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.panel-section__action--restore {
+  color: rgba(153, 246, 228, 0.85);
+  border-color: rgba(20, 184, 166, 0.22);
+}
+
+.panel-section__body {
+  flex: 0 0 auto;
+  min-height: 0;
+  display: block;
+  overflow: hidden;
+}
+
+.panel-section.is-solo.is-open .panel-section__body,
+.panel-section__body--strike {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.panel-section__body[aria-hidden="true"] {
+  display: none;
+}
+
+.panel-section__body--strike .heatmap-rows-scroll {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-bottom: 0.45rem;
+  scroll-padding-bottom: 0.45rem;
+}
+
+/* ── Profile charts: width-first (no side gutters) ── */
+.panel-section--gamma.is-open:not(.is-solo) .gamma-profile-wrap,
+.panel-section--exposure.is-open:not(.is-solo) .exposure-profile-wrap {
+  display: block;
+  width: 100%;
+}
+
+.panel-section--gamma.is-open:not(.is-solo) .gamma-profile-chart {
+  display: block;
+  width: 100%;
+  height: clamp(108px, 13vh, 152px);
+  max-height: clamp(108px, 13vh, 152px);
+}
+
+.panel-section--exposure.is-open:not(.is-solo) .exposure-profile--strike:not(.exposure-profile--compact) {
+  display: block;
+  width: 100%;
+  height: clamp(108px, 13vh, 152px);
+  max-height: clamp(108px, 13vh, 152px);
+}
+
+/* Trinity narrow column — horizontal scroll exposure */
+.heatmap-panel--compact-charts .panel-section--gamma.is-open:not(.is-solo) .gamma-profile-chart,
+.heatmap-panel--compact-charts .panel-section--gamma.is-open:not(.is-solo) .gamma-profile-chart--compact {
+  max-height: clamp(96px, 12vh, 128px);
+}
+
+.heatmap-panel--compact-charts .panel-section--exposure.is-open:not(.is-solo) .exposure-profile-scroll {
+  display: block;
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.heatmap-panel--compact-charts .panel-section--exposure.is-open:not(.is-solo) .exposure-profile--compact {
+  display: block;
+  width: auto;
+  min-width: 100%;
+  height: clamp(96px, 12vh, 128px);
+  max-height: clamp(96px, 12vh, 128px);
+}
+
+/* Solo / Expand — chart fills panel body */
+.panel-section.is-solo.is-open .gamma-profile-wrap,
+.panel-section.is-solo.is-open .exposure-profile-wrap {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  width: 100%;
+}
+
+.panel-section.is-solo.is-open .gamma-profile-chart {
+  flex: 1 1 0;
+  width: 100%;
+  min-height: 180px;
+  max-height: none;
+  height: auto;
+  aspect-ratio: 800 / 210;
+}
+
+.panel-section.is-solo.is-open .exposure-profile--strike:not(.exposure-profile--compact) {
+  flex: 1 1 0;
+  width: 100%;
+  min-height: 180px;
+  max-height: none;
+  height: auto;
+  aspect-ratio: 800 / 210;
+}
+
+.panel-section.is-solo.is-open .exposure-profile-scroll {
+  flex: 1 1 0;
+  min-height: 180px;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.panel-section.is-solo.is-open .exposure-profile--compact {
+  height: 100%;
+  min-height: 180px;
+  width: auto;
+  min-width: 100%;
+}
+
+.gamma-profile-wrap--embedded .exposure-profile-head,
+.exposure-profile-wrap--embedded .exposure-profile-head,
+.gamma-profile-wrap--embedded .gamma-profile-caption {
+  display: none;
+}
+
+.heatmap-panel--compact-charts .heatmap-canvas {
+  --hm-row-h: 18px;
+}
+
+.heatmap-panel--compact-charts .heatmap-canvas.mode-compare-canvas {
+  --hm-row-h: 26px;
+}
+
+.heatmap-panel--compact-charts .panel-section__head {
+  min-height: 24px;
+  flex: 0 0 24px;
+  padding: 0.14rem 0.06rem 0.14rem 0;
+}
+
+.heatmap-panel--compact-charts .panel-section__title {
+  font-size: 0.58rem;
+}
+
+.heatmap-panel--compact-charts .panel-section__action {
+  display: none;
+}
+
+.heatmap-panel:not(.heatmap-panel--compact-charts) .heatmap-canvas {
+  --hm-row-h: 24px;
+}
+
+.heatmap-panel:not(.heatmap-panel--compact-charts) .heatmap-canvas.mode-compare-canvas {
+  --hm-row-h: 32px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel-section__chev {
+    transition: none;
+  }
+}

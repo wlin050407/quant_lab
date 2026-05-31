@@ -1,0 +1,18 @@
+# SPY → SPX GEX calibration (see factors/spx_spy_calibration.py).
+#
+# gex_scale_k: multiply SPY net_gex_bn_per_1pct to estimate SPX.
+#   null → use (S_spx/S_spy)² each day (default theoretical proxy).
+#
+# Update via: python scripts/calibrate_spx_spy.py --write-config
+
+gex_scale_k: null
+strike_scale: 10.0
+min_spx_oi_rows: 100
+method: theoretical_proxy
+n_paired_days: 0
+paired_dates: []
+
+notes: >
+  yfinance ^SPX chains often have sparse OI; empirical k is only saved when
+  SPX passes min_spx_oi_rows. Regime passthrough + theoretical k is enough for
+  Phase 1 exit.
