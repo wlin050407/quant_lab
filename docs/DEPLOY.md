@@ -32,11 +32,31 @@ Optional:
 
 ## Railway (recommended)
 
+### One command (after login)
+
+```powershell
+cd E:\quant_lab
+railway login          # browser once
+.\scripts\deploy_railway.ps1
+```
+
+The script reads your local ThetaData creds (`.env` / creds file), creates `quantlab-terminal` on Railway, sets env vars, deploys via Dockerfile, and writes basic-auth credentials to `.railway-deploy.local` (gitignored).
+
+### Manual dashboard
+
 1. Push this repo to GitHub.
-2. [Railway](https://railway.app) → **New Project** → **Deploy from GitHub repo**.
-3. Railway detects `Dockerfile` + `railway.toml`.
-4. **Variables** → add the four secrets above.
-5. Deploy. Open the generated URL; browser prompts for basic auth.
+2. [Railway](https://railway.app) → **New Project** → **Deploy from GitHub repo** → `wlin050407/quant_lab`.
+3. **Variables** → add the four secrets below.
+4. Deploy. Open the generated URL; browser prompts for basic auth.
+
+### CI / headless (optional)
+
+Create a token at [railway.app/account/tokens](https://railway.app/account/tokens), then:
+
+```powershell
+$env:RAILWAY_TOKEN = "your-token"
+.\scripts\deploy_railway.ps1
+```
 
 Health check: `GET /api/health` (no auth).
 

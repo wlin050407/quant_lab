@@ -18,6 +18,7 @@ logs/
 .env
 *.local
 creds.txt
+.railway-deploy.local
 THETADATA_CREDENTIALS_FILE
 
 .vscode/
