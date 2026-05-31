@@ -771,7 +771,7 @@ def build_dashboard(
         time_to_close_pct=time_to_close_pct,
     )
 
-    return {
+    payload = {
         "symbol": symbol,
         "date": iso,
         "spot": spot,
@@ -825,6 +825,7 @@ def build_dashboard(
             ),
         },
     }
+    return json_safe(payload)
 
 
 def _f(val: Any) -> float | None:
@@ -834,3 +835,23 @@ def _f(val: Any) -> float | None:
     if not np.isfinite(v):
         return None
     return v
+
+
+def json_safe(value: Any) -> Any:
+    """Convert numpy/pandas scalars to JSON-native types (FastAPI-safe)."""
+    if isinstance(value, dict):
+        return {str(k): json_safe(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [json_safe(v) for v in value]
+    if isinstance(value, tuple):
+        return [json_safe(v) for v in value]
+    if isinstance(value, np.ndarray):
+        return json_safe(value.tolist())
+    if isinstance(value, np.generic):
+        native = value.item()
+        if isinstance(native, float) and not np.isfinite(native):
+            return None
+        return json_safe(native)
+    if isinstance(value, float) and not np.isfinite(value):
+        return None
+    return value
