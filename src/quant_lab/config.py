@@ -17,7 +17,10 @@ import yaml
 
 
 def _project_root() -> Path:
-    """Project root = parent of `src/`. Stable regardless of cwd."""
+    """Project root = parent of `src/` in dev; ``QUANT_LAB_ROOT`` in Docker/deploy."""
+    override = os.environ.get("QUANT_LAB_ROOT")
+    if override:
+        return Path(override).resolve()
     return Path(__file__).resolve().parents[2]
 
 
