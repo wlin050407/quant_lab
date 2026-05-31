@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "quant_lab"
 version = "0.0.1"
 description = "Private quant research lab"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 dynamic = ["dependencies"]
 
 [tool.setuptools.packages.find]
