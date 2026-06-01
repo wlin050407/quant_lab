@@ -57,8 +57,30 @@ def test_list_terminal_dates_skips_weekend_today(monkeypatch) -> None:
         lambda **_: [],
     )
     monkeypatch.setattr("quant_lab.terminal.snapshot._terminal_path", lambda _: type("P", (), {"exists": lambda self: False})())
+    monkeypatch.setattr("quant_lab.terminal.snapshot.recent_trading_dates", lambda **_: [])
 
     with patch("quant_lab.terminal.snapshot.market_today", return_value=sunday):
         out = list_terminal_dates("^SPX")
     assert "2026-05-31" not in out
     assert out[-1] == "2026-05-29"
+
+
+def test_list_terminal_dates_excludes_weekend_snapshot_dirs(monkeypatch) -> None:
+    """Sat/Sun folders under raw/options must not appear in the date picker."""
+    friday = date(2026, 5, 29)
+
+    monkeypatch.setattr(
+        "quant_lab.terminal.snapshot.list_option_snapshots",
+        lambda _: ["2026-05-29", "2026-05-30"],
+    )
+    monkeypatch.setattr(
+        "quant_lab.terminal.snapshot.list_intraday_chain_dates",
+        lambda **_: [],
+    )
+    monkeypatch.setattr("quant_lab.terminal.snapshot._terminal_path", lambda _: type("P", (), {"exists": lambda self: False})())
+    monkeypatch.setattr("quant_lab.terminal.snapshot.recent_trading_dates", lambda **_: [])
+
+    with patch("quant_lab.terminal.snapshot.market_today", return_value=friday):
+        out = list_terminal_dates("^SPX")
+    assert "2026-05-30" not in out
+    assert "2026-05-29" in out

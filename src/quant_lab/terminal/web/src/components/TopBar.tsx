@@ -1,3 +1,5 @@
+import type { ChainFlowMode } from "../types/snapshot";
+import { ChainFlowToggle } from "./ChainFlowToggle";
 import { SessionTimeSlider } from "./SessionTimeSlider";
 import { BrandMark } from "./BrandMark";
 import { BrandWordmark } from "./BrandWordmark";
@@ -7,6 +9,8 @@ interface TopBarProps {
   symbol: string;
   date: string;
   intradayTime: string;
+  chainFlowMode: ChainFlowMode;
+  onChainFlowModeChange: (mode: ChainFlowMode) => void;
   dates: string[];
   focusMode: boolean;
   theme: "dark" | "light";
@@ -31,6 +35,8 @@ export function TopBar({
   symbol,
   date,
   intradayTime,
+  chainFlowMode,
+  onChainFlowModeChange,
   dates,
   focusMode,
   theme,
@@ -79,12 +85,15 @@ export function TopBar({
             </select>
           </div>
           {symbol === "^SPX" ? (
-            <SessionTimeSlider
-              value={intradayTime}
-              onChange={onIntradayTimeChange}
-              liveMode={livePollCandidate}
-              effectiveTime={effectiveIntradayTime}
-            />
+            <>
+              <SessionTimeSlider
+                value={intradayTime}
+                onChange={onIntradayTimeChange}
+                liveMode={livePollCandidate}
+                effectiveTime={effectiveIntradayTime}
+              />
+              <ChainFlowToggle value={chainFlowMode} onChange={onChainFlowModeChange} />
+            </>
           ) : null}
           <div className="ctrl-group date-nav">
             <button type="button" className="ctrl-icon" aria-label="Previous day" disabled={!canPrev} onClick={onPrevDate}>

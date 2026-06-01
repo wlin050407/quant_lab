@@ -18,6 +18,7 @@ export interface MacroEventRow {
 export interface LayerL0 {
   adv_usd: number;
   amihud: number;
+  amihud_threshold?: number;
   eligible: boolean;
   grade: EvidenceGrade;
 }

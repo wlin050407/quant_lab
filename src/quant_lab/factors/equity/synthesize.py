@@ -12,7 +12,7 @@ from quant_lab.factors.equity.evidence_grades import (
     grade_long,
     grade_mid,
 )
-from quant_lab.factors.equity.liquidity_thresholds import AMIHUD_HIGH, is_execution_risk
+from quant_lab.factors.equity.liquidity_thresholds import is_amihud_elevated, is_execution_risk
 from quant_lab.factors.equity.ma_structure import MaStructure
 from quant_lab.factors.equity.options_overlay import OptionsOverlay
 from quant_lab.factors.equity.relative_strength import RelativeStrength
@@ -209,6 +209,7 @@ def synthesize_horizons(
     macro_labels: tuple[str, ...],
     opening: OpeningSegment | None,
     n_daily: int,
+    amihud_threshold: float = float("nan"),
 ) -> dict[str, Any]:
     intraday_grade = grade_l2(intraday_source=intraday_source, n_bars=intraday_bars)
     mid_grade = grade_mid(
@@ -233,7 +234,7 @@ def synthesize_horizons(
     weakest: dict[str, str] | None = None
     if is_execution_risk(adv):
         weakest = {"layer": "L0", "reason": "Low dollar volume — execution risk"}
-    elif np.isfinite(amihud) and amihud > AMIHUD_HIGH:
+    elif is_amihud_elevated(amihud, amihud_threshold=amihud_threshold):
         weakest = {"layer": "L0", "reason": "High Amihud illiquidity"}
     elif intraday_grade == "C":
         weakest = {"layer": "L2", "reason": "Delayed intraday bars"}

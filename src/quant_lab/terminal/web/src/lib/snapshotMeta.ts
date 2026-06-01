@@ -31,3 +31,7 @@ export function volumeSourceLabel(source: string | undefined): string {
 export function oiModeLabel(mode: string | undefined): string {
   return mode === "effective" ? "OI: effective" : "OI: settled";
 }
+
+export function chainFlowModeLabel(mode: string | undefined): string {
+  return mode === "full" ? "Pin·精确" : "Pin·快速";
+}

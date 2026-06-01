@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import date
 from pathlib import Path
 
@@ -12,6 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from quant_lab.terminal.auth import TerminalBasicAuthMiddleware
 from quant_lab.terminal.equity_live import build_equity_analysis
 from quant_lab.terminal.live_chain import market_today
+from quant_lab.data.thetadata_chain import ChainMode
 from quant_lab.terminal.snapshot import build_dashboard, list_terminal_dates, resolve_default_terminal_date
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
@@ -19,6 +21,7 @@ DIST_DIR = STATIC_DIR / "dist"
 
 app = FastAPI(title="quant_lab Terminal", version="0.2.0")
 app.add_middleware(TerminalBasicAuthMiddleware)
+log = logging.getLogger(__name__)
 
 
 def _ui_index() -> Path:
@@ -59,8 +62,16 @@ def api_snapshot(
     symbol: str = Query(default="^SPX"),
     asof: str | None = Query(default=None, alias="date"),
     time: str = Query(
-        default="live",
+        default="13:00:00",
         description="intraday ET: 'live' (follow now) or HH:MM:SS pin-play slot",
+    ),
+    include_trinity: bool = Query(
+        default=False,
+        description="Load SPY/QQQ/SPX trinity panel chains (slower; default single-symbol fast path)",
+    ),
+    chain_mode: ChainMode = Query(
+        default="pin",
+        description="0DTE chain pull: pin (ΔOI vs 09:30), full (+ session trade flow), gex (GEX-only)",
     ),
 ) -> dict:
     dates = list_terminal_dates(symbol)
@@ -75,9 +86,23 @@ def api_snapshot(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail="invalid date") from exc
     try:
-        return build_dashboard(symbol, d, time_of_day=time)
+        return build_dashboard(
+            symbol,
+            d,
+            time_of_day=time,
+            include_trinity=include_trinity,
+            chain_mode=chain_mode,
+        )
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        log.exception("snapshot build failed for %s on %s time=%s", symbol, iso, time)
+        raise HTTPException(
+            status_code=503,
+            detail="Terminal snapshot failed — check server logs",
+        ) from exc
 
 
 @app.get("/api/equity/analyze")

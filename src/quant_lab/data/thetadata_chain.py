@@ -6,6 +6,8 @@ import logging
 from datetime import date, datetime
 from typing import TYPE_CHECKING, Literal
 
+ChainMode = Literal["full", "gex", "pin"]
+
 import numpy as np
 import pandas as pd
 
@@ -15,8 +17,7 @@ from quant_lab.data.iv_solver import implied_volatility_from_mid
 from quant_lab.data.thetadata_client import DEFAULT_INDEX_SYMBOL, DEFAULT_OPTION_ROOT
 from quant_lab.data.thetadata_intraday import (
     fetch_0dte_chain_at_time,
-    fetch_0dte_cumulative_volume_at_time,
-    fetch_0dte_signed_flow_at_time,
+    fetch_0dte_session_flow_at_time,
     fetch_spx_at_time,
     fetch_stock_at_time,
 )
@@ -40,15 +41,14 @@ def _normalize_right(series: pd.Series) -> pd.Series:
     return series.astype(str).str.upper().map(RIGHT_MAP).fillna(series.astype(str).str.upper())
 
 
-def fetch_0dte_open_interest_at_time(
+def fetch_0dte_open_interest_history(
     client: ThetaClient,
     *,
     session_date: date,
-    time_of_day: str,
     option_root: str = DEFAULT_OPTION_ROOT,
     strike_range: int = 80,
 ) -> pd.DataFrame:
-    """Latest OI at-or-before ``time_of_day`` for each 0DTE contract."""
+    """Full-session OI history for 0DTE (one API call; filter locally for snapshots)."""
     df = client.option_history_open_interest(
         symbol=option_root,
         expiration=session_date,
@@ -67,19 +67,47 @@ def fetch_0dte_open_interest_at_time(
         out["timestamp"] = out["timestamp"].dt.tz_localize(MARKET_TZ)
     else:
         out["timestamp"] = out["timestamp"].dt.tz_convert(MARKET_TZ)
+    out["right"] = _normalize_right(out["right"])
+    out["strike"] = pd.to_numeric(out["strike"], errors="coerce")
+    return out.reset_index(drop=True)
 
+
+def _oi_snapshot_at_time(
+    oi_history: pd.DataFrame,
+    session_date: date,
+    time_of_day: str,
+) -> pd.DataFrame:
+    """Latest OI at-or-before ``time_of_day`` from a pre-fetched history frame."""
+    if oi_history.empty:
+        return pd.DataFrame(columns=["strike", "right", "open_interest", "timestamp"])
     cutoff = session_datetime(session_date, time_of_day)
-    out = out[out["timestamp"] <= cutoff]
+    out = oi_history[oi_history["timestamp"] <= cutoff]
     if out.empty:
         return pd.DataFrame(columns=["strike", "right", "open_interest", "timestamp"])
-
-    out["right"] = _normalize_right(out["right"])
     return (
         out.sort_values("timestamp")
         .groupby(["strike", "right"], as_index=False)
         .tail(1)
         .reset_index(drop=True)
     )
+
+
+def fetch_0dte_open_interest_at_time(
+    client: ThetaClient,
+    *,
+    session_date: date,
+    time_of_day: str,
+    option_root: str = DEFAULT_OPTION_ROOT,
+    strike_range: int = 80,
+) -> pd.DataFrame:
+    """Latest OI at-or-before ``time_of_day`` for each 0DTE contract."""
+    history = fetch_0dte_open_interest_history(
+        client,
+        session_date=session_date,
+        option_root=option_root,
+        strike_range=strike_range,
+    )
+    return _oi_snapshot_at_time(history, session_date, time_of_day)
 
 
 def _spot_from_local_1m(session_date: date, time_of_day: str) -> float | None:
@@ -176,8 +204,15 @@ def build_0dte_chain_snapshot(
     terminal_symbol: str = TERMINAL_SYMBOL,
     underlying_kind: Literal["index", "stock"] = "index",
     underlying_symbol: str | None = None,
+    chain_mode: ChainMode = "full",
 ) -> OptionChainSnapshot:
-    """Merge ThetaData quotes, OI, and underlying spot into ``OptionChainSnapshot``."""
+    """Merge ThetaData quotes, OI, and underlying spot into ``OptionChainSnapshot``.
+
+    - ``gex``: quotes + OI + spot only (GEX / King / Trinity).
+    - ``pin``: same pulls plus 09:30 reference OI for ``oi_delta`` effective OI
+      (terminal pin panel); no session trades/quotes flow.
+    - ``full``: ``pin`` plus session flow (trade tape + signing path).
+    """
     und_sym = underlying_symbol or (DEFAULT_INDEX_SYMBOL if underlying_kind == "index" else option_root)
     quotes = fetch_0dte_chain_at_time(
         client,
@@ -189,29 +224,22 @@ def build_0dte_chain_snapshot(
     if quotes.empty:
         raise FileNotFoundError(f"no 0DTE quotes for {option_root} on {session_date} @ {time_of_day}")
 
-    oi = fetch_0dte_open_interest_at_time(
+    oi_history = fetch_0dte_open_interest_history(
         client,
         session_date=session_date,
-        time_of_day=time_of_day,
         option_root=option_root,
         strike_range=strike_range,
     )
-    oi_open = fetch_0dte_open_interest_at_time(
-        client,
-        session_date=session_date,
-        time_of_day="09:30:00",
-        option_root=option_root,
-        strike_range=strike_range,
-    )
-    session_vol = fetch_0dte_signed_flow_at_time(
-        client,
-        session_date=session_date,
-        time_of_day=time_of_day,
-        option_root=option_root,
-        strike_range=strike_range,
-    )
-    if session_vol.empty:
-        session_vol = fetch_0dte_cumulative_volume_at_time(
+    oi = _oi_snapshot_at_time(oi_history, session_date, time_of_day)
+    oi_open: pd.DataFrame | None = None
+    session_vol: pd.DataFrame | None = None
+    if chain_mode in ("pin", "full"):
+        oi_open = _oi_snapshot_at_time(oi_history, session_date, "09:30:00")
+    if chain_mode == "full":
+        # Single trades + single quotes pull. Previously this was two cascading
+        # calls (signed_flow → cumulative_volume) which re-fetched the full
+        # 09:30→now 1m quotes window twice on Value-tier / signing-failure paths.
+        session_vol = fetch_0dte_session_flow_at_time(
             client,
             session_date=session_date,
             time_of_day=time_of_day,
@@ -229,6 +257,9 @@ def build_0dte_chain_snapshot(
     if not np.isfinite(spot):
         raise ValueError(f"no {und_sym} spot for {session_date} @ {time_of_day}")
 
+    # ``chain_mode="gex"`` leaves session_vol=None — guard before checking .empty
+    # so trinity gex pulls do not AttributeError on the lightweight path.
+    has_session_vol = session_vol is not None and not session_vol.empty
     return assemble_chain_from_quotes_oi(
         quotes,
         oi,
@@ -238,8 +269,12 @@ def build_0dte_chain_snapshot(
         terminal_symbol=terminal_symbol,
         option_root=option_root,
         reference_oi=oi_open,
-        session_volume=session_vol if not session_vol.empty else None,
-        session_signed_flow=session_vol if "signed_flow" in session_vol.columns and not session_vol.empty else None,
+        session_volume=session_vol if has_session_vol else None,
+        session_signed_flow=(
+            session_vol
+            if has_session_vol and "signed_flow" in session_vol.columns
+            else None
+        ),
     )
 
 
@@ -357,12 +392,17 @@ def assemble_chain_from_quotes_oi(
         ref["right"] = _normalize_right(ref["right"])
         ref["strike"] = ref["strike"].astype("float64")
 
+    # Prefer |ΔOI| vs 09:30 when reference exists; quote-size proxy only without ref.
+    quote_flow: pd.Series | None = None
+    if not quotes.empty and (ref is None or ref.empty):
+        quote_flow = flow_delta_from_quote_sizes(chain, quotes, None)
+
     chain = enrich_chain_effective_oi(
         chain,
         ref,
         session_volume=vol_series,
         session_signed_flow=signed_series,
-        quote_flow=flow_delta_from_quote_sizes(chain, quotes, None) if not quotes.empty else None,
+        quote_flow=quote_flow,
     )
 
     return OptionChainSnapshot(

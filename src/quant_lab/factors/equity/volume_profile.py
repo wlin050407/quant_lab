@@ -16,6 +16,40 @@ class VolumeProfile:
     total_volume: float
 
 
+def _value_area_from_poc(
+    counts: np.ndarray,
+    centers: np.ndarray,
+    *,
+    value_area_pct: float,
+    total_volume: float,
+) -> tuple[float, float, float]:
+    """Expand contiguously from POC until ``value_area_pct`` of volume is captured."""
+    poc_idx = int(np.argmax(counts))
+    poc = float(centers[poc_idx])
+    if total_volume <= 0 or counts[poc_idx] <= 0:
+        return poc, poc, poc
+
+    target = total_volume * value_area_pct
+    lo_idx = hi_idx = poc_idx
+    cum = float(counts[poc_idx])
+
+    while cum < target and (lo_idx > 0 or hi_idx < len(counts) - 1):
+        vol_below = float(counts[lo_idx - 1]) if lo_idx > 0 else -1.0
+        vol_above = float(counts[hi_idx + 1]) if hi_idx < len(counts) - 1 else -1.0
+        if vol_below < 0 and vol_above < 0:
+            break
+        if vol_above >= vol_below:
+            hi_idx += 1
+            if vol_above > 0:
+                cum += vol_above
+        else:
+            lo_idx -= 1
+            if vol_below > 0:
+                cum += vol_below
+
+    return poc, float(centers[hi_idx]), float(centers[lo_idx])
+
+
 def volume_profile(
     intraday: pd.DataFrame,
     *,
@@ -50,37 +84,22 @@ def volume_profile(
     volume = frame["volume"]
     lo = float(typical.min())
     hi = float(typical.max())
+    total_volume = float(volume.sum())
     if not np.isfinite(lo) or not np.isfinite(hi) or hi <= lo:
         mid = float(typical.iloc[-1])
-        return VolumeProfile(poc=mid, vah=mid, val=mid, total_volume=float(volume.sum()))
+        return VolumeProfile(poc=mid, vah=mid, val=mid, total_volume=total_volume)
 
     counts, edges = np.histogram(typical, bins=n_bins, weights=volume)
     centers = (edges[:-1] + edges[1:]) / 2.0
-    poc_idx = int(np.argmax(counts))
-    poc = float(centers[poc_idx])
-
-    order = np.argsort(-counts)
-    target = float(volume.sum()) * value_area_pct
-    cum = 0.0
-    chosen: list[int] = []
-    for idx in order:
-        if counts[idx] <= 0:
-            continue
-        chosen.append(int(idx))
-        cum += float(counts[idx])
-        if cum >= target:
-            break
-    if not chosen:
-        return VolumeProfile(
-            poc=poc,
-            vah=poc,
-            val=poc,
-            total_volume=float(volume.sum()),
-        )
-    chosen_centers = centers[chosen]
+    poc, vah, val = _value_area_from_poc(
+        counts,
+        centers,
+        value_area_pct=value_area_pct,
+        total_volume=total_volume,
+    )
     return VolumeProfile(
         poc=poc,
-        vah=float(np.max(chosen_centers)),
-        val=float(np.min(chosen_centers)),
-        total_volume=float(volume.sum()),
+        vah=vah,
+        val=val,
+        total_volume=total_volume,
     )

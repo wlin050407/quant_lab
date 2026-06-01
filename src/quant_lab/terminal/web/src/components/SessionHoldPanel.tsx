@@ -1,0 +1,29 @@
+import type { DashboardSnapshot } from "../types/snapshot";
+
+interface SessionHoldPanelProps {
+  snapshot: DashboardSnapshot;
+  onRefresh: () => void;
+}
+
+export function SessionHoldPanel({ snapshot, onRefresh }: SessionHoldPanelProps) {
+  const meta = snapshot.meta;
+  const title = meta?.session_status_title ?? "暂无数据";
+  const message = meta?.session_status_message ?? "请稍后刷新。";
+  const clock = meta?.clock_et;
+
+  return (
+    <section className="session-hold-panel" aria-live="polite">
+      <div className="session-hold-card">
+        <p className="session-hold-kicker">{snapshot.date} · ET {clock ?? "—"}</p>
+        <h2 className="session-hold-title">{title}</h2>
+        <p className="session-hold-body">{message}</p>
+        <p className="session-hold-hint">
+          Pin 与 GEX 在两种流量模式下都会计算；当前仅因会话尚无链数据而暂停展示。
+        </p>
+        <button type="button" className="btn-toolbar session-hold-refresh" onClick={onRefresh}>
+          刷新
+        </button>
+      </div>
+    </section>
+  );
+}

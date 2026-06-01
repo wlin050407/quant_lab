@@ -1,5 +1,10 @@
 export type ExposureMetric = "gex" | "vex" | "compare";
 
+/** 0DTE effective-OI depth for SPX intraday (API ``chain_mode``). Both compute full pin. */
+export type ChainFlowMode = "pin" | "full";
+
+export type SessionHoldStatus = "pre_market" | "awaiting_chain";
+
 export type HeatmapViewMode = "single" | "trinity";
 
 export type Regime = "long_gamma" | "short_gamma" | "undetermined" | string;
@@ -165,7 +170,9 @@ export interface PinPlaybook {
 export interface DashboardSnapshot {
   symbol: string;
   date: string;
-  spot: number;
+  /** ``hold`` = pre-open / warming up; omit or ``ready`` = normal chain. */
+  availability?: "hold" | "ready" | string;
+  spot: number | null;
   regime: Regime;
   levels: Levels;
   king_distance: KingDistance | null;
@@ -186,6 +193,8 @@ export interface DashboardSnapshot {
     gex_formula?: string;
     dealer_sign?: string;
     data_mode: string;
+    requested_date?: string | null;
+    date_fallback?: boolean;
     data_source?: "thetadata" | "thetadata_live" | "eod" | string;
     n_strikes?: number;
     intraday_time?: string | null;
@@ -195,6 +204,12 @@ export interface DashboardSnapshot {
     oi_mode?: "effective" | "settled" | string;
     volume_source?: "trade" | "trade_signed" | "quote_proxy" | "oi_delta" | "settled" | string;
     live_follow?: boolean;
+    chain_mode?: ChainFlowMode | "gex" | string;
+    session_status?: SessionHoldStatus | string;
+    session_status_title?: string;
+    session_status_message?: string;
+    session_status_detail_en?: string;
+    clock_et?: string;
     chain_time_requested?: string | null;
     trinity_live_panels?: number;
     server_pulled_at?: string | null;

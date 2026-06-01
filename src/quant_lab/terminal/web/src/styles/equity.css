@@ -619,18 +619,6 @@ html[data-locale="zh"] .equity-terminal .eq-monitor-table th {
   border-top: 1px solid var(--border-subtle);
 }
 
-.eq-monitor-warn {
-  margin: 0.65rem 0 0;
-  padding: 0.45rem 0.5rem;
-  font-family: var(--font);
-  font-size: var(--text-sm);
-  line-height: 1.45;
-  color: var(--short);
-  border-radius: var(--radius);
-  background: rgba(245, 158, 11, 0.08);
-  border: 1px solid rgba(245, 158, 11, 0.2);
-}
-
 /* Chinese locale: slightly larger prose, same density as 0DTE terminal */
 html[data-locale="zh"] .equity-terminal {
   font-size: 0.8125rem;

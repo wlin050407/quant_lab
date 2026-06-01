@@ -9,7 +9,7 @@ Value-tier notes (Options Value + Indices Value):
 from __future__ import annotations
 
 import logging
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta
 from typing import TYPE_CHECKING
 
 import pandas as pd
@@ -193,6 +193,27 @@ def fetch_0dte_signed_flow_at_time(
         return pd.DataFrame(columns=["strike", "right", "signed_flow", "volume"])
 
 
+def _unsigned_volume_from_trades(trades: pd.DataFrame) -> pd.DataFrame:
+    """Aggregate raw trades into per ``(strike, right)`` unsigned volume.
+
+    Pure transform — no network. Used by ``fetch_0dte_cumulative_volume_at_time``
+    and the single-pull ``fetch_0dte_session_flow_at_time`` fallback.
+    """
+    if trades is None or trades.empty:
+        return pd.DataFrame(columns=["strike", "right", "volume"])
+    out = trades.copy()
+    out["right"] = out["right"].astype(str).str.upper().str[0]
+    out["strike"] = out["strike"].astype("float64")
+    size_col = "size" if "size" in out.columns else "volume" if "volume" in out.columns else None
+    if size_col is None:
+        return pd.DataFrame(columns=["strike", "right", "volume"])
+    return (
+        out.groupby(["strike", "right"], as_index=False)[size_col]
+        .sum()
+        .rename(columns={size_col: "volume"})
+    )
+
+
 def fetch_0dte_cumulative_volume_at_time(
     client: ThetaClient,
     *,
@@ -205,18 +226,47 @@ def fetch_0dte_cumulative_volume_at_time(
 
     Requires Options **Standard** tier (``option_history_trade``). Returns empty
     on Value tier or missing data — callers should fall back to OI-delta proxy.
-    Prefer ``fetch_0dte_signed_flow_at_time`` when Standard tier is available.
+
+    NOTE: this used to call ``fetch_0dte_signed_flow_at_time`` first, which
+    re-fetched the full-session 1m quotes window even when the caller only
+    wanted unsigned volume. We now skip straight to the trades pull + groupby
+    to avoid the duplicate quote fetch. For combined signed+unsigned in a
+    single trades/quotes pull, use ``fetch_0dte_session_flow_at_time``.
     """
-    signed = fetch_0dte_signed_flow_at_time(
+    trades = fetch_0dte_raw_trades_at_time(
         client,
         session_date=session_date,
         time_of_day=time_of_day,
         option_root=option_root,
         strike_range=strike_range,
     )
-    if not signed.empty and "volume" in signed.columns:
-        return signed[["strike", "right", "volume"]].copy()
+    return _unsigned_volume_from_trades(trades)
 
+
+def fetch_0dte_session_flow_at_time(
+    client: ThetaClient,
+    *,
+    session_date: date,
+    time_of_day: str,
+    option_root: str = DEFAULT_OPTION_ROOT,
+    strike_range: int = 40,
+) -> pd.DataFrame:
+    """Signed flow + unsigned volume in a **single** trades + **single** quotes pull.
+
+    Replaces the historical two-step cascade of
+    ``signed_flow → cumulative_volume`` which duplicated the heavy
+    ``option_history_quote`` full-session call when Lee-Ready classification
+    failed. The orchestration is now:
+
+    1. One ``option_history_trade`` pull. Empty → return empty frame (Value tier).
+    2. One ``option_history_quote`` full-session pull for NBBO signing.
+    3. Try ``aggregate_signed_flow``. Success → return signed+volume frame.
+    4. Failure → return unsigned-volume-only frame from the same trades (no
+       re-fetch).
+
+    Returns columns ``strike, right, volume`` plus ``signed_flow`` when signing
+    succeeded. Callers must check ``"signed_flow" in df.columns``.
+    """
     trades = fetch_0dte_raw_trades_at_time(
         client,
         session_date=session_date,
@@ -225,20 +275,32 @@ def fetch_0dte_cumulative_volume_at_time(
         strike_range=strike_range,
     )
     if trades.empty:
-        return pd.DataFrame(columns=["strike", "right", "volume"])
+        return pd.DataFrame(columns=["strike", "right", "signed_flow", "volume"])
 
-    out = trades.copy()
-    out["right"] = out["right"].astype(str).str.upper().str[0]
-    out["strike"] = out["strike"].astype("float64")
-    size_col = "size" if "size" in out.columns else "volume" if "volume" in out.columns else None
-    if size_col is None:
-        return pd.DataFrame(columns=["strike", "right", "volume"])
-    grouped = (
-        out.groupby(["strike", "right"], as_index=False)[size_col]
-        .sum()
-        .rename(columns={size_col: "volume"})
+    quotes = fetch_0dte_option_quotes_window(
+        client,
+        session_date=session_date,
+        start_time="09:30:00",
+        end_time=time_of_day,
+        option_root=option_root,
+        strike_range=strike_range,
+        interval="1m",
     )
-    return grouped
+    try:
+        signed = aggregate_signed_flow(trades, quotes if not quotes.empty else None)
+    except ValueError as exc:
+        log.debug(
+            "signed flow classification failed for %s @ %s: %s — "
+            "falling back to unsigned volume from same trades pull",
+            session_date,
+            time_of_day,
+            exc,
+        )
+        signed = pd.DataFrame()
+
+    if not signed.empty:
+        return signed
+    return _unsigned_volume_from_trades(trades)
 
 
 def fetch_0dte_chain_at_time(
@@ -249,12 +311,19 @@ def fetch_0dte_chain_at_time(
     option_root: str = DEFAULT_OPTION_ROOT,
     strike_range: int = 40,
 ) -> pd.DataFrame:
-    """Last quote at-or-before ``time_of_day`` for each 0DTE contract."""
+    """Last quote at-or-before ``time_of_day`` for each 0DTE contract.
+
+    Pulls a 1-minute window ending at ``time_of_day`` so we always retain at
+    least one bar to ``tail(1)``. ``timedelta`` is used (not ``.replace(minute=...)``)
+    so the hour rolls over correctly at integral times like ``13:00:00`` —
+    otherwise the window would collapse to zero length and return nothing.
+    """
     end_parts = time_of_day.split(":")
     hour = int(end_parts[0])
     minute = int(end_parts[1]) if len(end_parts) > 1 else 0
     end_dt = datetime.combine(session_date, time(hour, minute), tzinfo=MARKET_TZ)
-    start_dt = end_dt.replace(minute=max(0, end_dt.minute - 1))
+    session_open = datetime.combine(session_date, time(9, 30), tzinfo=MARKET_TZ)
+    start_dt = max(session_open, end_dt - timedelta(minutes=1))
     start_time = start_dt.strftime("%H:%M:%S")
     end_time = end_dt.strftime("%H:%M:%S")
     df = fetch_0dte_option_quotes_window(

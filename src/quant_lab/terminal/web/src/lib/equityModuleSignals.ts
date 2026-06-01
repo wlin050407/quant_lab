@@ -45,10 +45,13 @@ export function deriveModuleSignals(data: EquityAnalyzeResponse): Record<ModuleI
   let liqScore = 0;
   if (!l0.eligible || (Number.isFinite(l0.adv_usd) && l0.adv_usd < 5_000_000)) {
     liqScore = -0.35;
-  } else if (Number.isFinite(l0.amihud) && l0.amihud > 5) {
-    liqScore -= 0.12;
-  } else if (Number.isFinite(l0.adv_usd) && l0.adv_usd >= 20_000_000) {
-    liqScore = 0.08;
+  } else {
+    const amihudHigh = Number.isFinite(l0.amihud_threshold) ? l0.amihud_threshold! : 1.0;
+    if (Number.isFinite(l0.amihud) && l0.amihud > amihudHigh) {
+      liqScore = -0.2;
+    } else if (Number.isFinite(l0.adv_usd) && l0.adv_usd >= 20_000_000) {
+      liqScore = 0.08;
+    }
   }
 
   let ctxScore = 0;

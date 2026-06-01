@@ -10,6 +10,17 @@ export function PriceLadder({ snapshot }: { snapshot: DashboardSnapshot }) {
   const L = snapshot.levels;
   const M = snapshot.metrics;
 
+  if (spot == null || !Number.isFinite(spot)) {
+    return (
+      <PanelShell className="ladder-panel" spotlightColor="rgba(20, 184, 166, 0.05)">
+        <div className="panel-head">
+          <h2>Price Ladder</h2>
+        </div>
+        <p className="panel-empty-hint">Levels appear when the session chain is available.</p>
+      </PanelShell>
+    );
+  }
+
   const entries = LADDER_ENTRIES.map((e) => ({ ...e, val: L[e.key] }))
     .filter((e) => isValidLevel(e.val as number | null))
     .sort((a, b) => (b.val as number) - (a.val as number));

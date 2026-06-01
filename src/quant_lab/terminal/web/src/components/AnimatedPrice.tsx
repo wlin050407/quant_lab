@@ -4,7 +4,7 @@ import gsap from "gsap";
 import { fmtPrice } from "../lib/format";
 
 interface AnimatedPriceProps {
-  value: number;
+  value: number | null;
   className?: string;
 }
 
@@ -31,7 +31,7 @@ export function AnimatedPrice({ value, className = "" }: AnimatedPriceProps) {
 
   return (
     <span ref={ref} className={className}>
-      {fmtPrice(value)}
+      {value != null && Number.isFinite(value) ? fmtPrice(value) : "—"}
     </span>
   );
 }

@@ -6,7 +6,7 @@ import type { EquityAnalyzeResponse, HorizonBias, ModuleId } from "../../types/e
 
 import { useLocale } from "../../hooks/useLocale";
 
-import { getEquityStrings, translateBackendReason } from "../../lib/i18n/equityStrings";
+import { getEquityStrings } from "../../lib/i18n/equityStrings";
 
 import {
 
@@ -325,8 +325,6 @@ export function EquityResearchRail({ data }: { data: EquityAnalyzeResponse }) {
 
   const modules = resolveModuleSignals(data);
 
-  const weakest = data.horizons.weakest_link;
-
 
 
   return (
@@ -524,22 +522,6 @@ export function EquityResearchRail({ data }: { data: EquityAnalyzeResponse }) {
               })}
 
             </div>
-
-            {weakest ? (
-
-              <p className="eq-monitor-warn">
-
-                <strong>
-
-                  {s.weakest} · {weakest.layer}
-
-                </strong>
-
-                {translateBackendReason(locale, weakest.reason)}
-
-              </p>
-
-            ) : null}
 
           </div>
 

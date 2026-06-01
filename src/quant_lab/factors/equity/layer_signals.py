@@ -6,7 +6,7 @@ from typing import Any, Literal
 
 import numpy as np
 
-from quant_lab.factors.equity.liquidity_thresholds import ADV_LOW_USD, ADV_STRONG_USD, AMIHUD_HIGH
+from quant_lab.factors.equity.liquidity_thresholds import liquidity_module_score
 from quant_lab.factors.equity.ma_structure import MaStructure
 from quant_lab.factors.equity.options_overlay import OptionsOverlay
 from quant_lab.factors.equity.relative_strength import RelativeStrength
@@ -37,14 +37,19 @@ def _signal(bias: Bias, score: float) -> dict[str, Any]:
     return {"bias": bias, "score": round(_clip_score(score), 3)}
 
 
-def liquidity_signal(*, eligible: bool, adv_usd: float, amihud: float) -> dict[str, Any]:
-    score = 0.0
-    if not eligible or (np.isfinite(adv_usd) and adv_usd < ADV_LOW_USD):
-        score = -0.35
-    elif np.isfinite(amihud) and amihud > AMIHUD_HIGH:
-        score -= 0.12
-    elif np.isfinite(adv_usd) and adv_usd >= ADV_STRONG_USD:
-        score = 0.08
+def liquidity_signal(
+    *,
+    eligible: bool,
+    adv_usd: float,
+    amihud: float,
+    amihud_threshold: float = float("nan"),
+) -> dict[str, Any]:
+    score = liquidity_module_score(
+        eligible=eligible,
+        adv_usd=adv_usd,
+        amihud=amihud,
+        amihud_threshold=amihud_threshold,
+    )
     return _signal(_bias_from_score(score, bull=0.05, bear=-0.15), score)
 
 
@@ -128,10 +133,16 @@ def compute_module_signals(
     amihud: float,
     earnings_window: bool,
     macro_count: int,
+    amihud_threshold: float = float("nan"),
 ) -> dict[str, dict[str, Any]]:
     """Return UI-ready module bias map keyed by module id."""
     return {
-        "liquidity": liquidity_signal(eligible=eligible, adv_usd=adv_usd, amihud=amihud),
+        "liquidity": liquidity_signal(
+            eligible=eligible,
+            adv_usd=adv_usd,
+            amihud=amihud,
+            amihud_threshold=amihud_threshold,
+        ),
         "context": context_signal(vol=vol, earnings_window=earnings_window, macro_count=macro_count),
         "vwap_flow": vwap_flow_signal(vwap),
         "volume_profile": volume_profile_signal(profile=profile, last_close=vwap.last_close),

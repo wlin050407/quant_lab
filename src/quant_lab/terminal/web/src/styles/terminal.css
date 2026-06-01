@@ -527,6 +527,117 @@ html[data-locale="zh"] {
   font-family: var(--mono);
   font-size: 0.62rem;
 }
+
+.chain-flow-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.12rem 0.2rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-base);
+}
+
+.chain-flow-toggle-label {
+  font-size: 0.52rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  padding: 0 0.25rem 0 0.15rem;
+}
+
+.chain-flow-pill {
+  border: none;
+  background: transparent;
+  border-radius: 4px;
+  padding: 0.2rem 0.45rem;
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition:
+    color 0.16s ease,
+    background 0.16s ease;
+}
+
+.chain-flow-pill:hover:not(:disabled) {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.chain-flow-pill.active {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.2);
+}
+
+.chain-flow-pill--precise.active {
+  color: #fde68a;
+  background: rgba(245, 158, 11, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(251, 191, 36, 0.28);
+}
+
+.session-hold-panel {
+  display: flex;
+  justify-content: center;
+  padding: 2.5rem 1rem 3rem;
+}
+
+.session-hold-card {
+  max-width: 28rem;
+  text-align: center;
+  padding: 1.75rem 1.5rem;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg-elevated) 88%, transparent);
+}
+
+.session-hold-kicker {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  margin: 0 0 0.75rem;
+}
+
+.session-hold-title {
+  font-size: 1.35rem;
+  font-weight: 600;
+  margin: 0 0 0.65rem;
+  color: var(--text);
+}
+
+.session-hold-body {
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+  margin: 0 0 0.75rem;
+}
+
+.session-hold-hint {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  line-height: 1.45;
+  margin: 0 0 1.25rem;
+}
+
+.session-hold-refresh {
+  margin: 0 auto;
+}
+
+.chain-flow-pill:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.strip-meta-pill--chain {
+  color: rgba(147, 197, 253, 0.95);
+}
+
+.strip-meta-pill--warn {
+  color: #fde68a;
+}
+
 .session-live-divider {
   color: var(--text-dim);
   opacity: 0.5;

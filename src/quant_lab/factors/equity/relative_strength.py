@@ -32,15 +32,19 @@ def relative_strength_vs_benchmark(
     benchmark_daily: pd.DataFrame,
 ) -> RelativeStrength:
     """Arithmetic RS spread: stock return minus benchmark return over N days (% points)."""
-    t_close = pd.to_numeric(ticker_daily["close"], errors="coerce").dropna()
-    b_close = pd.to_numeric(benchmark_daily["close"], errors="coerce").dropna()
-    if t_close.empty or b_close.empty:
+    t_close = pd.to_numeric(ticker_daily["close"], errors="coerce")
+    b_close = pd.to_numeric(benchmark_daily["close"], errors="coerce")
+    aligned = pd.concat([t_close.rename("ticker"), b_close.rename("benchmark")], axis=1).dropna()
+    if aligned.empty:
         nan = float("nan")
         return RelativeStrength(nan, nan, nan, nan, nan)
 
+    ticker = aligned["ticker"]
+    benchmark = aligned["benchmark"]
+
     def rs(n: int) -> float:
-        tr = _period_return(t_close, n)
-        br = _period_return(b_close, n)
+        tr = _period_return(ticker, n)
+        br = _period_return(benchmark, n)
         if not np.isfinite(tr) or not np.isfinite(br):
             return float("nan")
         return float((tr - br) * 100.0)

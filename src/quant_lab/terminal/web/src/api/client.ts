@@ -1,4 +1,4 @@
-import type { DatesResponse, DashboardSnapshot } from "../types/snapshot";
+import type { ChainFlowMode, DatesResponse, DashboardSnapshot } from "../types/snapshot";
 import type { EquityAnalyzeResponse } from "../types/equity";
 
 async function fetchJson<T>(url: string): Promise<T> {
@@ -36,13 +36,19 @@ export function fetchSnapshot(
   symbol: string,
   date: string,
   time?: string,
+  includeTrinity = false,
+  chainMode: ChainFlowMode = "pin",
 ): Promise<DashboardSnapshot> {
   const params = new URLSearchParams({
     symbol,
     date,
+    chain_mode: chainMode,
   });
   if (time) {
     params.set("time", time);
+  }
+  if (includeTrinity) {
+    params.set("include_trinity", "1");
   }
   return fetchJson(`/api/snapshot?${params.toString()}`);
 }

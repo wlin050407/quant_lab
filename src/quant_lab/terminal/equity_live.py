@@ -12,7 +12,7 @@ from quant_lab.data.equity_fetch import EquityBarBundle, fetch_equity_bars
 from quant_lab.data.macro_calendar import macro_events_on
 from quant_lab.factors.equity.evidence_grades import grade_l1, grade_l2, grade_l3, grade_l5, grade_l6
 from quant_lab.factors.equity.layer_signals import compute_module_signals
-from quant_lab.factors.equity.liquidity import amihud_illiquidity, average_dollar_volume
+from quant_lab.factors.equity.liquidity import amihud_illiquidity, amihud_percentile_threshold, average_dollar_volume
 from quant_lab.factors.equity.liquidity_thresholds import ADV_ELIGIBLE_USD, grade_l0
 from quant_lab.factors.equity.ma_structure import ma_structure
 from quant_lab.factors.equity.options_overlay import options_overlay_metrics
@@ -109,10 +109,16 @@ def _layer_payload(
 ) -> dict[str, Any]:
     adv = average_dollar_volume(bundle.daily)
     illiq = amihud_illiquidity(bundle.daily)
+    illiq_threshold = amihud_percentile_threshold(bundle.daily)
     eligible = bool(np.isfinite(adv) and adv >= ADV_ELIGIBLE_USD)
     macro = macro_events_on(bundle.session_date)
     opening = opening_30m_rs(bundle.intraday, bundle.benchmark_intraday)
-    l0_grade = grade_l0(adv_usd=adv, amihud=illiq, eligible=eligible)
+    l0_grade = grade_l0(
+        adv_usd=adv,
+        amihud=illiq,
+        eligible=eligible,
+        amihud_threshold=illiq_threshold,
+    )
     l1_grade = grade_l1(
         earnings_window=_earnings_within_days(bundle.ticker),
         macro_count=len(macro),
@@ -128,6 +134,7 @@ def _layer_payload(
         "L0": {
             "adv_usd": adv,
             "amihud": illiq,
+            "amihud_threshold": illiq_threshold,
             "eligible": eligible,
             "grade": l0_grade,
         },
@@ -188,6 +195,7 @@ def build_equity_analysis(ticker: str, *, refresh: bool = False) -> dict[str, An
     earnings_risk = _earnings_within_days(bundle.ticker)
     adv = average_dollar_volume(bundle.daily)
     illiq = amihud_illiquidity(bundle.daily)
+    illiq_threshold = amihud_percentile_threshold(bundle.daily)
     macro = macro_events_on(bundle.session_date)
     macro_labels = tuple(e.label for e in macro)
     opening = opening_30m_rs(bundle.intraday, bundle.benchmark_intraday)
@@ -205,6 +213,7 @@ def build_equity_analysis(ticker: str, *, refresh: bool = False) -> dict[str, An
         amihud=illiq,
         earnings_window=earnings_risk,
         macro_count=len(macro),
+        amihud_threshold=illiq_threshold,
     )
     horizons = synthesize_horizons(
         vwap=vwap_m,
@@ -221,6 +230,7 @@ def build_equity_analysis(ticker: str, *, refresh: bool = False) -> dict[str, An
         macro_labels=macro_labels,
         opening=opening,
         n_daily=len(bundle.daily),
+        amihud_threshold=illiq_threshold,
     )
 
     asof = datetime.now(tz=timezone.utc).astimezone().isoformat()

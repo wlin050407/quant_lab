@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 import { distPct } from "../lib/heatmap";
 import { countValidLevels, DEALER_LEVELS, isValidLevel } from "../lib/levels";
-import { dataSourceLabel, oiModeLabel, volumeSourceLabel } from "../lib/snapshotMeta";
+import { chainFlowModeLabel, dataSourceLabel, oiModeLabel, volumeSourceLabel } from "../lib/snapshotMeta";
 import { fmtPct, fmtPrice, regimeDesc, regimeShort, vannaLabel } from "../lib/format";
 import type { DashboardSnapshot, ExposureMetric } from "../types/snapshot";
 
@@ -24,10 +24,10 @@ function LevelChip({
   label: string;
   cls: string;
   value: number | null | undefined;
-  spot: number;
+  spot: number | null;
 }) {
   const ok = isValidLevel(value);
-  const d = ok ? distPct(spot, value) : null;
+  const d = ok && spot != null ? distPct(spot, value) : null;
   return (
     <div className={`strip-chip strip-chip--${cls}${ok ? "" : " is-empty"}`}>
       <span className="strip-chip-k">{label}</span>
@@ -55,6 +55,7 @@ export function InstrumentStrip({ snapshot, metric, loading }: InstrumentStripPr
   const source = dataSourceLabel(snapshot);
   const oiLabel = oiModeLabel(snapshot.meta?.oi_mode);
   const volLabel = volumeSourceLabel(snapshot.meta?.volume_source);
+  const chainLabel = chainFlowModeLabel(snapshot.meta?.chain_mode);
   const levelCount = countValidLevels(L);
 
   let exposureBlock: ReactNode;
@@ -100,6 +101,9 @@ export function InstrumentStrip({ snapshot, metric, loading }: InstrumentStripPr
   }
 
   const warnings: string[] = [];
+  if (snapshot.meta?.date_fallback && snapshot.meta.requested_date) {
+    warnings.push(`No data for ${snapshot.meta.requested_date} · showing ${snapshot.date}`);
+  }
   if (snapshot.meta?.cohort_fallback) warnings.push("Cohort fallback");
   if (!isIntraday && sym === "SPX") warnings.push("No intraday chain");
   if (strikes === 0) warnings.push("Empty chain");
@@ -213,6 +217,18 @@ export function InstrumentStrip({ snapshot, metric, loading }: InstrumentStripPr
 
         <span className="strip-foot-meta">
           <span className={`strip-meta-pill strip-meta-pill--${isLive ? "live" : "eod"}`}>{source}</span>
+          {snapshot.meta?.chain_mode ? (
+            <span
+              className={`strip-meta-pill strip-meta-pill--chain${snapshot.meta.chain_mode === "full" ? " strip-meta-pill--warn" : ""}`}
+              title={
+                snapshot.meta.chain_mode === "full"
+                  ? "Pin 用 OPRA 成交流调整 effective OI（更准、较慢）"
+                  : "Pin 用 |ΔOI| vs 09:30（较快）"
+              }
+            >
+              {chainLabel}
+            </span>
+          ) : null}
           {snapshot.meta?.oi_mode === "effective" ? (
             <span className="strip-meta-pill strip-meta-pill--oi">{oiLabel}</span>
           ) : null}

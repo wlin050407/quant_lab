@@ -9,11 +9,14 @@ import { InstrumentStrip } from "../components/InstrumentStrip";
 import { PriceLadder } from "../components/PriceLadder";
 import { HeatmapSection } from "../components/HeatmapSection";
 import { RightRail } from "../components/RightRail";
+import { SessionHoldPanel } from "../components/SessionHoldPanel";
 import { LoadingShell, LoadProgressBar } from "../components/LoadingShell";
 import { KeyboardHints } from "../components/KeyboardHints";
 
 import type { ExposureMetric, HeatmapViewMode } from "../types/snapshot";
+import { loadChainFlowMode, saveChainFlowMode } from "../lib/chainFlowMode";
 import { isLivePollCandidate, lastTradingSessionEt, pickInitialDate } from "../lib/liveSymbols";
+import type { ChainFlowMode } from "../types/snapshot";
 import {
   isLiveSessionTime,
   LIVE_SESSION_TIME,
@@ -25,7 +28,8 @@ const DEMO_SPX = { symbol: "^SPX", date: "2023-07-11", time: "13:00:00" };
 export function IndexTerminalApp() {
   const [symbol, setSymbol] = useState("^SPX");
   const [date, setDate] = useState("");
-  const [intradayTime, setIntradayTime] = useState(LIVE_SESSION_TIME);
+  const [intradayTime, setIntradayTime] = useState("13:00:00");
+  const [chainFlowMode, setChainFlowMode] = useState<ChainFlowMode>(loadChainFlowMode);
   const [metric, setMetric] = useState<ExposureMetric>("gex");
   const [scrollToken, setScrollToken] = useState(0);
   const [focusMode, setFocusMode] = useState(false);
@@ -61,20 +65,27 @@ export function IndexTerminalApp() {
     }
   }, [livePollCandidate, intradayTime]);
 
+  useEffect(() => {
+    saveChainFlowMode(chainFlowMode);
+  }, [chainFlowMode]);
+
   const snapshotQuery = useSnapshot(symbol, date, intradayTime, Boolean(date), {
     livePollCandidate,
+    includeTrinity: heatmapView === "trinity",
+    chainFlowMode: symbol === "^SPX" ? chainFlowMode : "pin",
   });
 
   const snapshot = snapshotQuery.data;
+  const sessionHold = snapshot?.availability === "hold";
 
   useEffect(() => {
-    if (!snapshotQuery.error || !datesQuery.data) return;
+    if (sessionHold || !snapshotQuery.error || !datesQuery.data) return;
     const latest = datesQuery.data.latest;
     if (!latest || date === latest) return;
     if (date === datesQuery.data.today) {
       setDate(pickInitialDate(symbol, datesQuery.data));
     }
-  }, [snapshotQuery.error, date, symbol, datesQuery.data]);
+  }, [sessionHold, snapshotQuery.error, date, symbol, datesQuery.data]);
 
   const loading = datesQuery.isFetching || snapshotQuery.isFetching;
 
@@ -84,7 +95,7 @@ export function IndexTerminalApp() {
 
   useEffect(() => {
     if (snapshot) bumpScroll();
-  }, [snapshot?.date, snapshot?.symbol, snapshot?.spot, metric, intradayTime, bumpScroll]);
+  }, [snapshot?.date, snapshot?.symbol, snapshot?.spot, metric, intradayTime, chainFlowMode, bumpScroll]);
 
   useEffect(() => {
     if (!snapshotQuery.isFetching && snapshotQuery.data) {
@@ -156,7 +167,7 @@ export function IndexTerminalApp() {
     return () => window.removeEventListener("keydown", onKey);
   }, [shiftDate, shiftSessionTime, symbol, loadLive, toggleTheme]);
 
-  const error = datesQuery.error ?? snapshotQuery.error;
+  const error = sessionHold ? null : datesQuery.error ?? snapshotQuery.error;
   const workspaceClass = focusMode ? "workspace workspace--focus" : "workspace workspace--heatmap-focus";
 
   return (
@@ -168,6 +179,8 @@ export function IndexTerminalApp() {
         symbol={symbol}
         date={date}
         intradayTime={intradayTime}
+        chainFlowMode={chainFlowMode}
+        onChainFlowModeChange={setChainFlowMode}
         dates={dates}
         focusMode={focusMode}
         theme={theme}
@@ -197,7 +210,14 @@ export function IndexTerminalApp() {
         </div>
       ) : null}
 
-      {snapshot ? (
+      {sessionHold && snapshot ? (
+        <SessionHoldPanel
+          snapshot={snapshot}
+          onRefresh={() => {
+            void snapshotQuery.refetch();
+          }}
+        />
+      ) : snapshot ? (
         <>
           {!focusMode ? <InstrumentStrip snapshot={snapshot} metric={metric} loading={loading} /> : null}
           <main className={workspaceClass}>
