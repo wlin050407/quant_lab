@@ -160,7 +160,7 @@ export function IndexTerminalApp() {
   const workspaceClass = focusMode ? "workspace workspace--focus" : "workspace workspace--heatmap-focus";
 
   return (
-    <div className={`app${loading && snapshot ? " is-loading" : ""}${focusMode ? " app--focus" : ""}`}>
+    <div className={`app index-terminal${loading && snapshot ? " is-loading" : ""}${focusMode ? " app--focus" : ""}`}>
       <LoadProgressBar active={loading && Boolean(snapshot)} />
       <div className="app-mesh" aria-hidden />
 

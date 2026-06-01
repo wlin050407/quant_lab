@@ -1,0 +1,209 @@
+/**
+ * 0DTE index terminal — mobile/tablet layout only.
+ * Scoped to `.app.index-terminal` so desktop (≥1101px) and equity terminal stay unchanged.
+ */
+
+@media (max-width: 1100px) {
+  .app.index-terminal {
+    height: auto;
+    min-height: 100dvh;
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+
+  .app.index-terminal .workspace {
+    display: flex;
+    flex-direction: column;
+    overflow: visible;
+    min-height: auto;
+    gap: 0.45rem;
+  }
+
+  .app.index-terminal .heatmap-stage {
+    min-height: clamp(300px, 48dvh, 540px);
+    order: 1;
+    flex: none;
+  }
+
+  .app.index-terminal .ladder-panel {
+    order: 2;
+    flex: none;
+    max-height: none;
+    overflow: visible;
+  }
+
+  .app.index-terminal .ladder-panel .price-ladder {
+    max-height: 220px;
+  }
+
+  .app.index-terminal .right-rail {
+    order: 3;
+    flex: none;
+    min-height: auto;
+    overflow: visible;
+  }
+
+  .app.index-terminal .rail-panel-host {
+    max-height: none;
+  }
+
+  .app.index-terminal.app--focus .workspace {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .app.index-terminal.app--focus .heatmap-stage {
+    min-height: clamp(360px, 58dvh, 640px);
+  }
+}
+
+@media (max-width: 768px) {
+  .app.index-terminal {
+    padding: 0.35rem 0.4rem calc(0.45rem + env(safe-area-inset-bottom, 0));
+  }
+
+  .app.index-terminal .topbar-row {
+    grid-template-columns: 1fr;
+    gap: 0.35rem;
+  }
+
+  .app.index-terminal .brand-tagline {
+    display: none;
+  }
+
+  .app.index-terminal .controls {
+    justify-content: flex-start;
+    width: 100%;
+    gap: 0.3rem;
+  }
+
+  .app.index-terminal .session-slider {
+    min-width: 0;
+    max-width: none;
+    flex: 1 1 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .app.index-terminal .session-slider-live-row {
+    flex-wrap: nowrap;
+    min-width: min-content;
+  }
+
+  .app.index-terminal .session-slider-ticks--inline {
+    flex-wrap: nowrap;
+  }
+
+  .app.index-terminal .ctrl-group.date-nav {
+    flex: 1 1 auto;
+  }
+
+  .app.index-terminal .controls input[type="date"] {
+    min-width: 0;
+    flex: 1 1 6.5rem;
+    max-width: 8.5rem;
+  }
+
+  .app.index-terminal .btn-toolbar {
+    padding: 0.35rem 0.45rem;
+    font-size: 0.68rem;
+  }
+
+  .app.index-terminal .btn-toolbar > span:not(.live-dot) {
+    display: none;
+  }
+
+  .app.index-terminal .keyboard-hints {
+    display: none;
+  }
+
+  .app.index-terminal .heatmap-stage-chrome {
+    overflow: visible;
+  }
+
+  .app.index-terminal .heatmap-stage-toolbar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    gap: 0.35rem;
+    padding: 0.35rem 0.45rem;
+  }
+
+  .app.index-terminal .heatmap-stage-toolbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .app.index-terminal .heatmap-stage-toolbar > * {
+    flex-shrink: 0;
+  }
+
+  .app.index-terminal .heatmap-stage {
+    min-height: clamp(280px, 44dvh, 480px);
+  }
+
+  .app.index-terminal .heatmap-panel {
+    min-height: clamp(240px, 38dvh, 420px);
+  }
+
+  .app.index-terminal .heatmap-rows-scroll,
+  .app.index-terminal .heatmap-body {
+    touch-action: pan-y;
+  }
+
+  .app.index-terminal .instrument-strip-main {
+    min-height: 48px;
+  }
+
+  .app.index-terminal .strip-regime {
+    flex: 0 0 52px;
+  }
+}
+
+@media (max-width: 480px) {
+  .app.index-terminal .topbar-home-btn {
+    padding: 0.22rem 0.35rem;
+    font-size: 0.58rem;
+  }
+
+  .app.index-terminal .brand-wordmark {
+    font-size: 0.95rem;
+  }
+
+  .app.index-terminal .btn-toolbar--demo {
+    display: none;
+  }
+
+  .app.index-terminal .strike-lens-label,
+  .app.index-terminal .heatmap-stage-layout-hint {
+    display: none;
+  }
+
+  .app.index-terminal .session-slider-title {
+    display: none;
+  }
+
+  .app.index-terminal .ladder-panel .panel-head h2 {
+    font-size: 0.78rem;
+  }
+
+  .app.index-terminal .ladder-panel .price-ladder {
+    max-height: 180px;
+  }
+
+  .app.index-terminal .rail-tabs {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .app.index-terminal .rail-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .app.index-terminal .rail-tab {
+    flex-shrink: 0;
+  }
+}

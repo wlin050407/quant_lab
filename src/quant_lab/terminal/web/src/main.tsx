@@ -21,6 +21,7 @@ import "./styles/trace-layout.css";
 import "./styles/pin-panel.css";
 import "./styles/home.css";
 import "./styles/equity.css";
+import "./styles/index-terminal-mobile.css";
 import "./styles/themes.css";
 import "./styles/strike-plot-light.css";
 
