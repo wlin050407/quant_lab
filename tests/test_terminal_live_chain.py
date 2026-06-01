@@ -133,12 +133,16 @@ def test_load_intraday_chain_live_vs_local() -> None:
 
     with patch.object(live_chain, "is_live_session", return_value=False):
         with patch(
-            "quant_lab.terminal.snapshot.load_built_intraday_chain",
-            return_value=(local_df, local_meta),
+            "quant_lab.terminal.snapshot.is_date_in_history_window",
+            return_value=False,
         ):
-            chain, spot, time_used, source = _load_intraday_chain_safe(
-                "2023-07-11", "^SPX", time_of_day="13:00:00"
-            )
+            with patch(
+                "quant_lab.terminal.snapshot.load_built_intraday_chain",
+                return_value=(local_df, local_meta),
+            ):
+                chain, spot, time_used, source = _load_intraday_chain_safe(
+                    "2023-07-11", "^SPX", time_of_day="13:00:00"
+                )
     assert source == "local"
     assert spot == 5000.0
     assert chain.iloc[0]["strike"] == 5000.0
@@ -167,32 +171,60 @@ def test_load_intraday_chain_thetadata_when_local_missing() -> None:
     assert chain.iloc[0]["strike"] == 5200.0
 
 
-def test_load_intraday_chain_prefers_local_over_thetadata_for_recent_session() -> None:
-    """Historical sessions: local intraday parquet wins over remote ThetaData (c216245 order)."""
+def test_load_intraday_chain_prefers_remote_over_local_for_recent_session() -> None:
+    """Historical sessions: remote ThetaData (chain_mode-aware) before local parquet."""
     remote_df = pd.DataFrame({"strike": [5300.0], "open_interest": [90]})
     local_df = pd.DataFrame({"strike": [5000.0], "open_interest": [10]})
     local_meta = pd.DataFrame({"spot": [5000.0]})
     with patch.object(live_chain, "is_live_session", return_value=False):
         with patch(
-            "quant_lab.terminal.snapshot.fetch_intraday_chain_from_thetadata",
-            return_value=(remote_df, 5300.0, "13:00:00", False),
-        ) as mock_remote:
+            "quant_lab.terminal.snapshot.is_date_in_history_window",
+            return_value=True,
+        ):
             with patch(
-                "quant_lab.terminal.snapshot.load_built_intraday_chain",
-                return_value=(local_df, local_meta),
-            ) as mock_local:
-                chain, spot, _time_used, source = _load_intraday_chain_safe(
-                    "2026-05-29", "^SPX", time_of_day="13:00:00"
-                )
+                "quant_lab.terminal.snapshot.fetch_intraday_chain_from_thetadata",
+                return_value=(remote_df, 5300.0, "13:00:00", False),
+            ) as mock_remote:
+                with patch(
+                    "quant_lab.terminal.snapshot.load_built_intraday_chain",
+                    return_value=(local_df, local_meta),
+                ) as mock_local:
+                    chain, spot, _time_used, source = _load_intraday_chain_safe(
+                        "2026-05-29", "^SPX", time_of_day="13:00:00"
+                    )
+    mock_remote.assert_called_once()
+    mock_local.assert_not_called()
+    assert source == "thetadata"
+    assert spot == 5300.0
+    assert chain.iloc[0]["strike"] == 5300.0
+
+
+def test_load_intraday_chain_falls_back_to_local_when_remote_missing() -> None:
+    local_df = pd.DataFrame({"strike": [5000.0], "open_interest": [10]})
+    local_meta = pd.DataFrame({"spot": [5000.0]})
+    with patch.object(live_chain, "is_live_session", return_value=False):
+        with patch(
+            "quant_lab.terminal.snapshot.is_date_in_history_window",
+            return_value=True,
+        ):
+            with patch(
+                "quant_lab.terminal.snapshot._fetch_thetadata_intraday_chain",
+                side_effect=FileNotFoundError("no remote"),
+            ):
+                with patch(
+                    "quant_lab.terminal.snapshot.load_built_intraday_chain",
+                    return_value=(local_df, local_meta),
+                ) as mock_local:
+                    chain, spot, _time_used, source = _load_intraday_chain_safe(
+                        "2026-05-29", "^SPX", time_of_day="13:00:00"
+                    )
     mock_local.assert_called_once()
-    mock_remote.assert_not_called()
     assert source == "local"
     assert spot == 5000.0
-    assert chain.iloc[0]["strike"] == 5000.0
 
 
 def test_live_fail_falls_through_to_thetadata_when_local_missing() -> None:
-    """After live + local fail, still try ThetaData before EoD fallback."""
+    """After live fails, remote ThetaData is tried before local parquet."""
     today = live_chain.market_today()
     remote_df = pd.DataFrame({"strike": [5100.0], "open_interest": [50]})
     with patch.object(live_chain, "is_live_session", return_value=True):

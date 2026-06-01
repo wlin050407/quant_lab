@@ -70,11 +70,14 @@ move" headline number, or multiply by 0.01 for "dollars per 1% move".
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date
 from typing import Mapping
 
 import numpy as np
 import pandas as pd
 from scipy.stats import norm
+
+from quant_lab.factors.rates import GexModel, resolve_gex_inputs
 
 DEFAULT_RISK_FREE_RATE = 0.05
 DEFAULT_DIVIDEND_YIELD = 0.013
@@ -154,15 +157,114 @@ def bs_gamma(
     return gamma
 
 
+def black76_gamma(
+    spot: float | np.ndarray,
+    strike: float | np.ndarray,
+    time_to_expiry: float | np.ndarray,
+    volatility: float | np.ndarray,
+    *,
+    r: float = DEFAULT_RISK_FREE_RATE,
+    q: float = DEFAULT_DIVIDEND_YIELD,
+) -> float | np.ndarray:
+    """Black-76 gamma (∂Δ/∂S) for options on equity-index forward.
+
+    Forward ``F = S · exp((r−q)T)``. Uses the Black-76 ``d₁`` on ``F/K``, then
+    chain-rule to spot. For cash-settled index 0DTE (SPX) per AGENTS.md / Phase 1.
+    """
+    s = np.asarray(spot, dtype="float64")
+    k = np.asarray(strike, dtype="float64")
+    t = np.asarray(time_to_expiry, dtype="float64")
+    sigma = np.asarray(volatility, dtype="float64")
+
+    with np.errstate(divide="ignore", invalid="ignore"):
+        valid = (s > 0) & (k > 0) & (t > 0) & (sigma > 0)
+        F = np.where(valid, s * np.exp((r - q) * t), np.nan)
+        d1 = np.where(
+            valid,
+            (np.log(F / k) + 0.5 * sigma**2 * t) / (sigma * np.sqrt(t)),
+            np.nan,
+        )
+        gamma_f = np.where(
+            valid,
+            np.exp(-r * t) * norm.pdf(d1) / (F * sigma * np.sqrt(t)),
+            np.nan,
+        )
+        gamma = np.where(valid, gamma_f * np.exp((r - q) * t), np.nan)
+
+    if gamma.ndim == 0:
+        return float(gamma)
+    return gamma
+
+
+def contract_gamma_spot(
+    spot: float | np.ndarray,
+    strike: float | np.ndarray,
+    time_to_expiry: float | np.ndarray,
+    volatility: float | np.ndarray,
+    *,
+    r: float = DEFAULT_RISK_FREE_RATE,
+    q: float = DEFAULT_DIVIDEND_YIELD,
+    model: GexModel = "bs",
+) -> float | np.ndarray:
+    """Spot gamma for dealer GEX (BS or Black-76)."""
+    if model == "black76":
+        return black76_gamma(
+            spot,
+            strike,
+            time_to_expiry,
+            volatility,
+            r=r,
+            q=q,
+        )
+    return bs_gamma(spot, strike, time_to_expiry, volatility, r=r, q=q)
+
+
+def resolve_gex_params(
+    *,
+    symbol: str | None,
+    asof: date | None = None,
+    r: float | None = None,
+    q: float | None = None,
+    model: GexModel | None = None,
+) -> tuple[float, float, GexModel]:
+    """Merge explicit ``r``/``q``/``model`` with ``settings.yaml`` + env for ``symbol``."""
+    if symbol is not None:
+        inp = resolve_gex_inputs(symbol, asof=asof)
+        return (
+            inp.r if r is None else r,
+            inp.q if q is None else q,
+            inp.model if model is None else model,
+        )
+    return (
+        r if r is not None else DEFAULT_RISK_FREE_RATE,
+        q if q is not None else DEFAULT_DIVIDEND_YIELD,
+        model if model is not None else "bs",
+    )
+
+
+def chain_symbol(chain: pd.DataFrame, fallback: str | None = None) -> str | None:
+    """Underlying symbol from chain rows if present."""
+    if "symbol" in chain.columns and not chain.empty:
+        raw = str(chain["symbol"].iloc[0])
+        return raw
+    return fallback
+
+
 def add_bs_gamma_column(
     chain: pd.DataFrame,
     spot: float,
     *,
-    r: float = DEFAULT_RISK_FREE_RATE,
-    q: float = DEFAULT_DIVIDEND_YIELD,
+    symbol: str | None = None,
+    asof: date | None = None,
+    r: float | None = None,
+    q: float | None = None,
+    model: GexModel | None = None,
     output_col: str = "bs_gamma",
 ) -> pd.DataFrame:
-    """Return a copy of `chain` with an added `bs_gamma` column.
+    """Return a copy of `chain` with an added gamma column (BS or Black-76).
+
+    When ``symbol`` is set (or present on the chain), ``r``/``q``/``model`` default
+    from ``factors/rates.resolve_gex_inputs`` (SPX → Black-76).
 
     The chain must follow `quant_lab.data.base.REQUIRED_OPTION_COLUMNS`:
     `strike`, `dte`, `implied_volatility` are the inputs consumed here. Rows
@@ -172,9 +274,10 @@ def add_bs_gamma_column(
     Args:
         chain: a single-snapshot option chain.
         spot: snapshot spot price.
-        r, q: BS inputs (see `bs_gamma`).
-        output_col: name of the column to add. Defaults to `bs_gamma`; pass
-            `gamma_bs` etc. if you have a column-naming convention.
+        symbol: underlying for rate/model resolution (e.g. ``^SPX``, ``SPY``).
+        asof: session date for optional SOFR series lookup.
+        r, q, model: overrides; omitted → resolved from config/env.
+        output_col: column name (default ``bs_gamma`` for downstream GEX agg).
 
     Returns:
         New DataFrame with the same rows and one extra column.
@@ -183,15 +286,21 @@ def add_bs_gamma_column(
         if col not in chain.columns:
             raise ValueError(f"chain is missing required column {col!r}")
 
+    sym = symbol or chain_symbol(chain)
+    r_eff, q_eff, model_eff = resolve_gex_params(
+        symbol=sym, asof=asof, r=r, q=q, model=model
+    )
+
     out = chain.copy()
     t_years = effective_time_to_expiry_years(out)
-    out[output_col] = bs_gamma(
+    out[output_col] = contract_gamma_spot(
         spot=spot,
         strike=out["strike"].to_numpy(dtype="float64"),
         time_to_expiry=t_years,
         volatility=out["implied_volatility"].to_numpy(dtype="float64"),
-        r=r,
-        q=q,
+        r=r_eff,
+        q=q_eff,
+        model=model_eff,
     )
     return out
 
@@ -242,28 +351,91 @@ def bs_vanna(
     return vanna
 
 
+def black76_vanna(
+    spot: float | np.ndarray,
+    strike: float | np.ndarray,
+    time_to_expiry: float | np.ndarray,
+    volatility: float | np.ndarray,
+    *,
+    r: float = DEFAULT_RISK_FREE_RATE,
+    q: float = DEFAULT_DIVIDEND_YIELD,
+) -> float | np.ndarray:
+    """Black-76 vanna (∂Δ/∂σ) mapped to spot delta."""
+    s = np.asarray(spot, dtype="float64")
+    k = np.asarray(strike, dtype="float64")
+    t = np.asarray(time_to_expiry, dtype="float64")
+    sigma = np.asarray(volatility, dtype="float64")
+
+    with np.errstate(divide="ignore", invalid="ignore"):
+        valid = (s > 0) & (k > 0) & (t > 0) & (sigma > 0)
+        F = np.where(valid, s * np.exp((r - q) * t), np.nan)
+        d1 = np.where(
+            valid,
+            (np.log(F / k) + 0.5 * sigma**2 * t) / (sigma * np.sqrt(t)),
+            np.nan,
+        )
+        d2 = np.where(valid, d1 - sigma * np.sqrt(t), np.nan)
+        vanna_f = np.where(
+            valid,
+            -np.exp(-r * t) * norm.pdf(d1) * d2 / sigma,
+            np.nan,
+        )
+        vanna = np.where(valid, vanna_f * np.exp((r - q) * t), np.nan)
+
+    if vanna.ndim == 0:
+        return float(vanna)
+    return vanna
+
+
+def contract_vanna_spot(
+    spot: float | np.ndarray,
+    strike: float | np.ndarray,
+    time_to_expiry: float | np.ndarray,
+    volatility: float | np.ndarray,
+    *,
+    r: float = DEFAULT_RISK_FREE_RATE,
+    q: float = DEFAULT_DIVIDEND_YIELD,
+    model: GexModel = "bs",
+) -> float | np.ndarray:
+    """Spot vanna for dealer VEX."""
+    if model == "black76":
+        return black76_vanna(
+            spot, strike, time_to_expiry, volatility, r=r, q=q
+        )
+    return bs_vanna(spot, strike, time_to_expiry, volatility, r=r, q=q)
+
+
 def add_bs_vanna_column(
     chain: pd.DataFrame,
     spot: float,
     *,
-    r: float = DEFAULT_RISK_FREE_RATE,
-    q: float = DEFAULT_DIVIDEND_YIELD,
+    symbol: str | None = None,
+    asof: date | None = None,
+    r: float | None = None,
+    q: float | None = None,
+    model: GexModel | None = None,
     output_col: str = "bs_vanna",
 ) -> pd.DataFrame:
-    """Return a copy of ``chain`` with an added ``bs_vanna`` column."""
+    """Return a copy of ``chain`` with an added vanna column (BS or Black-76)."""
     for col in ("strike", "dte", "implied_volatility"):
         if col not in chain.columns:
             raise ValueError(f"chain is missing required column {col!r}")
 
+    sym = symbol or chain_symbol(chain)
+    r_eff, q_eff, model_eff = resolve_gex_params(
+        symbol=sym, asof=asof, r=r, q=q, model=model
+    )
+
     out = chain.copy()
     t_years = effective_time_to_expiry_years(out)
-    out[output_col] = bs_vanna(
+    out[output_col] = contract_vanna_spot(
         spot=spot,
         strike=out["strike"].to_numpy(dtype="float64"),
         time_to_expiry=t_years,
         volatility=out["implied_volatility"].to_numpy(dtype="float64"),
-        r=r,
-        q=q,
+        r=r_eff,
+        q=q_eff,
+        model=model_eff,
     )
     return out
 
@@ -604,9 +776,12 @@ def compute_gex_profile(
     chain: pd.DataFrame,
     spot: float,
     *,
+    symbol: str | None = None,
+    asof: date | None = None,
     dte_max: int | None = None,
-    r: float = DEFAULT_RISK_FREE_RATE,
-    q: float = DEFAULT_DIVIDEND_YIELD,
+    r: float | None = None,
+    q: float | None = None,
+    model: GexModel | None = None,
     compute_flip: bool = True,
 ) -> GexProfile:
     """Compute net GEX, flip, walls, King, floor/ceiling for a chain cohort.
@@ -614,8 +789,10 @@ def compute_gex_profile(
     Args:
         chain: single EoD option chain snapshot.
         spot: underlying spot at snapshot.
+        symbol: underlying for ``r``/``q``/Black-76 vs BS (e.g. ``^SPX``).
+        asof: session date for optional rate series.
         dte_max: if set, only include ``dte <= dte_max`` (e.g. 1 for next-day 0DTE).
-        r, q: BS inputs for gamma recompute.
+        r, q, model: overrides; default from ``resolve_gex_inputs``.
         compute_flip: if False, skip flip (faster bulk builds).
     """
     work = filter_chain_by_dte(chain, dte_max=dte_max)
@@ -631,11 +808,26 @@ def compute_gex_profile(
             n_contracts=0,
         )
 
-    with_gamma = add_bs_gamma_column(work, spot, r=r, q=q)
+    sym = symbol or chain_symbol(chain)
+    r_eff, q_eff, model_eff = resolve_gex_params(
+        symbol=sym, asof=asof, r=r, q=q, model=model
+    )
+
+    with_gamma = add_bs_gamma_column(
+        work, spot, symbol=sym, asof=asof, r=r_eff, q=q_eff, model=model_eff
+    )
     per_strike = compute_dealer_gamma_exposure(with_gamma, spot)
     net = total_net_gex(per_strike)
     flip = (
-        gamma_flip_level(work, spot, r=r, q=q)
+        gamma_flip_level(
+            work,
+            spot,
+            symbol=sym,
+            asof=asof,
+            r=r_eff,
+            q=q_eff,
+            model=model_eff,
+        )
         if compute_flip
         else float("nan")
     )
@@ -689,9 +881,12 @@ def compute_vex_profile(
     chain: pd.DataFrame,
     spot: float,
     *,
+    symbol: str | None = None,
+    asof: date | None = None,
     dte_max: int | None = None,
-    r: float = DEFAULT_RISK_FREE_RATE,
-    q: float = DEFAULT_DIVIDEND_YIELD,
+    r: float | None = None,
+    q: float | None = None,
+    model: GexModel | None = None,
 ) -> VexProfile:
     """Compute net VEX, walls, and King for a chain cohort."""
     work = filter_chain_by_dte(chain, dte_max=dte_max)
@@ -705,7 +900,14 @@ def compute_vex_profile(
             interpretation="undetermined",
         )
 
-    with_vanna = add_bs_vanna_column(work, spot, r=r, q=q)
+    sym = symbol or chain_symbol(chain)
+    r_eff, q_eff, model_eff = resolve_gex_params(
+        symbol=sym, asof=asof, r=r, q=q, model=model
+    )
+
+    with_vanna = add_bs_vanna_column(
+        work, spot, symbol=sym, asof=asof, r=r_eff, q=q_eff, model=model_eff
+    )
     per_strike = compute_dealer_vanna_exposure(with_vanna, spot)
     net = total_net_vex(per_strike)
     call_col = per_strike["call_vex"] if "call_vex" in per_strike.columns else pd.Series(dtype=float)
@@ -733,6 +935,7 @@ def _net_gex_at_spot(
     *,
     r: float,
     q: float,
+    model: GexModel,
     dealer_sign: Mapping[str, int],
     multiplier: int,
     sign_arr: np.ndarray,
@@ -750,13 +953,14 @@ def _net_gex_at_spot(
     if chain.empty:
         return 0.0
     t = effective_time_to_expiry_years(chain)
-    gammas = bs_gamma(
+    gammas = contract_gamma_spot(
         spot=spot,
         strike=chain["strike"].to_numpy(dtype="float64"),
         time_to_expiry=t,
         volatility=chain["implied_volatility"].to_numpy(dtype="float64"),
         r=r,
         q=q,
+        model=model,
     )
     oi = chain["open_interest"].to_numpy(dtype="float64")
     contract_gex = gammas * oi * multiplier * spot * spot
@@ -776,8 +980,11 @@ def compute_gamma_profile_curve(
     chain: pd.DataFrame,
     spot: float,
     *,
-    r: float = DEFAULT_RISK_FREE_RATE,
-    q: float = DEFAULT_DIVIDEND_YIELD,
+    symbol: str | None = None,
+    asof: date | None = None,
+    r: float | None = None,
+    q: float | None = None,
+    model: GexModel | None = None,
     dealer_sign: Mapping[str, int] = DEFAULT_DEALER_SIGN,
     multiplier: int = DEFAULT_CONTRACT_MULTIPLIER,
     search_radius_pct: float = 0.10,
@@ -797,6 +1004,11 @@ def compute_gamma_profile_curve(
     if missing:
         raise ValueError(f"chain is missing required columns: {sorted(missing)}")
 
+    sym = symbol or chain_symbol(chain)
+    r_eff, q_eff, model_eff = resolve_gex_params(
+        symbol=sym, asof=asof, r=r, q=q, model=model
+    )
+
     sign_arr = chain["right"].map(dict(dealer_sign)).to_numpy(dtype="float64")
     if np.isnan(sign_arr).any():
         bad = chain.loc[pd.isna(chain["right"].map(dict(dealer_sign))), "right"].unique().tolist()
@@ -812,8 +1024,9 @@ def compute_gamma_profile_curve(
             _net_gex_at_spot(
                 chain,
                 float(s_grid),
-                r=r,
-                q=q,
+                r=r_eff,
+                q=q_eff,
+                model=model_eff,
                 dealer_sign=dealer_sign,
                 multiplier=multiplier,
                 sign_arr=sign_arr,
@@ -837,8 +1050,11 @@ def gamma_flip_level(
     chain: pd.DataFrame,
     spot: float,
     *,
-    r: float = DEFAULT_RISK_FREE_RATE,
-    q: float = DEFAULT_DIVIDEND_YIELD,
+    symbol: str | None = None,
+    asof: date | None = None,
+    r: float | None = None,
+    q: float | None = None,
+    model: GexModel | None = None,
     gamma_col: str = "bs_gamma",
     dealer_sign: Mapping[str, int] = DEFAULT_DEALER_SIGN,
     multiplier: int = DEFAULT_CONTRACT_MULTIPLIER,
@@ -894,8 +1110,11 @@ def gamma_flip_level(
     curve = compute_gamma_profile_curve(
         chain,
         spot,
+        symbol=symbol,
+        asof=asof,
         r=r,
         q=q,
+        model=model,
         dealer_sign=dealer_sign,
         multiplier=multiplier,
         search_radius_pct=search_radius_pct,

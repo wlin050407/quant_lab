@@ -53,13 +53,12 @@ import pandas as pd
 from quant_lab.config import settings
 from quant_lab.data.storage import list_option_snapshots, load_option_chain
 from quant_lab.factors.gex import (
-    DEFAULT_DIVIDEND_YIELD,
-    DEFAULT_RISK_FREE_RATE,
     add_bs_gamma_column,
     compute_dealer_gamma_exposure,
     gamma_flip_level,
     total_net_gex,
 )
+from quant_lab.factors.rates import resolve_gex_inputs
 
 log = logging.getLogger(__name__)
 
@@ -91,6 +90,8 @@ def _parse_date(s: str) -> date:
 def compute_one_snapshot(
     chain: pd.DataFrame,
     *,
+    symbol: str,
+    asof: date,
     spot: float,
     r: float,
     q: float,
@@ -111,7 +112,7 @@ def compute_one_snapshot(
             "n_one_day_rows": 0,
         }
 
-    with_bs = add_bs_gamma_column(chain, spot=spot, r=r, q=q)
+    with_bs = add_bs_gamma_column(chain, spot=spot, symbol=symbol, asof=asof, r=r, q=q)
     per_strike_bs = compute_dealer_gamma_exposure(with_bs, spot=spot, gamma_col="bs_gamma")
     net_bs = total_net_gex(per_strike_bs)
 
@@ -122,7 +123,7 @@ def compute_one_snapshot(
         net_ds = float("nan")
 
     flip = (
-        gamma_flip_level(with_bs, spot=spot, r=r, q=q)
+        gamma_flip_level(chain, spot=spot, symbol=symbol, asof=asof, r=r, q=q)
         if compute_flip
         else float("nan")
     )
@@ -149,8 +150,18 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--symbol", default="SPY")
     parser.add_argument("--start", type=_parse_date, default=None)
     parser.add_argument("--end", type=_parse_date, default=None)
-    parser.add_argument("--r", type=float, default=DEFAULT_RISK_FREE_RATE)
-    parser.add_argument("--q", type=float, default=DEFAULT_DIVIDEND_YIELD)
+    parser.add_argument(
+        "--r",
+        type=float,
+        default=None,
+        help="override risk-free rate (default: settings/env/series)",
+    )
+    parser.add_argument(
+        "--q",
+        type=float,
+        default=None,
+        help="override dividend yield (default: settings/env per symbol)",
+    )
     parser.add_argument(
         "--skip-flip",
         action="store_true",
@@ -219,11 +230,16 @@ def main(argv: list[str] | None = None) -> int:
             log.warning("skip %s: invalid spot=%s", d, spot)
             continue
 
+        gex_inp = resolve_gex_inputs(args.symbol, asof=d)
+        r_eff = args.r if args.r is not None else gex_inp.r
+        q_eff = args.q if args.q is not None else gex_inp.q
         row = compute_one_snapshot(
             chain,
+            symbol=args.symbol,
+            asof=d,
             spot=spot,
-            r=args.r,
-            q=args.q,
+            r=r_eff,
+            q=q_eff,
             compute_flip=not args.skip_flip,
         )
         row["date"] = pd.Timestamp(d)

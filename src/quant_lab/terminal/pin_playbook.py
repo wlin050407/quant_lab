@@ -144,13 +144,22 @@ def _build_structure(
     *,
     spot: float,
     king: float | None,
+    magnet_strike: float | None,
     max_pain: float | None,
     expected_move: float | None,
     spx_notional: bool,
 ) -> PlaybookStructure | None:
     center: float | None = None
-    source = "king"
-    if king is not None and np.isfinite(king):
+    source = "magnet"
+    if magnet_strike is not None and np.isfinite(magnet_strike):
+        center = float(magnet_strike)
+        if king is not None and np.isfinite(king) and abs(center - king) <= 0.51:
+            source = "king"
+        elif max_pain is not None and np.isfinite(max_pain) and abs(center - max_pain) <= 0.51:
+            source = "max_pain"
+        else:
+            source = "magnet"
+    elif king is not None and np.isfinite(king):
         center = float(king)
         source = "king"
     elif max_pain is not None and np.isfinite(max_pain):
@@ -232,6 +241,7 @@ def build_pin_playbook(
     put_wall: float | None,
     call_wall: float | None,
     king: float | None,
+    magnet_strike: float | None = None,
     max_pain: float | None,
     expected_move: float | None,
     gate_should_trade: bool,
@@ -328,6 +338,7 @@ def build_pin_playbook(
     structure = _build_structure(
         spot=spot,
         king=king,
+        magnet_strike=magnet_strike,
         max_pain=max_pain,
         expected_move=expected_move,
         spx_notional=spx,

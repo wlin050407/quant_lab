@@ -45,7 +45,12 @@ export function PlaybookPanel({ snapshot }: { snapshot: DashboardSnapshot }) {
         <p className="playbook-phase-detail">{pb.phase_detail}</p>
       </div>
 
-      <PinScoreGauge score={snapshot.metrics.pin_score} />
+      <PinScoreGauge
+        score={snapshot.pin_targets?.pin_score ?? snapshot.metrics.pin_score}
+        adjustedScore={snapshot.pin_targets?.pin_score_adjusted}
+        reliability={snapshot.pin_targets?.pin_reliability}
+        reliabilityDetail={snapshot.pin_targets?.pin_reliability_detail}
+      />
 
       <div className={`playbook-size${pb.actionable ? " actionable" : ""}`}>
         <span className="playbook-size-label">Position size</span>

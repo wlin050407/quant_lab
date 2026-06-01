@@ -25,8 +25,15 @@ from quant_lab.factors.gex import (
     net_gex_bn_per_1pct,
     pct_dte_cohort_of_total,
 )
-from quant_lab.data.intraday_time import SESSION_HOURS, pin_time_remaining_score
+from quant_lab.data.intraday_time import (
+    SESSION_HOURS,
+    TRADING_DAYS_PER_YEAR,
+    pin_time_remaining_score,
+)
 from quant_lab.factors.effective_oi import chain_for_positioning
+
+# Bump when pin inputs / weighting change materially (surfaced in terminal ``meta``).
+PIN_SCORE_MODEL_VERSION = "v2"
 
 # FlashAlpha pin-risk weights (https://flashalpha.com/concepts/pin-risk)
 PIN_WEIGHT_OI = 0.30
@@ -245,41 +252,109 @@ def top_oi_strike(
     return float(by_strike["total_oi"].idxmax())
 
 
+def resolve_cohort_time_years(
+    chain: pd.DataFrame,
+    *,
+    dte_max: int | None = 1,
+    hours_to_close: float | None = None,
+    trading_days_per_year: float = TRADING_DAYS_PER_YEAR,
+) -> float:
+    """Year fraction for EM / IV on a 0DTE cohort (``dte <= dte_max``).
+
+    Prefers per-row ``time_to_expiry_years`` (ThetaData intraday). Falls back to
+    remaining session hours, then calendar ``dte`` (EoD ``dte=0`` uses ~1 trading
+    hour, aligned with ``gex.effective_time_to_expiry_years``).
+    """
+    if chain.empty:
+        return float("nan")
+
+    work = chain
+    if dte_max is not None and "dte" in chain.columns:
+        filtered = chain[chain["dte"] <= dte_max]
+        if not filtered.empty:
+            work = filtered
+
+    if "time_to_expiry_years" in work.columns:
+        t = pd.to_numeric(work["time_to_expiry_years"], errors="coerce")
+        positive = t[t > 0]
+        if not positive.empty:
+            return float(positive.median())
+
+    if hours_to_close is not None and np.isfinite(hours_to_close) and hours_to_close > 0:
+        return float(hours_to_close / (trading_days_per_year * SESSION_HOURS))
+
+    if "dte" not in work.columns:
+        return float("nan")
+
+    dte_min = int(pd.to_numeric(work["dte"], errors="coerce").min())
+    if dte_min <= 0:
+        return float(1.0 / (trading_days_per_year * SESSION_HOURS))
+    return float(max(dte_min, 1) / trading_days_per_year)
+
+
 def expected_move_1sd(
     spot: float,
     atm_iv: float,
     *,
-    dte: int = 1,
+    dte: int | None = 1,
+    time_years: float | None = None,
     trading_days_per_year: int = 365,
 ) -> float:
     """One standard-deviation expected move in dollars (straddle-implied proxy).
 
-    ``EM = spot × IV × sqrt(T)`` with ``T = dte / trading_days_per_year``.
-    Matches FlashAlpha / SpotGamma expected-move headline units at EoD.
+    ``EM = spot × IV × sqrt(T)``. Prefer ``time_years`` (intraday 0DTE); else
+    ``dte / trading_days_per_year`` for EoD snapshots.
     """
     if not np.isfinite(spot) or spot <= 0 or not np.isfinite(atm_iv) or atm_iv <= 0:
         return float("nan")
-    if dte <= 0:
+    if time_years is not None and np.isfinite(time_years) and time_years > 0:
+        t = float(time_years)
+    elif dte is not None and dte > 0:
+        t = dte / trading_days_per_year
+    else:
         return float("nan")
-    t = dte / trading_days_per_year
     return float(spot * atm_iv * np.sqrt(t))
+
+
+def _iv_cohort(
+    chain: pd.DataFrame,
+    *,
+    dte: int | None = None,
+    dte_max: int | None = None,
+) -> pd.DataFrame:
+    """Rows used for ATM IV (0DTE bucket ``dte<=1`` when ``dte`` is 0 or 1)."""
+    if dte_max is not None:
+        if "dte" not in chain.columns:
+            raise ValueError("dte_max filter requires a 'dte' column")
+        out = chain[chain["dte"] <= dte_max]
+        return out.copy() if not out.empty else chain.copy()
+    if dte is not None:
+        if "dte" not in chain.columns:
+            raise ValueError("dte filter requires a 'dte' column")
+        if dte <= 1:
+            out = chain[chain["dte"] <= 1]
+            if not out.empty:
+                return out.copy()
+        return chain[chain["dte"] == dte].copy()
+    return chain.copy()
 
 
 def atm_iv_from_chain(
     chain: pd.DataFrame,
     spot: float,
     *,
-    dte: int = 1,
+    dte: int | None = 1,
+    dte_max: int | None = None,
     min_iv: float = 0.05,
     max_iv: float = 3.0,
 ) -> float:
-    """Nearest-strike ATM implied vol for a ``dte`` cohort."""
-    if chain.empty or "dte" not in chain.columns or "implied_volatility" not in chain.columns:
+    """Nearest-strike ATM implied vol for a cohort (``dte_max`` or ``dte`` bucket)."""
+    if chain.empty or "implied_volatility" not in chain.columns:
         return float("nan")
-    cohort = chain[chain["dte"] == dte].copy()
+    cohort = _iv_cohort(chain, dte=dte, dte_max=dte_max)
     if cohort.empty:
         return float("nan")
-    cohort = cohort.assign(dist=(cohort["strike"] - spot).abs())
+    cohort = cohort.assign(dist=(cohort["strike"].astype("float64") - spot).abs())
     row = cohort.loc[cohort["dist"].idxmin()]
     iv = float(row["implied_volatility"])
     if not np.isfinite(iv) or iv < min_iv or iv > max_iv:
@@ -537,8 +612,13 @@ def pin_score_from_chain(
 
     work = chain_for_positioning(chain, oi_mode=oi_mode)
 
-    profile_all = compute_gex_profile(work, spot, dte_max=None, r=r, q=q, compute_flip=False)
-    profile = compute_gex_profile(work, spot, dte_max=dte_max, r=r, q=q, compute_flip=False)
+    sym = str(work["symbol"].iloc[0]) if "symbol" in work.columns and not work.empty else None
+    profile_all = compute_gex_profile(
+        work, spot, symbol=sym, dte_max=None, r=r, q=q, compute_flip=False
+    )
+    profile = compute_gex_profile(
+        work, spot, symbol=sym, dte_max=dte_max, r=r, q=q, compute_flip=False
+    )
 
     cohort = filter_chain_by_dte(work, dte_max=dte_max)
     with_gamma = add_bs_gamma_column(cohort, spot, r=r, q=q)
@@ -546,8 +626,11 @@ def pin_score_from_chain(
 
     mp = max_pain(work, dte_max=dte_max)
     conc = oi_concentration(work, top_n=3, dte_max=dte_max)
-    iv = atm_iv_from_chain(work, spot, dte=dte_max if dte_max is not None else 1)
-    em = expected_move_1sd(spot, iv, dte=dte_max if dte_max is not None else 1)
+    t_years = resolve_cohort_time_years(
+        work, dte_max=dte_max, hours_to_close=hours_to_close
+    )
+    iv = atm_iv_from_chain(work, spot, dte_max=dte_max)
+    em = expected_move_1sd(spot, iv, time_years=t_years, dte=1)
 
     magnet = profile.king_node if np.isfinite(profile.king_node) else mp
     if not np.isfinite(magnet):

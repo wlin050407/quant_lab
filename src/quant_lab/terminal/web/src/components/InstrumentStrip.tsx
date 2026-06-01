@@ -222,8 +222,8 @@ export function InstrumentStrip({ snapshot, metric, loading }: InstrumentStripPr
               className={`strip-meta-pill strip-meta-pill--chain${snapshot.meta.chain_mode === "full" ? " strip-meta-pill--warn" : ""}`}
               title={
                 snapshot.meta.chain_mode === "full"
-                  ? "Pin 用 OPRA 成交流调整 effective OI（更准、较慢）"
-                  : "Pin 用 |ΔOI| vs 09:30（较快）"
+                  ? "Pin uses OPRA session trades for effective OI (slower)"
+                  : "Pin uses |ΔOI| vs 09:30 for effective OI (faster)"
               }
             >
               {chainLabel}

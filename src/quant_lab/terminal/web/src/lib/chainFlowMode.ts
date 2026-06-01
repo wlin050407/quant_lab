@@ -20,5 +20,5 @@ export function saveChainFlowMode(mode: ChainFlowMode): void {
 }
 
 export function chainFlowModeLabel(mode: ChainFlowMode | string | undefined): string {
-  return mode === "full" ? "Pin·精确(成交)" : "Pin·快速(ΔOI)";
+  return mode === "full" ? "Pin · Precise" : "Pin · Fast";
 }

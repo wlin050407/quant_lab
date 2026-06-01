@@ -12,10 +12,19 @@ from quant_lab.terminal.live_chain import market_today
 
 SessionHoldReason = Literal["pre_market", "awaiting_chain"]
 
-_HOLD_MESSAGES: dict[SessionHoldReason, str] = {
-    "pre_market": "Market not open yet — 0DTE chain and Pin unlock at 09:30 ET.",
-    "awaiting_chain": "Session open — waiting for first 0DTE quotes from ThetaData.",
+_HOLD_TITLES: dict[SessionHoldReason, str] = {
+    "pre_market": "Market not open yet",
+    "awaiting_chain": "Waiting for 0DTE chain",
 }
+
+_HOLD_MESSAGES: dict[SessionHoldReason, str] = {
+    "pre_market": "No 0DTE chain before 09:30 ET. Pin and GEX update after the open.",
+    "awaiting_chain": "Session is open — waiting for the first 0DTE quotes from ThetaData. Refresh in a moment.",
+}
+
+
+def session_hold_title(reason: SessionHoldReason) -> str:
+    return _HOLD_TITLES[reason]
 
 
 def session_hold_message(reason: SessionHoldReason) -> str:

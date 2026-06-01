@@ -20,6 +20,7 @@ export interface Levels {
   call_wall: number | null;
   put_wall: number | null;
   king: number | null;
+  magnet_strike?: number | null;
   floor: number | null;
   ceiling: number | null;
   max_pain: number | null;

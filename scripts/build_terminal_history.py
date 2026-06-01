@@ -26,8 +26,6 @@ import pandas as pd
 from quant_lab.config import settings
 from quant_lab.data.storage import list_option_snapshots, load_option_chain
 from quant_lab.factors.gex import (
-    DEFAULT_DIVIDEND_YIELD,
-    DEFAULT_RISK_FREE_RATE,
     add_bs_gamma_column,
     compute_dealer_gamma_exposure,
     compute_gex_profile,
@@ -47,7 +45,9 @@ from quant_lab.factors.positioning import (
     oi_concentration_near_magnet,
     pin_score,
     put_call_ratio,
+    resolve_cohort_time_years,
 )
+from quant_lab.factors.rates import resolve_gex_inputs
 from quant_lab.factors.regime import regime_from_net_gex
 
 log = logging.getLogger(__name__)
@@ -105,19 +105,35 @@ def _pct_from(spot: float, level: float) -> float:
 def compute_terminal_row(
     chain: pd.DataFrame,
     *,
+    symbol: str,
+    asof: date,
     spot: float,
     compute_flip: bool,
     r: float,
     q: float,
 ) -> dict[str, float]:
     profile_all = compute_gex_profile(
-        chain, spot, dte_max=None, r=r, q=q, compute_flip=compute_flip
+        chain,
+        spot,
+        symbol=symbol,
+        asof=asof,
+        dte_max=None,
+        r=r,
+        q=q,
+        compute_flip=compute_flip,
     )
     profile_dte1 = compute_gex_profile(
-        chain, spot, dte_max=1, r=r, q=q, compute_flip=compute_flip
+        chain,
+        spot,
+        symbol=symbol,
+        asof=asof,
+        dte_max=1,
+        r=r,
+        q=q,
+        compute_flip=compute_flip,
     )
-    vex_all = compute_vex_profile(chain, spot, dte_max=None, r=r, q=q)
-    vex_dte1 = compute_vex_profile(chain, spot, dte_max=1, r=r, q=q)
+    vex_all = compute_vex_profile(chain, spot, symbol=symbol, asof=asof, dte_max=None, r=r, q=q)
+    vex_dte1 = compute_vex_profile(chain, spot, symbol=symbol, asof=asof, dte_max=1, r=r, q=q)
 
     mp_dte1 = max_pain(chain, dte_max=1) if "dte" in chain.columns else float("nan")
     conc_dte1 = (
@@ -126,12 +142,15 @@ def compute_terminal_row(
         else float("nan")
     )
     pcr_oi = put_call_ratio(chain, kind="open_interest")
-    iv = atm_iv_from_chain(chain, spot, dte=1)
-    em = expected_move_1sd(spot, iv, dte=1)
+    t_years = resolve_cohort_time_years(chain, dte_max=1)
+    iv = atm_iv_from_chain(chain, spot, dte_max=1)
+    em = expected_move_1sd(spot, iv, time_years=t_years, dte=1)
 
     king_for_pin = profile_dte1.king_node if np.isfinite(profile_dte1.king_node) else mp_dte1
     cohort = filter_chain_by_dte(chain, dte_max=1)
-    with_gamma = add_bs_gamma_column(cohort, spot, r=r, q=q)
+    with_gamma = add_bs_gamma_column(
+        cohort, spot, symbol=symbol, asof=asof, r=r, q=q
+    )
     per_strike = compute_dealer_gamma_exposure(with_gamma, spot)
     magnet_gex_bn = float("nan")
     max_ref = float("nan")
@@ -238,12 +257,15 @@ def main(argv: list[str] | None = None) -> int:
         spot = float(meta["spot"].iloc[0]) if not meta.empty else float("nan")
         if not np.isfinite(spot) or spot <= 0:
             continue
+        gex_inp = resolve_gex_inputs(args.symbol, asof=d)
         row = compute_terminal_row(
             chain,
+            symbol=args.symbol,
+            asof=d,
             spot=spot,
             compute_flip=not args.skip_flip,
-            r=DEFAULT_RISK_FREE_RATE,
-            q=DEFAULT_DIVIDEND_YIELD,
+            r=gex_inp.r,
+            q=gex_inp.q,
         )
         row["date"] = pd.Timestamp(d)
         row["symbol"] = args.symbol

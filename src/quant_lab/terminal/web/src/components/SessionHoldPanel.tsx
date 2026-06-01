@@ -7,8 +7,14 @@ interface SessionHoldPanelProps {
 
 export function SessionHoldPanel({ snapshot, onRefresh }: SessionHoldPanelProps) {
   const meta = snapshot.meta;
-  const title = meta?.session_status_title ?? "暂无数据";
-  const message = meta?.session_status_message ?? "请稍后刷新。";
+  const title =
+    meta?.session_status_title ??
+    meta?.session_status_detail_en ??
+    "Session data unavailable";
+  const message =
+    meta?.session_status_message ??
+    meta?.session_status_detail_en ??
+    "Refresh again in a moment.";
   const clock = meta?.clock_et;
 
   return (
@@ -18,10 +24,11 @@ export function SessionHoldPanel({ snapshot, onRefresh }: SessionHoldPanelProps)
         <h2 className="session-hold-title">{title}</h2>
         <p className="session-hold-body">{message}</p>
         <p className="session-hold-hint">
-          Pin 与 GEX 在两种流量模式下都会计算；当前仅因会话尚无链数据而暂停展示。
+          Pin and GEX run in both chain modes; display is paused until today&apos;s 0DTE chain is
+          available.
         </p>
         <button type="button" className="btn-toolbar session-hold-refresh" onClick={onRefresh}>
-          刷新
+          Refresh
         </button>
       </div>
     </section>

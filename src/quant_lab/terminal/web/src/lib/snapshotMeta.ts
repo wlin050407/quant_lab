@@ -33,5 +33,5 @@ export function oiModeLabel(mode: string | undefined): string {
 }
 
 export function chainFlowModeLabel(mode: string | undefined): string {
-  return mode === "full" ? "Pin·精确" : "Pin·快速";
+  return mode === "full" ? "Pin · Precise" : "Pin · Fast";
 }

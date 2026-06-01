@@ -68,6 +68,15 @@ class OptionChainDefaults:
     skip_zero_volume_and_oi: bool
 
 
+@dataclass(frozen=True)
+class PositioningDefaults:
+    """GEX / pin greek inputs (see ``factors/rates.py``)."""
+
+    risk_free_rate: float
+    risk_free_rate_series: Path | None
+    dividend_yield: dict[str, float]
+
+
 @dataclass
 class Settings:
     """Top-level settings container.
@@ -82,6 +91,7 @@ class Settings:
     paths: Paths
     underlying: UnderlyingDefaults
     option_chain: OptionChainDefaults
+    positioning: PositioningDefaults
     data_source_active: str
     data_source_config: dict[str, Any]
 
@@ -115,10 +125,22 @@ def load_settings() -> Settings:
     active = ds["active"]
     ds_cfg = ds.get(active, {})
 
+    pos_raw = raw.get("positioning", {})
+    div_raw = pos_raw.get("dividend_yield", {})
+    div_yield = {str(k).upper(): float(v) for k, v in div_raw.items()}
+    series_rel = pos_raw.get("risk_free_rate_series")
+    series_path = _resolve(root, series_rel) if series_rel else None
+    positioning = PositioningDefaults(
+        risk_free_rate=float(pos_raw.get("risk_free_rate", 0.05)),
+        risk_free_rate_series=series_path,
+        dividend_yield=div_yield,
+    )
+
     return Settings(
         paths=paths,
         underlying=underlying,
         option_chain=option_chain,
+        positioning=positioning,
         data_source_active=active,
         data_source_config=ds_cfg,
     )

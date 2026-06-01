@@ -11,6 +11,18 @@ defaults:
     max_expiries: 12
     skip_zero_volume_and_oi: false
 
+# GEX / pin: r, q, and Black-76 vs BS (see factors/rates.py).
+# Override r via QUANT_LAB_RISK_FREE_RATE; q via QUANT_LAB_DIVIDEND_YIELD_SPX etc.
+positioning:
+  risk_free_rate: 0.05
+  # Optional: data/processed/rates/sofr_daily.parquet columns date, rate (decimal).
+  risk_free_rate_series: null
+  dividend_yield:
+    default: 0.013
+    SPX: 0.013
+    SPY: 0.013
+    QQQ: 0.006
+
 data_source:
   active: yfinance
   yfinance:
