@@ -1,6 +1,8 @@
 import { fmtPrice } from "../lib/format";
 import type { DashboardSnapshot } from "../types/snapshot";
-import { PinScoreGauge } from "./PinScoreGauge";function fmtMult(v: number): string {
+import { PinScoreGauge } from "./PinScoreGauge";
+
+function fmtMult(v: number): string {
   return `${v.toFixed(2)}×`;
 }
 
@@ -49,8 +51,8 @@ export function PlaybookPanel({ snapshot }: { snapshot: DashboardSnapshot }) {
         <span className="playbook-size-label">Position size</span>
         <strong className="playbook-size-value">{fmtMult(pb.size_multiplier)}</strong>
         <span className="playbook-size-breakdown">
-          pin {fmtMult(pb.pin_multiplier)} · γ {fmtMult(pb.regime_multiplier)} · gate{" "}
-          {fmtMult(pb.gate_multiplier)}
+          pin {fmtMult(pb.pin_multiplier)} · γ {fmtMult(pb.regime_multiplier)} · macro{" "}
+          {fmtMult(pb.macro_multiplier ?? 1)} · gate {fmtMult(pb.gate_multiplier)}
         </span>
       </div>
 

@@ -28,8 +28,13 @@ from quant_lab.data.storage import list_option_snapshots, load_option_chain
 from quant_lab.factors.gex import (
     DEFAULT_DIVIDEND_YIELD,
     DEFAULT_RISK_FREE_RATE,
+    add_bs_gamma_column,
+    compute_dealer_gamma_exposure,
     compute_gex_profile,
     compute_vex_profile,
+    filter_chain_by_dte,
+    max_abs_net_gex_bn,
+    net_gex_at_strike,
     net_gex_bn_per_1pct,
     net_vex_bn_per_1pct,
     pct_dte_cohort_of_total,
@@ -39,6 +44,7 @@ from quant_lab.factors.positioning import (
     expected_move_1sd,
     max_pain,
     oi_concentration,
+    oi_concentration_near_magnet,
     pin_score,
     put_call_ratio,
 )
@@ -124,18 +130,33 @@ def compute_terminal_row(
     em = expected_move_1sd(spot, iv, dte=1)
 
     king_for_pin = profile_dte1.king_node if np.isfinite(profile_dte1.king_node) else mp_dte1
-    gex_bn = net_gex_bn_per_1pct(profile_dte1.net_gex)
-    ps = pin_score(
-        spot=spot,
-        magnet_strike=king_for_pin,
-        oi_concentration_top3=conc_dte1,
-        net_gex_bn_per_1pct=gex_bn,
-        time_to_close_pct=100.0,
-    )
+    cohort = filter_chain_by_dte(chain, dte_max=1)
+    with_gamma = add_bs_gamma_column(cohort, spot, r=r, q=q)
+    per_strike = compute_dealer_gamma_exposure(with_gamma, spot)
+    magnet_gex_bn = float("nan")
+    max_ref = float("nan")
+    near_oi = float("nan")
+    if np.isfinite(king_for_pin):
+        magnet_gex_bn = net_gex_bn_per_1pct(net_gex_at_strike(per_strike, king_for_pin))
+        max_ref = max_abs_net_gex_bn(per_strike)
+        near_oi = oi_concentration_near_magnet(chain, king_for_pin, spot, dte_max=1)
 
     regime = regime_from_net_gex(profile_dte1.net_gex)
     pct_dte = pct_dte_cohort_of_total(profile_dte1.net_gex, profile_all.net_gex)
     pct_vex = pct_dte_cohort_of_total(vex_dte1.net_vex, vex_all.net_vex)
+
+    ps = pin_score(
+        spot=spot,
+        magnet_strike=king_for_pin,
+        oi_concentration_top3=conc_dte1 if np.isfinite(conc_dte1) else 0.0,
+        magnet_gex_bn_per_1pct=magnet_gex_bn,
+        time_to_close_pct=100.0,
+        expected_move_1sd=em,
+        max_gex_bn_reference=max_ref,
+        max_pain_strike=mp_dte1,
+        pct_gex_dte1=pct_dte,
+        oi_near_magnet=near_oi,
+    )
 
     return {
         "spot": float(spot),

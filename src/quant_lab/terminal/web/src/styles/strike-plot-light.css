@@ -1,0 +1,147 @@
+/**
+ * Light strike plot — "Paper Flux"
+ *
+ * Deliberately NOT the dark-mode green / purple / gold translation.
+ * +GEX = ocean blue (calm, dampening) | −GEX = rose (amplifying)
+ * VEX compare rows = cyan (+) / amber (−) so they don't collide with GEX hues.
+ * King / spot use row chrome only — bar fills stay in the blue / rose families.
+ */
+
+[data-theme="light"] {
+  /* ── GEX value labels ── */
+  --gex-pos: #1d4ed8;
+  --gex-pos-mid: #2563eb;
+  --gex-pos-peak: #1e40af;
+  --gex-neg: #be123c;
+  --gex-neg-mid: #e11d48;
+  --gex-neg-peak: #9f1239;
+
+  --vex-pos: #0891b2;
+  --vex-pos-muted: #0e7490;
+
+  --em-fill: rgba(37, 99, 235, 0.05);
+  --em-border: rgba(37, 99, 235, 0.22);
+
+  /* ── Regime band chart (match strike plot) ── */
+  --chart-gex-pos: #2563eb;
+  --chart-gex-pos-mid: #3b82f6;
+  --chart-gex-pos-soft: #93c5fd;
+  --chart-gex-neg: #e11d48;
+  --chart-gex-neg-mid: #f43f5e;
+  --chart-gex-neg-soft: #fda4af;
+  --chart-gamma-pos-opacity-top: 0.2;
+  --chart-gamma-pos-opacity-base: 0.04;
+  --chart-gamma-neg-opacity-top: 0.16;
+  --chart-gamma-neg-opacity-base: 0.035;
+
+  /* ── Bar track + rows ── */
+  --hm-spot-strike: #1d4ed8;
+  --hm-king-strike: #0f172a;
+  --hm-king-accent: #2563eb;
+  --hm-bar-track-bg: #f1f5f9;
+  --hm-bar-track-border: #e2e8f0;
+  --hm-bar-track-pos-accent: rgba(37, 99, 235, 0.55);
+  --hm-bar-track-neg-accent: rgba(225, 29, 72, 0.5);
+  --hm-bar-zero: #cbd5e1;
+  --hm-row-hover: rgba(241, 245, 249, 0.95);
+  --hm-row-spot-bg: rgba(239, 246, 255, 0.95);
+  --hm-row-king-bg: rgba(241, 245, 249, 0.98);
+
+  /* +GEX bars — blue ramp (flat, no yellow) */
+  --hm-grad-pos: linear-gradient(90deg, #2563eb 0%, #60a5fa 100%);
+  --hm-grad-pos-high: linear-gradient(90deg, #1d4ed8 0%, #3b82f6 100%);
+  --hm-grad-pos-max: linear-gradient(90deg, #1e3a8a 0%, #1d4ed8 50%, #2563eb 100%);
+
+  /* −GEX bars — rose ramp (no purple) */
+  --hm-grad-neg: linear-gradient(90deg, #e11d48 0%, #fb7185 100%);
+  --hm-grad-neg-high: linear-gradient(90deg, #be123c 0%, #f43f5e 100%);
+  --hm-grad-neg-max: linear-gradient(90deg, #9f1239 0%, #be123c 45%, #e11d48 100%);
+
+  /* VEX compare — cyan / amber (orthogonal to GEX blue / rose) */
+  --hm-grad-vex-pos: linear-gradient(90deg, #0891b2 0%, #22d3ee 100%);
+  --hm-grad-vex-pos-high: linear-gradient(90deg, #0e7490 0%, #06b6d4 100%);
+  --hm-grad-vex-pos-max: linear-gradient(90deg, #155e75 0%, #0891b2 100%);
+  --hm-grad-vex-neg: linear-gradient(90deg, #d97706 0%, #fbbf24 100%);
+  --hm-grad-vex-neg-high: linear-gradient(90deg, #b45309 0%, #f59e0b 100%);
+  --hm-grad-vex-neg-max: linear-gradient(90deg, #92400e 0%, #d97706 100%);
+}
+
+/* Flat peaks — brightness filter reads muddy on white */
+[data-theme="light"] .hm-bar.heat-pos-max,
+[data-theme="light"] .hm-bar.heat-neg-max,
+[data-theme="light"] .hm-bar.heat-vex-pos-max,
+[data-theme="light"] .hm-bar.heat-vex-neg-max {
+  filter: none;
+}
+
+[data-theme="light"] .hm-row.spot-row,
+[data-theme="light"] .hm-row.is-spot-row {
+  background: var(--hm-row-spot-bg) !important;
+  box-shadow: inset 2px 0 0 #2563eb;
+}
+
+[data-theme="light"] .hm-row.king-row {
+  background: var(--hm-row-king-bg);
+  box-shadow: inset 3px 0 0 var(--hm-king-accent);
+}
+
+[data-theme="light"] .hm-row.king-row .hm-bar-wrap {
+  border-color: rgba(37, 99, 235, 0.22);
+}
+
+[data-theme="light"] .hm-gex.gex-pos {
+  color: var(--gex-pos);
+}
+
+[data-theme="light"] .hm-gex.gex-neg {
+  color: var(--gex-neg);
+}
+
+[data-theme="light"] .hm-gex.vex-neg {
+  color: #d97706;
+}
+
+[data-theme="light"] .hm-metric-lbl.lbl-gex {
+  color: #2563eb;
+}
+
+[data-theme="light"] .hm-metric-lbl.lbl-vex {
+  color: #0891b2;
+}
+
+[data-theme="light"] .roc-badge.up {
+  color: #1d4ed8;
+  background: rgba(37, 99, 235, 0.1);
+}
+
+[data-theme="light"] .roc-badge.down {
+  color: #be123c;
+  background: rgba(225, 29, 72, 0.08);
+}
+
+[data-theme="light"] .dot-pos {
+  background: linear-gradient(135deg, #2563eb, #60a5fa);
+}
+
+[data-theme="light"] .dot-neg {
+  background: linear-gradient(135deg, #e11d48, #fb7185);
+}
+
+[data-theme="light"] .spot-pointer::before {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(37, 99, 235, 0.22) 20%,
+    rgba(15, 23, 42, 0.35) 50%,
+    rgba(37, 99, 235, 0.22) 80%,
+    transparent
+  );
+}
+
+[data-theme="light"] .gamma-profile-dot.pos {
+  fill: var(--chart-gex-pos);
+}
+
+[data-theme="light"] .gamma-profile-dot.neg {
+  fill: var(--chart-gex-neg);
+}

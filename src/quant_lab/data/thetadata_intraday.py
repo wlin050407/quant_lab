@@ -20,6 +20,8 @@ from quant_lab.data.thetadata_client import DEFAULT_INDEX_SYMBOL, DEFAULT_OPTION
 if TYPE_CHECKING:
     from thetadata import ThetaClient
 
+from quant_lab.factors.trade_flow import aggregate_signed_flow
+
 log = logging.getLogger(__name__)
 
 PIN_PLAY_TIMES_ET: tuple[str, ...] = ("10:00:00", "13:00:00", "15:30:00")
@@ -120,6 +122,123 @@ def fetch_0dte_option_quotes_window(
     out["session_date"] = session_date.isoformat()
     out["option_root"] = option_root
     return out
+
+
+def fetch_0dte_raw_trades_at_time(
+    client: ThetaClient,
+    *,
+    session_date: date,
+    time_of_day: str,
+    option_root: str = DEFAULT_OPTION_ROOT,
+    strike_range: int = 40,
+) -> pd.DataFrame:
+    """Raw OPRA trades for same-day expiry through ``time_of_day`` (Standard tier)."""
+    try:
+        df = client.option_history_trade(
+            symbol=option_root,
+            expiration=session_date,
+            date=session_date,
+            start_time="09:30:00",
+            end_time=time_of_day,
+            strike="*",
+            right="both",
+            max_dte=1,
+            strike_range=strike_range,
+        )
+    except Exception as exc:
+        log.debug("raw trades unavailable for %s @ %s: %s", session_date, time_of_day, exc)
+        return pd.DataFrame()
+
+    if df is None or len(df) == 0:
+        return pd.DataFrame()
+    return df.copy()
+
+
+def fetch_0dte_signed_flow_at_time(
+    client: ThetaClient,
+    *,
+    session_date: date,
+    time_of_day: str,
+    option_root: str = DEFAULT_OPTION_ROOT,
+    strike_range: int = 40,
+) -> pd.DataFrame:
+    """Lee-Ready signed flow + unsigned volume by (strike, right).
+
+    Requires Options **Standard** tier. Returns empty on failure — callers fall
+    back to unsigned volume or OI-delta proxy.
+    """
+    trades = fetch_0dte_raw_trades_at_time(
+        client,
+        session_date=session_date,
+        time_of_day=time_of_day,
+        option_root=option_root,
+        strike_range=strike_range,
+    )
+    if trades.empty:
+        return pd.DataFrame(columns=["strike", "right", "signed_flow", "volume"])
+
+    quotes = fetch_0dte_option_quotes_window(
+        client,
+        session_date=session_date,
+        start_time="09:30:00",
+        end_time=time_of_day,
+        option_root=option_root,
+        strike_range=strike_range,
+        interval="1m",
+    )
+    try:
+        return aggregate_signed_flow(trades, quotes if not quotes.empty else None)
+    except ValueError as exc:
+        log.debug("signed flow classification failed for %s @ %s: %s", session_date, time_of_day, exc)
+        return pd.DataFrame(columns=["strike", "right", "signed_flow", "volume"])
+
+
+def fetch_0dte_cumulative_volume_at_time(
+    client: ThetaClient,
+    *,
+    session_date: date,
+    time_of_day: str,
+    option_root: str = DEFAULT_OPTION_ROOT,
+    strike_range: int = 40,
+) -> pd.DataFrame:
+    """Cumulative contract volume from session open through ``time_of_day``.
+
+    Requires Options **Standard** tier (``option_history_trade``). Returns empty
+    on Value tier or missing data — callers should fall back to OI-delta proxy.
+    Prefer ``fetch_0dte_signed_flow_at_time`` when Standard tier is available.
+    """
+    signed = fetch_0dte_signed_flow_at_time(
+        client,
+        session_date=session_date,
+        time_of_day=time_of_day,
+        option_root=option_root,
+        strike_range=strike_range,
+    )
+    if not signed.empty and "volume" in signed.columns:
+        return signed[["strike", "right", "volume"]].copy()
+
+    trades = fetch_0dte_raw_trades_at_time(
+        client,
+        session_date=session_date,
+        time_of_day=time_of_day,
+        option_root=option_root,
+        strike_range=strike_range,
+    )
+    if trades.empty:
+        return pd.DataFrame(columns=["strike", "right", "volume"])
+
+    out = trades.copy()
+    out["right"] = out["right"].astype(str).str.upper().str[0]
+    out["strike"] = out["strike"].astype("float64")
+    size_col = "size" if "size" in out.columns else "volume" if "volume" in out.columns else None
+    if size_col is None:
+        return pd.DataFrame(columns=["strike", "right", "volume"])
+    grouped = (
+        out.groupby(["strike", "right"], as_index=False)[size_col]
+        .sum()
+        .rename(columns={size_col: "volume"})
+    )
+    return grouped
 
 
 def fetch_0dte_chain_at_time(

@@ -1,7 +1,7 @@
 import { SessionTimeSlider } from "./SessionTimeSlider";
 import { BrandMark } from "./BrandMark";
 import { BrandWordmark } from "./BrandWordmark";
-import { IconChevronLeft, IconChevronRight, IconRefresh } from "./Icons";
+import { IconChevronLeft, IconChevronRight, IconMoon, IconRefresh, IconSun } from "./Icons";
 
 interface TopBarProps {
   symbol: string;
@@ -9,6 +9,8 @@ interface TopBarProps {
   intradayTime: string;
   dates: string[];
   focusMode: boolean;
+  theme: "dark" | "light";
+  onToggleTheme: () => void;
   onSymbolChange: (symbol: string) => void;
   onDateChange: (date: string) => void;
   onIntradayTimeChange: (time: string) => void;
@@ -17,8 +19,11 @@ interface TopBarProps {
   onToggleFocus: () => void;
   onLoadDemo: () => void;
   onLoadLive: () => void;
+  onGoHome?: () => void;
   today: string;
   isLive: boolean;
+  livePollCandidate?: boolean;
+  effectiveIntradayTime?: string | null;
   onRefresh: () => void;
 }
 
@@ -28,6 +33,8 @@ export function TopBar({
   intradayTime,
   dates,
   focusMode,
+  theme,
+  onToggleTheme,
   onSymbolChange,
   onDateChange,
   onIntradayTimeChange,
@@ -36,8 +43,11 @@ export function TopBar({
   onToggleFocus,
   onLoadDemo,
   onLoadLive,
+  onGoHome,
   today,
   isLive,
+  livePollCandidate = false,
+  effectiveIntradayTime,
   onRefresh,
 }: TopBarProps) {
   const idx = dates.indexOf(date);
@@ -48,8 +58,13 @@ export function TopBar({
     <header className="topbar">
       <div className="topbar-row">
         <div className="brand">
+          {onGoHome ? (
+            <button type="button" className="topbar-home-btn" onClick={onGoHome} title="Back to workspace home (H)">
+              Home
+            </button>
+          ) : null}
           <BrandMark size={34} />
-          <BrandWordmark tagline="Terminal" />
+          <BrandWordmark tagline="Index · 0DTE" />
         </div>
         <div className="controls">
           <div className="ctrl-group">
@@ -64,7 +79,12 @@ export function TopBar({
             </select>
           </div>
           {symbol === "^SPX" ? (
-            <SessionTimeSlider value={intradayTime} onChange={onIntradayTimeChange} />
+            <SessionTimeSlider
+              value={intradayTime}
+              onChange={onIntradayTimeChange}
+              liveMode={livePollCandidate}
+              effectiveTime={effectiveIntradayTime}
+            />
           ) : null}
           <div className="ctrl-group date-nav">
             <button type="button" className="ctrl-icon" aria-label="Previous day" disabled={!canPrev} onClick={onPrevDate}>
@@ -86,6 +106,15 @@ export function TopBar({
             </button>
           </div>
           <div className="ctrl-group ctrl-actions">
+            <button
+              type="button"
+              className="btn-toolbar btn-toolbar--theme"
+              onClick={onToggleTheme}
+              title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+              aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+            >
+              {theme === "dark" ? <IconSun /> : <IconMoon />}
+            </button>
             <button type="button" className="btn-toolbar" onClick={onRefresh}>
               <IconRefresh />
               <span>Refresh</span>
@@ -102,7 +131,7 @@ export function TopBar({
               type="button"
               className={`btn-toolbar btn-toolbar--live${isLive ? " active" : ""}`}
               onClick={onLoadLive}
-              title={`Jump to today ^SPX live (T)${today ? ` · ${today}` : ""}`}
+              title={`Jump to latest ^SPX session via ThetaData (T)${today ? ` · ${today}` : ""}`}
             >
               {isLive ? <span className="live-dot" aria-hidden /> : null}
               Live

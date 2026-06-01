@@ -279,8 +279,8 @@
 }
 
 .heatmap-stage-toolbar .regime-toggle {
-  background: rgba(0, 0, 0, 0.28);
-  border: 1px solid rgba(148, 163, 184, 0.1);
+  background: var(--regime-toggle-bg);
+  border: 1px solid var(--regime-toggle-border);
   border-radius: 7px;
   padding: 2px;
 }
@@ -305,9 +305,9 @@
 }
 
 .heatmap-stage-toolbar .regime-btn.active {
-  color: #c4b5fd;
-  background: rgba(139, 92, 246, 0.12);
-  box-shadow: inset 0 0 0 1px rgba(139, 92, 246, 0.22);
+  color: var(--regime-btn-active-color);
+  background: var(--regime-btn-active-bg);
+  box-shadow: inset 0 0 0 1px var(--regime-btn-active-border);
 }
 
 .heatmap-stage-toolbar .strike-lens-label {

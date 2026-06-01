@@ -19,6 +19,24 @@ def test_default_date_weekend_uses_latest() -> None:
             assert resolve_default_terminal_date("^SPX", dates) == "2026-05-29"
 
 
+def test_default_date_skips_weekend_latest() -> None:
+    """EoD parquet may include Sat/Sun rows — default must not land on them."""
+    dates = ["2026-05-27", "2026-05-29", "2026-05-30"]
+    sunday = date(2026, 5, 31)
+    with patch("quant_lab.terminal.snapshot.market_today", return_value=sunday):
+        with patch("quant_lab.terminal.snapshot.is_live_session", return_value=True):
+            assert resolve_default_terminal_date("^SPX", dates) == "2026-05-29"
+
+
+def test_default_date_weekend_uses_calendar_when_parquet_sparse() -> None:
+    """Live default on Sunday is Fri 29 even if stored history stops at Mon 25."""
+    dates = ["2026-05-19", "2026-05-20", "2026-05-25", "2026-05-30"]
+    sunday = date(2026, 5, 31)
+    with patch("quant_lab.terminal.snapshot.market_today", return_value=sunday):
+        with patch("quant_lab.terminal.snapshot.is_live_session", return_value=True):
+            assert resolve_default_terminal_date("^SPX", dates) == "2026-05-29"
+
+
 def test_default_date_weekday_prefers_today() -> None:
     dates = ["2026-05-27", "2026-05-28", "2026-05-29"]
     friday = date(2026, 5, 29)

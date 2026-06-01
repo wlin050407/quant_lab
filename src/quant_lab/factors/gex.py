@@ -495,6 +495,23 @@ def net_gex_bn_per_1pct(net_gex_dollars_per_dollar: float) -> float:
     return float(net_gex_dollars_per_dollar * 0.01 / 1e9)
 
 
+def net_gex_at_strike(per_strike: pd.DataFrame, strike: float) -> float:
+    """Signed net GEX at the listed strike nearest to ``strike``."""
+    if per_strike.empty or not np.isfinite(strike):
+        return float("nan")
+    idx = per_strike.index.to_numpy(dtype="float64")
+    nearest = float(idx[np.argmin(np.abs(idx - strike))])
+    return float(per_strike.loc[nearest, "net_gex"])
+
+
+def max_abs_net_gex_bn(per_strike: pd.DataFrame) -> float:
+    """Largest ``|net_gex|`` on the book in Bn/1% units (pin gamma normalizer)."""
+    if per_strike.empty or "net_gex" not in per_strike.columns:
+        return float("nan")
+    bn = per_strike["net_gex"].astype("float64").map(net_gex_bn_per_1pct)
+    return float(bn.abs().max())
+
+
 def uw_gamma_notional_per_1pct(
     gamma: float,
     open_interest: float,

@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 
 import pandas as pd
 
+from quant_lab.config import env_var
 from quant_lab.data.base import MARKET_TZ
 from quant_lab.data.intraday_time import session_datetime
 from quant_lab.data.thetadata_chain import build_0dte_chain_snapshot
@@ -24,12 +25,29 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 DEFAULT_STRIKE_RANGE = 80
-DEFAULT_CACHE_TTL_SECONDS = 60.0
+DEFAULT_CACHE_TTL_SECONDS = 30.0
 HISTORICAL_CACHE_TTL_SECONDS = 3600.0
-"""UI poll interval — matches 1m quote granularity and server cache TTL."""
-LIVE_REFRESH_SECONDS = 60
+LIVE_REFRESH_SECONDS = 30
+"""Default live REST poll interval (override via ``TERMINAL_LIVE_REFRESH_SECONDS``)."""
+
+LIVE_TIME_OF_DAY = "live"
+"""Sentinel: on today's session, pull chain at current ET clock (not a fixed pin-play slot)."""
 
 _live_cache: dict[tuple[str, str, str], tuple[float, pd.DataFrame, float, str]] = {}
+
+
+def live_refresh_seconds() -> float:
+    """Seconds between live snapshot polls (REST pull; WebSocket not required for pin)."""
+    raw = env_var("TERMINAL_LIVE_REFRESH_SECONDS")
+    if raw is None:
+        return LIVE_REFRESH_SECONDS
+    try:
+        secs = float(raw)
+    except ValueError as exc:
+        raise ValueError(f"TERMINAL_LIVE_REFRESH_SECONDS must be numeric, got {raw!r}") from exc
+    if secs < 15.0:
+        raise ValueError("TERMINAL_LIVE_REFRESH_SECONDS must be >= 15")
+    return secs
 
 
 def market_today() -> date:
@@ -48,14 +66,18 @@ def _is_session_error(exc: BaseException) -> bool:
 
 
 def _effective_time_of_day(session_date: date, time_of_day: str) -> str:
-    """On live day, do not request a future clock time (cap to now ET)."""
+    """Resolve pull clock: ``live`` → now ET; cap future; floor pre-open on live day."""
     if not is_live_session(session_date):
         return time_of_day
     now = datetime.now(MARKET_TZ)
+    open_dt = session_datetime(session_date, "09:30:00")
+    close_dt = session_datetime(session_date, "16:00:00")
+    if time_of_day.strip().lower() == LIVE_TIME_OF_DAY:
+        clamped = min(max(now, open_dt), close_dt)
+        return clamped.strftime("%H:%M:%S")
     req = session_datetime(session_date, time_of_day)
     if req > now:
         return now.strftime("%H:%M:%S")
-    open_dt = session_datetime(session_date, "09:30:00")
     if req < open_dt:
         return "09:30:00"
     return time_of_day
@@ -83,12 +105,19 @@ def fetch_intraday_chain_from_thetadata(
         raise ValueError(f"no live intraday spec for {symbol!r}")
 
     effective_time = _effective_time_of_day(session_date, time_of_day)
-    cache_key = (spec.terminal_symbol, session_date.isoformat(), effective_time)
+    live_follow = (
+        time_of_day.strip().lower() == LIVE_TIME_OF_DAY and is_live_session(session_date)
+    )
+    cache_key = (
+        spec.terminal_symbol,
+        session_date.isoformat(),
+        "live" if live_follow else effective_time,
+    )
     ttl = (
         cache_ttl_seconds
         if cache_ttl_seconds is not None
         else (
-            DEFAULT_CACHE_TTL_SECONDS
+            live_refresh_seconds()
             if is_live_session(session_date)
             else HISTORICAL_CACHE_TTL_SECONDS
         )
@@ -148,7 +177,7 @@ def fetch_live_intraday_chain(
     *,
     symbol: str = "^SPX",
     strike_range: int | None = None,
-    cache_ttl_seconds: float = DEFAULT_CACHE_TTL_SECONDS,
+    cache_ttl_seconds: float | None = None,
 ) -> tuple[pd.DataFrame, float, str, bool]:
     """Build 0DTE chain from ThetaData for ``session_date`` (today).
 
@@ -162,5 +191,5 @@ def fetch_live_intraday_chain(
         time_of_day,
         symbol=symbol,
         strike_range=strike_range,
-        cache_ttl_seconds=cache_ttl_seconds,
+        cache_ttl_seconds=cache_ttl_seconds if cache_ttl_seconds is not None else live_refresh_seconds(),
     )

@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict, dataclass, field
-from datetime import date
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -24,13 +25,17 @@ from quant_lab.terminal.deploy import (
     filter_dates_by_retention,
     history_retention_days,
     is_date_in_history_window,
+    last_trading_session_date,
+    prefer_thetadata_intraday,
     recent_trading_dates,
 )
+from quant_lab.factors.effective_oi import EFFECTIVE_OI_COL, FLOW_SOURCE_COL
 from quant_lab.terminal.live_chain import (
-    LIVE_REFRESH_SECONDS,
+    LIVE_TIME_OF_DAY,
     fetch_intraday_chain_from_thetadata,
     fetch_live_intraday_chain,
     is_live_session,
+    live_refresh_seconds,
     market_today,
 )
 from quant_lab.factors.gex import (
@@ -46,10 +51,17 @@ from quant_lab.factors.gex import (
     filter_chain_by_dte,
     net_gex_bn_per_1pct,
     net_vex_bn_per_1pct,
+    pct_dte_cohort_of_total,
     vanna_interpretation,
 )
-from quant_lab.factors.regime import regime_from_net_gex, should_trade_zdte
-from quant_lab.factors.positioning import pin_magnet_ranking, pin_score_components
+from quant_lab.factors.regime import (
+    pin_reliability,
+    pin_score_regime_adjusted,
+    regime_from_net_gex,
+    should_trade_zdte,
+)
+from quant_lab.terminal.magnet_state import record_magnet_shift
+from quant_lab.factors.positioning import pin_magnet_ranking, pin_score_components, pin_score_from_chain
 from quant_lab.factors.trinity import trinity_from_kings
 from quant_lab.terminal.pin_playbook import build_pin_playbook, pin_playbook_to_dict
 from quant_lab.terminal.strategy_hint import StrategyHint, recommend_strategy
@@ -60,6 +72,40 @@ TRINITY_SYMBOLS = ("SPY", "^SPX", "QQQ")
 DEFAULT_INTRADAY_TIME = "13:00:00"
 # Back-compat alias
 SPX_INTRADAY_SYMBOLS = LIVE_INTRADAY_SYMBOLS
+
+
+def _resolve_oi_mode(chain: pd.DataFrame) -> str:
+    """Prefer flow-adjusted OI when the chain was enriched."""
+    if EFFECTIVE_OI_COL in chain.columns:
+        return "effective"
+    return "settled"
+
+
+def _volume_source_label(chain: pd.DataFrame) -> str:
+    """Map chain flow provenance to API meta (trade | quote_proxy | oi_delta | settled)."""
+    if chain.empty:
+        return "settled"
+    if FLOW_SOURCE_COL in chain.columns:
+        raw = chain[FLOW_SOURCE_COL].dropna()
+        if not raw.empty:
+            src = str(raw.mode().iloc[0])
+            if src == "trade_signed":
+                return "trade_signed"
+            if src == "trade":
+                return "trade"
+            if src == "quote_size":
+                return "quote_proxy"
+            if src == "oi_delta":
+                return "oi_delta"
+    vol = pd.to_numeric(chain.get("volume"), errors="coerce").fillna(0.0).sum()
+    if vol > 0 and _resolve_oi_mode(chain) == "effective":
+        return "trade"
+    return "settled"
+
+
+def _positioning_data_meta(chain: pd.DataFrame) -> dict[str, str]:
+    oi_mode = _resolve_oi_mode(chain)
+    return {"oi_mode": oi_mode, "volume_source": _volume_source_label(chain)}
 
 
 def _safe_symbol(symbol: str) -> str:
@@ -76,10 +122,9 @@ def is_trading_weekday(session_date: date) -> bool:
 
 
 def resolve_default_terminal_date(symbol: str, dates: list[str]) -> str:
-    """Default UI date: live today on trading days, else last date with stored history."""
+    """Default UI date: live today on trading days, else last calendar session day."""
     if not dates:
         return market_today().isoformat()
-    latest = dates[-1]
     today = market_today()
     if (
         supports_live_intraday(symbol)
@@ -87,7 +132,12 @@ def resolve_default_terminal_date(symbol: str, dates: list[str]) -> str:
         and is_trading_weekday(today)
     ):
         return today.isoformat()
-    return latest
+    if supports_live_intraday(symbol):
+        return last_trading_session_date(anchor=today).isoformat()
+    for iso in reversed(dates):
+        if is_trading_weekday(date.fromisoformat(iso)):
+            return iso
+    return dates[-1]
 
 
 def list_terminal_dates(symbol: str) -> list[str]:
@@ -102,8 +152,8 @@ def list_terminal_dates(symbol: str) -> list[str]:
     spec = resolve_intraday_spec(symbol)
     if spec is not None:
         dates.update(list_intraday_chain_dates(option_root=spec.option_root))
-        if history_retention_days() is not None:
-            dates.update(recent_trading_dates())
+        # Recent weekdays for ThetaData pull when local parquet has gaps (same as cloud).
+        dates.update(recent_trading_dates())
         today = market_today()
         if is_trading_weekday(today):
             dates.add(today.isoformat())
@@ -280,13 +330,38 @@ def _load_chain_safe(symbol: str, iso: str) -> tuple[pd.DataFrame, float]:
     return chain, spot
 
 
+def _fetch_thetadata_intraday_chain(
+    session: date,
+    iso: str,
+    symbol: str,
+    *,
+    time_of_day: str,
+) -> tuple[pd.DataFrame, float, str, str]:
+    if not is_date_in_history_window(session):
+        raise FileNotFoundError(f"no intraday chain for {symbol} on {iso} (outside history window)")
+    try:
+        chain, spot, time_used, _cached = fetch_intraday_chain_from_thetadata(
+            session, time_of_day, symbol=symbol
+        )
+    except Exception as exc:
+        from thetadata.errors import NoDataFoundError
+
+        if isinstance(exc, NoDataFoundError):
+            raise FileNotFoundError(
+                f"no intraday chain for {symbol} on {iso} @ {time_of_day}"
+            ) from exc
+        raise
+    source = "live" if is_live_session(session) else "thetadata"
+    return chain, spot, time_used, source
+
+
 def _load_intraday_chain_safe(
     iso: str,
     symbol: str,
     *,
     time_of_day: str = DEFAULT_INTRADAY_TIME,
 ) -> tuple[pd.DataFrame, float, str, str]:
-    """Load 0DTE intraday chain: live ThetaData for today, local parquet for history.
+    """Load 0DTE intraday chain: ThetaData for recent sessions, local parquet for deep history.
 
     Returns ``(chain, spot, time_used, source)`` where ``source`` is ``live``, ``local``,
     or ``thetadata`` (remote historical fetch when parquet is absent).
@@ -304,7 +379,21 @@ def _load_intraday_chain_safe(
             return chain, spot, time_used, "live"
         except Exception as exc:
             log.warning(
-                "live ThetaData fetch failed for %s %s @ %s: %s — trying local",
+                "live ThetaData fetch failed for %s %s @ %s: %s — trying fallbacks",
+                symbol,
+                iso,
+                time_of_day,
+                exc,
+            )
+
+    if prefer_thetadata_intraday(session):
+        try:
+            return _fetch_thetadata_intraday_chain(
+                session, iso, symbol, time_of_day=time_of_day
+            )
+        except FileNotFoundError as exc:
+            log.warning(
+                "ThetaData intraday unavailable for %s %s @ %s: %s — trying local",
                 symbol,
                 iso,
                 time_of_day,
@@ -314,13 +403,9 @@ def _load_intraday_chain_safe(
     try:
         return _load_local_intraday_chain(session, time_of_day, spec.option_root)
     except FileNotFoundError:
-        if not is_date_in_history_window(session):
-            raise
-        chain, spot, time_used, _cached = fetch_intraday_chain_from_thetadata(
-            session, time_of_day, symbol=symbol
+        return _fetch_thetadata_intraday_chain(
+            session, iso, symbol, time_of_day=time_of_day
         )
-        source = "live" if is_live_session(session) else "thetadata"
-        return chain, spot, time_used, source
 
 
 def _load_local_intraday_chain(
@@ -333,30 +418,44 @@ def _load_local_intraday_chain(
     return chain, spot, time_of_day, "local"
 
 
-def _row_from_chain(chain: pd.DataFrame, spot: float) -> dict[str, Any]:
+def _row_from_chain(
+    chain: pd.DataFrame,
+    spot: float,
+    *,
+    hours_to_close: float | None = None,
+    time_to_close_pct: float | None = None,
+) -> dict[str, Any]:
     """Terminal factor row from a 0DTE chain when no processed history exists."""
-    from quant_lab.factors.positioning import max_pain, oi_concentration, put_call_ratio
+    from quant_lab.factors.positioning import (
+        atm_iv_from_chain,
+        expected_move_1sd,
+        max_pain,
+        oi_concentration,
+        pin_score_from_chain,
+        put_call_ratio,
+    )
 
     profile = compute_gex_profile(chain, spot, dte_max=1)
+    profile_all = compute_gex_profile(chain, spot, dte_max=None)
     profile_vex = compute_vex_profile(chain, spot, dte_max=1)
     mp = max_pain(chain, dte_max=1)
     pcr = put_call_ratio(chain, kind="open_interest")
     oi_conc = oi_concentration(chain, dte_max=1, top_n=3)
     king = profile.king_node
-    spot_vs_king = float((spot - king) / spot * 100.0) if np.isfinite(king) and spot > 0 else float("nan")
-    flip = profile.flip_level
-    spot_vs_flip = (
-        float((spot - flip) / spot * 100.0) if np.isfinite(flip) and spot > 0 else float("nan")
+    iv = atm_iv_from_chain(chain, spot, dte=1)
+    em = expected_move_1sd(spot, iv, dte=1)
+    pct_dte = pct_dte_cohort_of_total(profile.net_gex, profile_all.net_gex)
+    oi_mode = _resolve_oi_mode(chain)
+    pin_result = pin_score_from_chain(
+        chain,
+        spot,
+        dte_max=1,
+        hours_to_close=hours_to_close,
+        time_to_close_pct=time_to_close_pct,
+        pct_gex_dte1=pct_dte,
+        oi_mode=oi_mode,
     )
-    from quant_lab.factors.positioning import pin_score as compute_pin_score
-
-    pin = compute_pin_score(
-        spot=spot,
-        magnet_strike=king if np.isfinite(king) else mp,
-        oi_concentration_top3=oi_conc if np.isfinite(oi_conc) else 0.0,
-        net_gex_bn_per_1pct=net_gex_bn_per_1pct(profile.net_gex),
-        time_to_close_pct=50.0,
-    )
+    pin = pin_result.score
     spot_vs_king = float((spot - king) / spot * 100.0) if np.isfinite(king) and spot > 0 else float("nan")
     flip = profile.flip_level
     spot_vs_flip = (
@@ -373,8 +472,8 @@ def _row_from_chain(chain: pd.DataFrame, spot: float) -> dict[str, Any]:
         "ceiling_dte1": profile.ceiling_strike,
         "max_pain_dte1": mp,
         "pin_score": pin,
-        "expected_move_1sd": float("nan"),
-        "pct_gex_dte1": float("nan"),
+        "expected_move_1sd": em,
+        "pct_gex_dte1": pct_dte,
         "net_gex_dte1": profile.net_gex,
         "pct_vex_dte1": float("nan"),
         "net_vex_dte1": profile_vex.net_vex,
@@ -383,7 +482,57 @@ def _row_from_chain(chain: pd.DataFrame, spot: float) -> dict[str, Any]:
         "oi_conc_dte1": oi_conc,
         "spot_vs_king_pct": spot_vs_king,
         "spot_vs_flip_pct": spot_vs_flip,
+        "distance_to_magnet_pct": pin_result.distance_to_magnet_pct,
+        "magnet_gex_bn": pin_result.magnet_gex_bn,
     }
+
+
+def _session_hours_to_close(session: date, time_of_day: str | None) -> float:
+    """Trading hours remaining until 16:00 ET."""
+    if not time_of_day:
+        return 0.0
+    from quant_lab.data.intraday_time import hours_to_close
+
+    return hours_to_close(session, time_of_day)
+
+
+def _session_time_to_close_pct(session: date, time_of_day: str | None) -> float:
+    """Legacy pct helper (0=open, 100=close)."""
+    from quant_lab.data.intraday_time import SESSION_HOURS
+
+    hours = _session_hours_to_close(session, time_of_day)
+    return float(np.clip((1.0 - hours / SESSION_HOURS) * 100.0, 0.0, 100.0))
+
+
+def _apply_live_pin_row(
+    row: dict[str, Any],
+    chain: pd.DataFrame,
+    spot: float,
+    *,
+    hours_to_close: float | None = None,
+    time_to_close_pct: float | None = None,
+) -> dict[str, Any]:
+    """Recompute pin score from the active chain (intraday-accurate)."""
+    if chain.empty or not np.isfinite(spot):
+        return row
+    pct = float(row.get("pct_gex_dte1", np.nan))
+    oi_mode = _resolve_oi_mode(chain)
+    result = pin_score_from_chain(
+        chain,
+        spot,
+        dte_max=1,
+        hours_to_close=hours_to_close,
+        time_to_close_pct=time_to_close_pct,
+        pct_gex_dte1=pct if np.isfinite(pct) else None,
+        oi_mode=oi_mode,
+    )
+    merged = dict(row)
+    merged["pin_score"] = result.score
+    merged["distance_to_magnet_pct"] = result.distance_to_magnet_pct
+    merged["magnet_gex_bn"] = result.magnet_gex_bn
+    merged["king_dte1"] = result.magnet_strike
+    merged["max_pain_dte1"] = result.max_pain_strike
+    return merged
 
 
 def _intraday_data_labels(chain_source: str, time_used: str) -> tuple[str, str]:
@@ -400,6 +549,45 @@ def _unavailable_panel_meta(sym: str, session: date) -> tuple[str, str]:
     return "unavailable", "No chain for this date"
 
 
+def _is_live_follow_request(session: date, time_of_day: str) -> bool:
+    return is_live_session(session) and time_of_day.strip().lower() == LIVE_TIME_OF_DAY
+
+
+def _prefetch_trinity_chains(
+    iso: str,
+    time_of_day: str,
+    *,
+    main_symbol: str,
+) -> dict[str, tuple[pd.DataFrame, float, str, str, str | None]]:
+    """Parallel ThetaData pulls for SPY/QQQ/^SPX (excludes ``main_symbol``)."""
+    session = date.fromisoformat(iso)
+    if not _is_live_follow_request(session, time_of_day):
+        return {}
+
+    def _load(sym: str) -> tuple[str, tuple[pd.DataFrame, float, str, str, str | None] | None]:
+        try:
+            chain, spot, time_used, chain_source = _load_intraday_chain_safe(
+                iso, sym, time_of_day=time_of_day
+            )
+            ds, dm = _intraday_data_labels(chain_source, time_used)
+            tshort = time_used[:5] if time_used else None
+            return sym, (chain, spot, ds, dm, tshort)
+        except FileNotFoundError:
+            return sym, None
+
+    out: dict[str, tuple[pd.DataFrame, float, str, str, str | None]] = {}
+    workers = [sym for sym in TRINITY_SYMBOLS if sym != main_symbol and supports_live_intraday(sym)]
+    if not workers:
+        return out
+    with ThreadPoolExecutor(max_workers=min(3, len(workers))) as pool:
+        futures = [pool.submit(_load, sym) for sym in workers]
+        for fut in as_completed(futures):
+            sym, payload = fut.result()
+            if payload is not None:
+                out[sym] = payload
+    return out
+
+
 def _load_sym_panel_chain(
     sym: str,
     iso: str,
@@ -410,6 +598,7 @@ def _load_sym_panel_chain(
     main_spot: float,
     main_intraday_time: str | None,
     main_chain_source: str | None,
+    prefetched: dict[str, tuple[pd.DataFrame, float, str, str, str | None]] | None = None,
 ) -> tuple[pd.DataFrame | None, float, str, str, str | None]:
     """Load chain for one Trinity symbol; returns chain, spot, source, mode, time label."""
     session = date.fromisoformat(iso)
@@ -423,6 +612,10 @@ def _load_sym_panel_chain(
             return main_chain, main_spot, "eod", "EoD close", None
         ds, dm = _unavailable_panel_meta(sym, session)
         return None, float("nan"), ds, dm, None
+
+    if prefetched and sym in prefetched:
+        chain, spot, ds, dm, tshort = prefetched[sym]
+        return chain, spot, ds, dm, tshort
 
     try:
         if supports_live_intraday(sym):
@@ -518,8 +711,15 @@ def build_pin_targets(
     max_pain: float | None,
     pin_score: float | None,
     oi_concentration_top3: float | None,
-    net_gex_bn_per_1pct: float | None,
-    time_to_close_pct: float = 100.0,
+    hours_to_close: float | None = None,
+    time_to_close_pct: float | None = None,
+    magnet_gex_bn: float | None = None,
+    expected_move_1sd: float | None = None,
+    max_gex_bn_reference: float | None = None,
+    pct_gex_dte1: float | None = None,
+    oi_near_magnet: float | None = None,
+    net_gex_bn_per_1pct: float | None = None,
+    regime: str = "undetermined",
     top_n: int = 5,
 ) -> dict[str, Any]:
     """Pin magnet ladder for terminal UI (relative weights, not calibrated probability)."""
@@ -531,8 +731,15 @@ def build_pin_targets(
         spot=spot,
         magnet_strike=float(magnet),
         oi_concentration_top3=oi_concentration_top3 if oi_concentration_top3 is not None else 0.0,
-        net_gex_bn_per_1pct=net_gex_bn_per_1pct if net_gex_bn_per_1pct is not None else float("nan"),
+        magnet_gex_bn_per_1pct=magnet_gex_bn if magnet_gex_bn is not None else float("nan"),
+        hours_to_close=hours_to_close,
         time_to_close_pct=time_to_close_pct,
+        expected_move_1sd=expected_move_1sd,
+        max_gex_bn_reference=max_gex_bn_reference,
+        max_pain_strike=max_pain,
+        pct_gex_dte1=pct_gex_dte1,
+        oi_near_magnet=oi_near_magnet,
+        net_gex_bn_per_1pct=net_gex_bn_per_1pct,
     )
     rankings = pin_magnet_ranking(
         heatmap,
@@ -545,13 +752,28 @@ def build_pin_targets(
     if primary is None and rankings:
         primary = float(rankings[0]["strike"])
 
+    raw_pin = pin_score
+    adjusted_pin = (
+        pin_score_regime_adjusted(float(raw_pin), regime)  # type: ignore[arg-type]
+        if raw_pin is not None and np.isfinite(raw_pin)
+        else None
+    )
+    reliability_tier, reliability_detail = (
+        pin_reliability(float(raw_pin), regime)  # type: ignore[arg-type]
+        if raw_pin is not None and np.isfinite(raw_pin)
+        else ("unknown", "Insufficient pin data")
+    )
+
     return {
         "method": "gex_times_oi_heuristic",
         "disclaimer": "Relative magnet weight from |GEX|×OI — not a calibrated close probability.",
         "primary_strike": _f(primary) if primary is not None else None,
         "primary_label": "king" if king is not None and np.isfinite(king) else "top_magnet",
         "max_pain": _f(max_pain),
-        "pin_score": _f(pin_score),
+        "pin_score": _f(raw_pin),
+        "pin_score_adjusted": _f(adjusted_pin),
+        "pin_reliability": reliability_tier,
+        "pin_reliability_detail": reliability_detail,
         "pin_score_breakdown": {k: _f(v) for k, v in breakdown.items()},
         "rankings": rankings,
     }
@@ -572,22 +794,31 @@ def build_dashboard(
 
     chain = pd.DataFrame()
     spot = float(row.get("spot", np.nan)) if row else float("nan")
+    session_hours = _session_hours_to_close(asof, time_of_day)
 
     if supports_live_intraday(symbol):
         try:
             chain, spot, intraday_time, main_chain_source = _load_intraday_chain_safe(
                 iso, symbol, time_of_day=time_of_day
             )
+            session_hours = _session_hours_to_close(asof, intraday_time or time_of_day)
             if main_chain_source == "live":
-                data_mode = f"ThetaData live @ {intraday_time[:5]} ET"
+                if _is_live_follow_request(asof, time_of_day):
+                    data_mode = f"ThetaData live follow @ {intraday_time[:5]} ET"
+                else:
+                    data_mode = f"ThetaData snapshot @ {intraday_time[:5]} ET"
             else:
                 data_mode = f"ThetaData intraday @ {intraday_time[:5]} ET"
-            if row is None and not chain.empty:
-                row = _row_from_chain(chain, spot)
+            if main_chain_source in ("live", "thetadata") and not chain.empty:
+                row = _row_from_chain(chain, spot, hours_to_close=session_hours)
+            elif row is None and not chain.empty:
+                row = _row_from_chain(chain, spot, hours_to_close=session_hours)
         except FileNotFoundError:
             pass
 
-    if chain.empty:
+    if chain.empty and not (
+        supports_live_intraday(symbol) and prefer_thetadata_intraday(asof)
+    ):
         try:
             chain, meta = load_option_chain(symbol, iso)
             spot = float(meta["spot"].iloc[0]) if not meta.empty else spot
@@ -598,23 +829,36 @@ def build_dashboard(
         raise FileNotFoundError(f"no data for {symbol} on {iso}")
 
     if row is None and not chain.empty:
-        row = _row_from_chain(chain, spot)
+        row = _row_from_chain(chain, spot, hours_to_close=session_hours)
+    elif row is not None and not chain.empty and np.isfinite(spot):
+        row = _apply_live_pin_row(row, chain, spot, hours_to_close=session_hours)
 
     prev_date = _prev_trading_date(symbol, asof)
     prev_row_main = _load_terminal_row(symbol, prev_date) if prev_date else None
     prev_chain_main: pd.DataFrame | None = None
     prev_spot_main: float | None = None
+    compare_time = intraday_time
+    if not compare_time:
+        compare_time = (
+            DEFAULT_INTRADAY_TIME
+            if time_of_day.strip().lower() == LIVE_TIME_OF_DAY
+            else time_of_day
+        )
     if prev_date is not None:
         try:
-            prev_chain_main, prev_spot_main = _load_chain_safe(symbol, prev_date.isoformat())
+            if supports_live_intraday(symbol):
+                prev_chain_main, prev_spot_main, _, _ = _load_intraday_chain_safe(
+                    prev_date.isoformat(),
+                    symbol,
+                    time_of_day=compare_time,
+                )
+            else:
+                prev_chain_main, prev_spot_main = _load_chain_safe(symbol, prev_date.isoformat())
         except FileNotFoundError:
             pass
 
-    roc_prev_chain: pd.DataFrame | None = None
-    roc_prev_spot: float | None = None
-    if prev_chain_main is not None and main_chain_source not in ("live", "local"):
-        roc_prev_chain = prev_chain_main
-        roc_prev_spot = prev_spot_main
+    roc_prev_chain: pd.DataFrame | None = prev_chain_main
+    roc_prev_spot: float | None = prev_spot_main
 
     heatmap: list[dict[str, float | None]] = []
     cohort_fallback = False
@@ -664,8 +908,10 @@ def build_dashboard(
     net_vex_dte = float(row.get("net_vex_dte1", np.nan))
     pct_vex = float(row.get("pct_vex_dte1", np.nan))
     vanna_interp = str(row.get("vanna_interp_dte1", vanna_interpretation(net_vex_dte)))
+    trinity_prefetch = _prefetch_trinity_chains(iso, time_of_day, main_symbol=symbol)
     panels: list[dict[str, Any]] = []
     trinity_inputs: dict[str, tuple[float, float]] = {}
+    trinity_live_count = 0
     for sym in TRINITY_SYMBOLS:
         sym_row = _load_terminal_row(sym, asof) if sym != symbol else row
         sym_prev_row = _load_terminal_row(sym, prev_date) if prev_date else None
@@ -678,14 +924,17 @@ def build_dashboard(
             main_spot=spot,
             main_intraday_time=intraday_time,
             main_chain_source=main_chain_source,
+            prefetched=trinity_prefetch,
         )
+        if sym_data_source == "thetadata_live":
+            trinity_live_count += 1
         sym_prev_chain: pd.DataFrame | None = prev_chain_main if sym == symbol else None
         sym_prev_spot: float | None = prev_spot_main if sym == symbol else None
         if sym != symbol and prev_date is not None:
             try:
                 if supports_live_intraday(sym):
                     sym_prev_chain, sym_prev_spot, _, _ = _load_intraday_chain_safe(
-                        prev_date.isoformat(), sym, time_of_day=time_of_day
+                        prev_date.isoformat(), sym, time_of_day=compare_time
                     )
                 else:
                     sym_prev_chain, sym_prev_spot = _load_chain_safe(sym, prev_date.isoformat())
@@ -693,12 +942,14 @@ def build_dashboard(
                 sym_prev_chain = None
         if (
             supports_live_intraday(sym)
-            and sym_row is None
             and sym_chain is not None
             and not sym_chain.empty
             and np.isfinite(sym_spot)
+            and sym_data_source not in ("eod", "unavailable")
         ):
-            sym_row = _row_from_chain(sym_chain, sym_spot)
+            sym_row = _row_from_chain(sym_chain, sym_spot, hours_to_close=session_hours)
+        elif sym_row is not None and sym_chain is not None and not sym_chain.empty and np.isfinite(sym_spot):
+            sym_row = _apply_live_pin_row(sym_row, sym_chain, sym_spot, hours_to_close=session_hours)
         panel = _panel_from_row_and_chain(
             sym,
             sym_row,
@@ -736,7 +987,14 @@ def build_dashboard(
         "expected_lower": spot - em if np.isfinite(em) else None,
     }
 
-    playbook_time = intraday_time or time_of_day
+    playbook_time = intraday_time or (
+        DEFAULT_INTRADAY_TIME if time_of_day.strip().lower() == LIVE_TIME_OF_DAY else time_of_day
+    )
+    pos_meta = _positioning_data_meta(chain) if not chain.empty else {"oi_mode": "settled", "volume_source": "settled"}
+    refresh_secs = live_refresh_seconds() if main_chain_source == "live" else None
+    chain_time_requested = (
+        "now" if time_of_day.strip().lower() == LIVE_TIME_OF_DAY else time_of_day[:5]
+    )
     pin_playbook = build_pin_playbook(
         symbol=symbol,
         session_date=asof,
@@ -756,10 +1014,7 @@ def build_dashboard(
         trinity_direction=align.direction,
     )
 
-    session_hours = 6.5
-    time_to_close_pct = float(
-        np.clip((1.0 - pin_playbook.hours_to_close / session_hours) * 100.0, 0.0, 100.0)
-    )
+    session_hours = pin_playbook.hours_to_close
     pin_targets = build_pin_targets(
         heatmap,
         spot,
@@ -767,9 +1022,17 @@ def build_dashboard(
         max_pain=levels["max_pain"],
         pin_score=pin if np.isfinite(pin) else None,
         oi_concentration_top3=_f(row.get("oi_conc_dte1")),
+        hours_to_close=session_hours,
+        magnet_gex_bn=_f(row.get("magnet_gex_bn")),
+        expected_move_1sd=em if np.isfinite(em) else None,
+        pct_gex_dte1=pct_dte if np.isfinite(pct_dte) else None,
         net_gex_bn_per_1pct=_f(net_gex_bn_per_1pct(net_dte)),
-        time_to_close_pct=time_to_close_pct,
+        regime=regime,
     )
+
+    magnet_shift = None
+    if _is_live_follow_request(asof, time_of_day) and main_chain_source == "live":
+        magnet_shift = record_magnet_shift(symbol, iso, levels["king"])
 
     payload = {
         "symbol": symbol,
@@ -818,11 +1081,18 @@ def build_dashboard(
             ),
             "n_strikes": len(heatmap),
             "intraday_time": intraday_time[:5] if intraday_time else None,
-            "intraday_times_available": list(PIN_PLAY_TIMES_ET),
-            "quote_granularity": "1m" if main_chain_source in ("live", "local") else None,
-            "live_refresh_seconds": (
-                LIVE_REFRESH_SECONDS if main_chain_source == "live" else None
-            ),
+            "chain_time_requested": chain_time_requested,
+            "intraday_times_available": ["live", *list(PIN_PLAY_TIMES_ET)],
+            "quote_granularity": "1m" if main_chain_source in ("live", "local", "thetadata") else None,
+            "live_refresh_seconds": refresh_secs,
+            "oi_mode": pos_meta["oi_mode"],
+            "volume_source": pos_meta["volume_source"],
+            "live_follow": _is_live_follow_request(asof, time_of_day) and main_chain_source == "live",
+            "trinity_live_panels": trinity_live_count,
+            "server_pulled_at": datetime.now(timezone.utc).isoformat(),
+            "magnet_shift": magnet_shift is not None,
+            "magnet_previous": _f(magnet_shift.previous) if magnet_shift else None,
+            "magnet_delta_pts": _f(magnet_shift.delta_pts) if magnet_shift else None,
         },
     }
     return json_safe(payload)

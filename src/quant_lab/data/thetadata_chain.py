@@ -15,9 +15,12 @@ from quant_lab.data.iv_solver import implied_volatility_from_mid
 from quant_lab.data.thetadata_client import DEFAULT_INDEX_SYMBOL, DEFAULT_OPTION_ROOT
 from quant_lab.data.thetadata_intraday import (
     fetch_0dte_chain_at_time,
+    fetch_0dte_cumulative_volume_at_time,
+    fetch_0dte_signed_flow_at_time,
     fetch_spx_at_time,
     fetch_stock_at_time,
 )
+from quant_lab.factors.effective_oi import enrich_chain_effective_oi, flow_delta_from_quote_sizes
 from quant_lab.data.thetadata_storage import (
     intraday_chain_path,
     load_parquet,
@@ -193,6 +196,28 @@ def build_0dte_chain_snapshot(
         option_root=option_root,
         strike_range=strike_range,
     )
+    oi_open = fetch_0dte_open_interest_at_time(
+        client,
+        session_date=session_date,
+        time_of_day="09:30:00",
+        option_root=option_root,
+        strike_range=strike_range,
+    )
+    session_vol = fetch_0dte_signed_flow_at_time(
+        client,
+        session_date=session_date,
+        time_of_day=time_of_day,
+        option_root=option_root,
+        strike_range=strike_range,
+    )
+    if session_vol.empty:
+        session_vol = fetch_0dte_cumulative_volume_at_time(
+            client,
+            session_date=session_date,
+            time_of_day=time_of_day,
+            option_root=option_root,
+            strike_range=strike_range,
+        )
 
     spot = _fetch_underlying_spot(
         client,
@@ -212,6 +237,9 @@ def build_0dte_chain_snapshot(
         time_of_day=time_of_day,
         terminal_symbol=terminal_symbol,
         option_root=option_root,
+        reference_oi=oi_open,
+        session_volume=session_vol if not session_vol.empty else None,
+        session_signed_flow=session_vol if "signed_flow" in session_vol.columns and not session_vol.empty else None,
     )
 
 
@@ -224,6 +252,9 @@ def assemble_chain_from_quotes_oi(
     time_of_day: str,
     terminal_symbol: str = TERMINAL_SYMBOL,
     option_root: str = DEFAULT_OPTION_ROOT,
+    reference_oi: pd.DataFrame | None = None,
+    session_volume: pd.DataFrame | None = None,
+    session_signed_flow: pd.DataFrame | None = None,
 ) -> OptionChainSnapshot:
     """Pure merge helper (also used when rebuilding from saved parquet)."""
     q = quotes.copy()
@@ -264,7 +295,6 @@ def assemble_chain_from_quotes_oi(
     merged["expiry"] = session_date
     merged["symbol"] = terminal_symbol
     merged["last_price"] = merged["mid"]
-    merged["volume"] = 0
     merged["open_interest"] = (
         pd.to_numeric(merged["open_interest"], errors="coerce").fillna(0).astype("int64")
     )
@@ -286,12 +316,54 @@ def assemble_chain_from_quotes_oi(
             "ask",
             "last_price",
             "implied_volatility",
-            "volume",
             "open_interest",
             "in_the_money",
             "time_to_expiry_years",
         ]
     ].copy()
+    chain["volume"] = 0
+
+    vol_series: pd.Series | None = None
+    signed_series: pd.Series | None = None
+    if session_signed_flow is not None and not session_signed_flow.empty:
+        flow_work = session_signed_flow.copy()
+        flow_work["right"] = _normalize_right(flow_work["right"])
+        flow_work["strike"] = flow_work["strike"].astype("float64")
+        merged_flow = chain.merge(
+            flow_work[["strike", "right", "signed_flow", "volume"]],
+            on=["strike", "right"],
+            how="left",
+        )
+        if "signed_flow" in merged_flow.columns:
+            signed_series = pd.to_numeric(merged_flow["signed_flow"], errors="coerce").fillna(0.0)
+        if "volume" in merged_flow.columns:
+            vol_series = pd.to_numeric(merged_flow["volume"], errors="coerce").fillna(0.0)
+    elif session_volume is not None and not session_volume.empty:
+        vol_work = session_volume.copy()
+        vol_work["right"] = _normalize_right(vol_work["right"])
+        vol_work["strike"] = vol_work["strike"].astype("float64")
+        merged_vol = chain.merge(
+            vol_work[["strike", "right", "volume"]],
+            on=["strike", "right"],
+            how="left",
+            suffixes=("_drop", ""),
+        )
+        if "volume" in merged_vol.columns:
+            vol_series = pd.to_numeric(merged_vol["volume"], errors="coerce").fillna(0.0)
+
+    ref = reference_oi
+    if ref is not None and not ref.empty:
+        ref = ref.copy()
+        ref["right"] = _normalize_right(ref["right"])
+        ref["strike"] = ref["strike"].astype("float64")
+
+    chain = enrich_chain_effective_oi(
+        chain,
+        ref,
+        session_volume=vol_series,
+        session_signed_flow=signed_series,
+        quote_flow=flow_delta_from_quote_sizes(chain, quotes, None) if not quotes.empty else None,
+    )
 
     return OptionChainSnapshot(
         symbol=terminal_symbol,

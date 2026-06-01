@@ -1,0 +1,1038 @@
+/**
+ * Light theme — "Paper Terminal"
+ *
+ * References: impeccable (tinted neutrals, hierarchy), awesome-design-md (surface layers),
+ * Linear / Stripe dashboards (white panels on #F4F5F7 canvas, AA contrast).
+ *
+ * Rules:
+ * - One border color family (--border / --border-subtle), not stacked greys
+ * - Primary text ≥ 7:1 on white; muted ≥ 4.5:1 — never #94a3b8 body copy on white
+ * - Data viz: Tailwind 600–700 weights, not washed-out olive / neon lime
+ * - Chrome (topbar, footer) stays light — no dark gradient leaks from polish.css
+ */
+
+[data-theme="light"] {
+  color-scheme: light;
+
+  /* ── Surfaces ── */
+  --surface-0: #f4f5f7;
+  --surface-1: #ffffff;
+  --surface-2: #fafafa;
+  --surface-border: rgba(16, 24, 40, 0.08);
+  --surface-inset: rgba(255, 255, 255, 1);
+
+  --bg: #f4f5f7;
+  --bg-panel: #ffffff;
+  --bg-elevated: #ffffff;
+  --bg-hover: #f2f4f7;
+  --border: #d0d5dd;
+  --border-subtle: #eaecf0;
+
+  /* ── Type — all body/labels ≥ 4.5:1 on white ── */
+  --text: #0f172a;
+  --text-muted: #344054;
+  --text-dim: #475467;
+  --brand-wordmark-quant-color: #0b1d3a;
+
+  /* ── Brand accent ── */
+  --accent: #0e7490;
+  --accent-muted: rgba(14, 116, 144, 0.1);
+  --brand-teal: #0d9488;
+  --brand-mint: #0f766e;
+  --spot-line: #0e7490;
+  --spot-label: #0e7490;
+
+  /* ── Regime / semantic ── */
+  --long: #047857;
+  --long-bg: rgba(4, 120, 87, 0.08);
+  --short: #b45309;
+  --short-bg: rgba(180, 83, 9, 0.08);
+  --king: #b45309;
+  --flip: #0e7490;
+  --call: #0369a1;
+  --put: #be123c;
+  --pain: #475467;
+  --spot: #101828;
+  --call-muted: #0284c7;
+
+  --chart-line: #111827;
+  --chart-grid: #cbd5e1;
+  --chart-zero: #94a3b8;
+  --chart-canvas: #ffffff;
+
+  /* Strike plot tokens → strike-plot-light.css (Paper Flux palette) */
+
+  /* Session slider + regime toolbar (light) */
+  --session-slider-bg: #ffffff;
+  --session-slider-border: #d0d5dd;
+  --session-track-bg: #d0d5dd;
+  --session-tick-color: #344054;
+  --session-tick-milestone-color: #475467;
+  --session-tick-active-color: #0e7490;
+  --session-tick-milestone-active: #0f766e;
+  --regime-toggle-bg: #f2f4f7;
+  --regime-toggle-border: #d0d5dd;
+  --regime-btn-active-color: #0e7490;
+  --regime-btn-active-bg: rgba(14, 116, 144, 0.14);
+  --regime-btn-active-border: rgba(14, 116, 144, 0.35);
+
+  --panel-radius: 10px;
+
+  --em-fill: rgba(14, 116, 144, 0.06);
+  --em-border: rgba(14, 116, 144, 0.32);
+
+  /* ── Chrome tokens ── */
+  --panel-shadow: 0 1px 2px rgba(16, 24, 40, 0.06), 0 1px 3px rgba(16, 24, 40, 0.04);
+  --panel-head-rule: rgba(16, 24, 40, 0.08);
+  --panel-inner-bg: #f9fafb;
+  --panel-inner-border: rgba(16, 24, 40, 0.08);
+  --panel-inset-highlight: rgba(255, 255, 255, 0.95);
+  --panel-spotlight-bg: #ffffff;
+  --panel-spotlight-border: rgba(16, 24, 40, 0.08);
+  --panel-spotlight-color: rgba(14, 116, 144, 0.04);
+  --chrome-toolbar-bg: #ffffff;
+  --topbar-fade: #ffffff;
+
+  --scrollbar-thumb: rgba(16, 24, 40, 0.18);
+  --scrollbar-thumb-hover: rgba(16, 24, 40, 0.32);
+  --scrollbar-thumb-active: rgba(14, 116, 144, 0.5);
+  --scrollbar-idle: rgba(16, 24, 40, 0.06);
+
+  --ctrl-bg: #ffffff;
+  --ctrl-bg-hover: #f9fafb;
+  --ctrl-border: #d0d5dd;
+  --ctrl-inset: rgba(255, 255, 255, 1);
+  --live-active-bg: rgba(14, 116, 144, 0.1);
+  --live-active-text: #0e7490;
+
+  /* Semantic text on light (replace dark-mode neon) */
+  --chip-long-text: #047857;
+  --chip-short-text: #b45309;
+  --chip-ok-text: #047857;
+  --chip-no-text: #b42318;
+  --chip-down-text: #b42318;
+  --roc-up-text: #047857;
+  --roc-down-text: #b42318;
+}
+
+/* ── Shell: kill dark polish leaks ── */
+[data-theme="light"] body {
+  background: var(--surface-0);
+}
+
+[data-theme="light"] .app-mesh {
+  opacity: 0.35;
+  background:
+    linear-gradient(rgba(16, 24, 40, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(16, 24, 40, 0.04) 1px, transparent 1px);
+  background-size: 24px 24px, 24px 24px;
+}
+
+[data-theme="light"] .topbar {
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--surface-1);
+}
+
+[data-theme="light"] .topbar-row {
+  border-bottom: none;
+  background: transparent;
+}
+
+[data-theme="light"] .keyboard-hints {
+  border-top: 1px solid var(--border-subtle);
+  background: var(--surface-1);
+}
+
+[data-theme="light"] .kbd-hint kbd {
+  background: var(--surface-0);
+  border-color: var(--border);
+  color: var(--text-muted);
+  box-shadow: 0 1px 0 rgba(16, 24, 40, 0.04);
+}
+
+/* ── Controls ── */
+[data-theme="light"] .ctrl-group,
+[data-theme="light"] .btn-toolbar {
+  background: var(--ctrl-bg);
+  border: 1px solid var(--ctrl-border);
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+}
+
+[data-theme="light"] .btn-toolbar:hover,
+[data-theme="light"] .ctrl-icon:hover {
+  background: var(--ctrl-bg-hover);
+  color: var(--text);
+}
+
+[data-theme="light"] .btn-toolbar.active,
+[data-theme="light"] .btn-toolbar--live.active {
+  background: var(--live-active-bg);
+  color: var(--live-active-text);
+  box-shadow: inset 0 0 0 1px rgba(14, 116, 144, 0.22);
+}
+
+[data-theme="light"] .ctrl-select:focus,
+[data-theme="light"] .controls select:focus,
+[data-theme="light"] .controls input[type="date"]:focus {
+  background: var(--surface-0);
+}
+
+[data-theme="light"] .controls input[type="date"] {
+  color-scheme: light;
+  color: var(--text);
+}
+
+[data-theme="light"] .exp-btn.active,
+[data-theme="light"] .view-btn.active {
+  background: var(--surface-1);
+  color: var(--text);
+  box-shadow: inset 0 0 0 1px var(--border), 0 1px 2px rgba(16, 24, 40, 0.06);
+}
+
+[data-theme="light"] .exp-btn:hover,
+[data-theme="light"] .view-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+[data-theme="light"] .session-tick.active {
+  color: var(--session-tick-active-color);
+  background: rgba(14, 116, 144, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(14, 116, 144, 0.28);
+  font-weight: 700;
+}
+
+[data-theme="light"] .session-tick.active .session-tick-time {
+  color: var(--session-tick-active-color);
+}
+
+[data-theme="light"] .session-tick.active .session-tick-milestone {
+  color: var(--session-tick-milestone-active);
+  opacity: 1;
+  font-weight: 600;
+}
+
+[data-theme="light"] .session-slider {
+  background: var(--session-slider-bg);
+  border-color: var(--session-slider-border);
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);
+}
+
+[data-theme="light"] .session-slider-track {
+  background: var(--session-track-bg);
+}
+
+[data-theme="light"] .session-slider-title {
+  color: var(--text-muted);
+  font-weight: 700;
+}
+
+[data-theme="light"] .session-tick {
+  color: var(--session-tick-color);
+}
+
+[data-theme="light"] .session-tick-milestone {
+  color: var(--session-tick-milestone-color);
+  opacity: 1;
+}
+
+[data-theme="light"] .session-tick:hover {
+  color: var(--text);
+  background: var(--bg-hover);
+}
+
+[data-theme="light"] .live-dot {
+  background: var(--brand-teal);
+  box-shadow: 0 0 0 1px rgba(13, 148, 136, 0.25);
+}
+
+/* ── Panels ── */
+[data-theme="light"] .panel,
+[data-theme="light"] .card-spotlight.panel {
+  background: var(--surface-1);
+  border-color: var(--surface-border);
+  box-shadow: var(--panel-shadow);
+  backdrop-filter: none;
+}
+
+[data-theme="light"] .panel-head h2,
+[data-theme="light"] .rail-content .panel-head h2,
+[data-theme="light"] .rail-content .playbook-section-title {
+  color: var(--text-muted);
+}
+
+[data-theme="light"] .panel-hint {
+  color: var(--text-dim);
+}
+
+[data-theme="light"] .card-spotlight {
+  background-color: var(--panel-spotlight-bg);
+  border-color: var(--panel-spotlight-border);
+  --spotlight-color: var(--panel-spotlight-color);
+}
+
+[data-theme="light"] .brand-icon-shell {
+  box-shadow: 0 1px 3px rgba(16, 24, 40, 0.08);
+  filter: none;
+}
+
+/* ── Instrument strip ── */
+[data-theme="light"] .instrument-strip-main {
+  border-bottom-color: var(--border-subtle);
+}
+
+[data-theme="light"] .strip-regime.long_gamma {
+  background: var(--long-bg);
+  border-left-color: var(--long);
+}
+
+[data-theme="light"] .strip-regime.short_gamma {
+  background: var(--short-bg);
+  border-left-color: var(--short);
+}
+
+[data-theme="light"] .strip-regime.long_gamma .strip-regime-v {
+  color: var(--chip-long-text);
+}
+
+[data-theme="light"] .strip-regime.short_gamma .strip-regime-v {
+  color: var(--chip-short-text);
+}
+
+[data-theme="light"] .strip-gate.ok {
+  color: var(--chip-ok-text);
+  background: var(--long-bg);
+  border-color: rgba(4, 120, 87, 0.22);
+}
+
+[data-theme="light"] .strip-gate.no {
+  color: var(--chip-no-text);
+  background: rgba(180, 35, 24, 0.08);
+  border-color: rgba(180, 35, 24, 0.2);
+}
+
+[data-theme="light"] .strip-live {
+  color: var(--accent);
+}
+
+[data-theme="light"] .strip-chg.down {
+  color: var(--chip-down-text);
+}
+
+[data-theme="light"] .strip-foot,
+[data-theme="light"] .instrument-strip-foot {
+  background: var(--surface-0);
+  border-top-color: var(--border-subtle);
+}
+
+[data-theme="light"] .strip-chip {
+  border-color: var(--border-subtle);
+  background: var(--surface-0);
+}
+
+[data-theme="light"] .strip-chip--call .strip-chip-v {
+  color: var(--call);
+}
+
+[data-theme="light"] .strip-chip--put .strip-chip-v {
+  color: var(--put);
+}
+
+[data-theme="light"] .strip-chip--flip .strip-chip-v {
+  color: var(--flip);
+}
+
+[data-theme="light"] .strip-levels-scroll {
+  border-right-color: var(--border-subtle);
+}
+
+[data-theme="light"] .strip-quote,
+[data-theme="light"] .strip-regime {
+  border-right-color: var(--border-subtle);
+}
+
+/* ── Pin panel ── */
+[data-theme="light"] .pin-section-title {
+  color: var(--text-muted);
+}
+
+[data-theme="light"] .pin-breakdown-track,
+[data-theme="light"] .pin-magnet-bar-track {
+  background: var(--border-subtle);
+}
+
+[data-theme="light"] .pin-magnet-row {
+  background: var(--surface-0);
+  border-color: var(--border-subtle);
+}
+
+[data-theme="light"] .pin-magnet-weight {
+  color: var(--accent);
+}
+
+[data-theme="light"] .pin-primary {
+  background: rgba(180, 83, 9, 0.06);
+  border-color: rgba(180, 83, 9, 0.22);
+}
+
+[data-theme="light"] .empty-panel-cta {
+  border-color: var(--border);
+  color: var(--text-muted);
+}
+
+/* ── Heatmap stage ── */
+[data-theme="light"] .heatmap-stage-chrome {
+  background: var(--chrome-toolbar-bg);
+  border-bottom-color: var(--border-subtle);
+}
+
+[data-theme="light"] .heatmap-stage-title,
+[data-theme="light"] .heatmap-stage-layout-hint {
+  color: var(--text-muted);
+}
+
+[data-theme="light"] .hm-row {
+  border-bottom-color: var(--border-subtle);
+}
+
+[data-theme="light"] .hm-row:hover {
+  background: var(--hm-row-hover);
+}
+
+[data-theme="light"] .hm-row.spot-row,
+[data-theme="light"] .hm-row.is-spot-row {
+  background: var(--hm-row-spot-bg) !important;
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+[data-theme="light"] .hm-row.spot-row .hm-strike,
+[data-theme="light"] .hm-row.is-spot-row .hm-strike {
+  color: var(--hm-spot-strike);
+  font-weight: 700;
+}
+
+[data-theme="light"] .hm-strike {
+  color: var(--text-muted);
+}
+
+[data-theme="light"] .hm-bar-zero {
+  background: var(--hm-bar-zero);
+}
+
+[data-theme="light"] .hm-gex.gex-pos {
+  color: var(--gex-pos);
+  font-weight: 600;
+}
+
+[data-theme="light"] .hm-gex.gex-neg {
+  color: var(--gex-neg);
+  font-weight: 600;
+}
+
+[data-theme="light"] .hm-gex.vex-neg {
+  color: var(--put);
+}
+
+[data-theme="light"] .roc-badge.up {
+  color: var(--roc-up-text);
+  background: var(--long-bg);
+}
+
+[data-theme="light"] .roc-badge.down {
+  color: var(--roc-down-text);
+  background: rgba(180, 35, 24, 0.08);
+}
+
+/* ── Regime band / charts (canvas + exposure) ── */
+[data-theme="light"] .regime-band-head {
+  border-bottom-color: var(--border-subtle);
+}
+
+[data-theme="light"] .regime-band-stat {
+  color: var(--text-dim);
+}
+
+[data-theme="light"] .regime-band-stat strong {
+  color: var(--text);
+}
+
+[data-theme="light"] .profile-bg,
+[data-theme="light"] .profile-bg--exposure {
+  fill: var(--chart-canvas);
+  stroke: var(--border-subtle);
+}
+
+[data-theme="light"] .gamma-profile-caption {
+  border-top-color: var(--border-subtle);
+  color: var(--text-dim);
+}
+
+[data-theme="light"] .exposure-profile-wrap {
+  background: var(--surface-1);
+  border-color: var(--border-subtle);
+}
+
+[data-theme="light"] .exposure-profile-head {
+  border-bottom-color: var(--border-subtle);
+}
+
+/* ── Ladder ── */
+[data-theme="light"] .ladder-row:hover {
+  background: rgba(16, 24, 40, 0.04);
+}
+
+[data-theme="light"] .ladder-row.below .ladder-dist {
+  color: var(--chip-down-text);
+}
+
+[data-theme="light"] .ladder-spot {
+  background: rgba(14, 116, 144, 0.08);
+  border-color: rgba(14, 116, 144, 0.22);
+  color: var(--text);
+}
+
+/* ── Playbook rail ── */
+[data-theme="light"] .playbook-phase,
+[data-theme="light"] .playbook-size,
+[data-theme="light"] .playbook-check,
+[data-theme="light"] .playbook-exit,
+[data-theme="light"] .playbook-structure {
+  background: var(--panel-inner-bg);
+  border-color: var(--panel-inner-border);
+}
+
+[data-theme="light"] .playbook-phase-detail,
+[data-theme="light"] .playbook-check p,
+[data-theme="light"] .playbook-exit p,
+[data-theme="light"] .playbook-size-breakdown,
+[data-theme="light"] .playbook-structure-note {
+  color: var(--text-muted);
+}
+
+[data-theme="light"] .playbook-check.pass .playbook-check-icon {
+  color: var(--chip-ok-text);
+}
+
+[data-theme="light"] .playbook-check.fail .playbook-check-icon {
+  color: var(--chip-no-text);
+}
+
+[data-theme="light"] .playbook-check strong,
+[data-theme="light"] .playbook-exit strong {
+  color: var(--text);
+}
+
+[data-theme="light"] .playbook-section-title {
+  color: var(--text-muted);
+}
+
+/* ── Chips / badges ── */
+[data-theme="light"] .chip-regime.long_gamma {
+  color: var(--chip-long-text);
+  border-color: rgba(4, 120, 87, 0.28);
+}
+
+[data-theme="light"] .chip-regime.short_gamma {
+  color: var(--chip-short-text);
+  border-color: rgba(180, 83, 9, 0.28);
+}
+
+[data-theme="light"] .chip-ok {
+  color: var(--chip-ok-text);
+  border-color: rgba(4, 120, 87, 0.28);
+}
+
+[data-theme="light"] .chip-no {
+  color: var(--chip-no-text);
+  border-color: rgba(180, 35, 24, 0.28);
+}
+
+[data-theme="light"] .panel-data-badge-pill.is-live {
+  color: var(--accent);
+  border-color: rgba(14, 116, 144, 0.28);
+  background: var(--live-active-bg);
+}
+
+[data-theme="light"] .panel-data-badge-pill.is-eod {
+  color: var(--text-muted);
+  border-color: var(--border);
+  background: var(--surface-0);
+}
+
+[data-theme="light"] .tag-flip {
+  background: rgba(14, 116, 144, 0.08);
+  border-color: rgba(14, 116, 144, 0.22);
+  color: var(--flip);
+}
+
+[data-theme="light"] .tag-king {
+  background: rgba(180, 83, 9, 0.08);
+  border-color: rgba(180, 83, 9, 0.22);
+  color: var(--king);
+}
+
+[data-theme="light"] .tag-call {
+  background: rgba(3, 105, 161, 0.08);
+  border-color: rgba(3, 105, 161, 0.22);
+  color: var(--call);
+}
+
+[data-theme="light"] .tag-put {
+  background: rgba(190, 18, 60, 0.08);
+  border-color: rgba(190, 18, 60, 0.2);
+  color: var(--put);
+}
+
+[data-theme="light"] .tag-pain {
+  background: rgba(71, 84, 103, 0.08);
+  border-color: rgba(71, 84, 103, 0.18);
+  color: var(--pain);
+}
+
+[data-theme="light"] .levels-strip {
+  background: var(--surface-0);
+  border-color: var(--border-subtle);
+}
+
+[data-theme="light"] .hm-row.king-row .hm-bar-wrap {
+  border-color: rgba(217, 119, 6, 0.28);
+}
+
+[data-theme="light"] .hm-metric-lbl.lbl-gex {
+  color: var(--gex-pos-mid);
+}
+
+[data-theme="light"] .hm-metric-lbl.lbl-vex {
+  color: var(--vex-pos-muted);
+}
+
+[data-theme="light"] .ticker-chg.down,
+[data-theme="light"] .spot-chg.down {
+  color: var(--chip-down-text);
+}
+
+[data-theme="light"] .status-strip {
+  background: var(--surface-1);
+  border-color: var(--border-subtle);
+}
+
+/* ── Instrument strip: enforce rounded shell + light footer ── */
+[data-theme="light"] .instrument-strip {
+  border-radius: var(--panel-radius);
+  overflow: hidden;
+}
+
+[data-theme="light"] .instrument-strip-foot {
+  background: var(--surface-0);
+  border-top: 1px solid var(--border-subtle);
+}
+
+/* ── Charts: regime band + strike plot ── */
+[data-theme="light"] .regime-band {
+  background: linear-gradient(180deg, #f9fafb 0%, #ffffff 100%);
+  border-bottom-color: var(--border-subtle);
+}
+
+[data-theme="light"] .regime-band-title {
+  color: var(--text-muted);
+}
+
+[data-theme="light"] .regime-band-hint {
+  color: var(--text-dim);
+}
+
+[data-theme="light"] .regime-band .gamma-profile-chart--band .profile-axis-label--x {
+  fill: var(--text-muted);
+}
+
+[data-theme="light"] .regime-band .gamma-profile-chart--band .profile-x-axis-line {
+  stroke: var(--border);
+}
+
+[data-theme="light"] .regime-band .gamma-profile-chart--band .profile-x-tick-mark {
+  stroke: var(--border);
+}
+
+[data-theme="light"] .regime-band .gamma-profile-chart--band .profile-x-tick-mark--spot {
+  stroke: var(--accent);
+}
+
+[data-theme="light"] .regime-band .gamma-profile-chart--band .profile-marker-pill {
+  fill: var(--surface-1);
+  stroke: var(--border);
+}
+
+[data-theme="light"] .gamma-profile-line {
+  stroke: var(--chart-line);
+  stroke-width: 2;
+}
+
+[data-theme="light"] .gamma-profile-dot.pos {
+  fill: var(--chart-gex-pos);
+}
+
+[data-theme="light"] .gamma-profile-dot.neg {
+  fill: var(--chart-gex-neg);
+}
+
+[data-theme="light"] .profile-axis-label--x {
+  fill: var(--text-muted);
+}
+
+[data-theme="light"] .profile-marker-label {
+  fill: var(--text-muted);
+}
+
+[data-theme="light"] .profile-em-band {
+  fill: var(--em-fill);
+  stroke: var(--em-border);
+}
+
+[data-theme="light"] .heatmap-stage {
+  background: var(--surface-1);
+}
+
+[data-theme="light"] .heatmap-stage-body,
+[data-theme="light"] .heatmap-body--trace,
+[data-theme="light"] .strike-plot-trace {
+  background: var(--surface-1);
+}
+
+[data-theme="light"] .heatmap-panel {
+  background: var(--surface-1);
+  border-color: var(--border-subtle);
+}
+
+[data-theme="light"] .heatmap-panel.primary {
+  border-color: var(--border);
+  box-shadow: var(--panel-shadow);
+}
+
+[data-theme="light"] .hm-row.king-row {
+  background: var(--hm-row-king-bg);
+  box-shadow: inset 3px 0 0 var(--hm-king-accent);
+}
+
+[data-theme="light"] .hm-row.king-row .hm-strike {
+  color: var(--hm-king-strike);
+}
+
+[data-theme="light"] .spot-pointer::before {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(14, 116, 144, 0.35) 20%,
+    rgba(51, 65, 85, 0.55) 50%,
+    rgba(14, 116, 144, 0.35) 80%,
+    transparent
+  );
+}
+
+[data-theme="light"] .heatmap-canvas.has-em .em-zone {
+  background: var(--em-fill);
+  border-color: var(--em-border);
+}
+
+[data-theme="light"] .panel-section__head {
+  background: var(--surface-0);
+  border-color: var(--border-subtle);
+}
+
+[data-theme="light"] .panel-section.is-open {
+  border-color: var(--border-subtle);
+  background: var(--surface-1);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   Contrast pass — override dark-mode hardcodes (toolbar, rail, type)
+   ══════════════════════════════════════════════════════════════ */
+
+/* Heatmap toolbar — was rgba(0,0,0,0.18) chrome + dark toggles */
+[data-theme="light"] .heatmap-stage-chrome {
+  background: var(--surface-0);
+  border-bottom-color: var(--border-subtle);
+}
+
+[data-theme="light"] .heatmap-stage-title {
+  color: var(--text-muted);
+  border-right-color: var(--border-subtle);
+}
+
+[data-theme="light"] .heatmap-stage-layout-hint {
+  color: var(--text-dim);
+}
+
+[data-theme="light"] .heatmap-stage-toolbar .exposure-toggle,
+[data-theme="light"] .heatmap-stage-toolbar .heatmap-view-toggle {
+  background: var(--surface-0);
+  border: 1px solid var(--border);
+}
+
+[data-theme="light"] .heatmap-stage-toolbar .exp-btn,
+[data-theme="light"] .heatmap-stage-toolbar .view-btn {
+  color: var(--text-muted);
+}
+
+[data-theme="light"] .heatmap-stage-toolbar .exp-btn.active,
+[data-theme="light"] .heatmap-stage-toolbar .view-btn.active {
+  background: var(--surface-1);
+  color: var(--text);
+  box-shadow: inset 0 0 0 1px var(--border), 0 1px 2px rgba(16, 24, 40, 0.06);
+}
+
+[data-theme="light"] .heatmap-stage--metric-vex .exp-btn--vex.active {
+  color: var(--accent);
+  background: var(--accent-muted);
+  box-shadow: inset 0 0 0 1px rgba(14, 116, 144, 0.25);
+}
+
+[data-theme="light"] .heatmap-stage--metric-compare .exp-btn--compare.active {
+  color: #b45309;
+  background: rgba(180, 83, 9, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(180, 83, 9, 0.22);
+}
+
+[data-theme="light"] .heatmap-stage-toolbar .regime-toggle {
+  background: var(--regime-toggle-bg);
+  border-color: var(--regime-toggle-border);
+}
+
+[data-theme="light"] .heatmap-stage-toolbar .regime-btn {
+  color: #344054;
+  font-weight: 700;
+}
+
+[data-theme="light"] .heatmap-stage-toolbar .regime-btn:hover {
+  color: #0f172a;
+  background: #eaecf0;
+}
+
+[data-theme="light"] .heatmap-stage-toolbar .regime-btn.active {
+  color: #0e7490;
+  background: rgba(14, 116, 144, 0.16);
+  box-shadow: inset 0 0 0 1px rgba(14, 116, 144, 0.42);
+}
+
+[data-theme="light"] .heatmap-stage-toolbar .regime-btn:disabled {
+  color: var(--text-dim);
+  opacity: 0.55;
+}
+
+/* Panel section headers — solo title was mint-on-white */
+[data-theme="light"] .panel-section__title {
+  color: var(--text-muted);
+}
+
+[data-theme="light"] .panel-section.is-solo.is-open .panel-section__title {
+  color: var(--accent);
+}
+
+[data-theme="light"] .panel-section__hint {
+  color: var(--text-dim);
+  opacity: 1;
+}
+
+[data-theme="light"] .panel-section__action {
+  background: var(--surface-0);
+  border-color: var(--border);
+  color: var(--text-muted);
+}
+
+[data-theme="light"] .panel-section__action:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+[data-theme="light"] .panel-section__toggle:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+[data-theme="light"] .panel-section {
+  border-top-color: var(--border-subtle);
+}
+
+/* Right rail tabs — was dark bar + light active text */
+[data-theme="light"] .rail-tabs {
+  background: var(--surface-0);
+}
+
+[data-theme="light"] .rail-tab {
+  color: var(--text-muted);
+}
+
+[data-theme="light"] .rail-tab.active {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+}
+
+[data-theme="light"] .pin-head strong {
+  color: var(--text);
+}
+
+[data-theme="light"] .pin-track,
+[data-theme="light"] .strip-pin-track {
+  background: var(--border-subtle);
+  border: 1px solid var(--border);
+}
+
+/* Instrument strip metadata line */
+[data-theme="light"] .strip-foot-meta,
+[data-theme="light"] .strip-foot-sub,
+[data-theme="light"] .strip-foot-vanna,
+[data-theme="light"] .strip-regime-hint {
+  color: var(--text-muted);
+}
+
+[data-theme="light"] .strip-meta-pill {
+  border-color: var(--border);
+  color: var(--text-muted);
+}
+
+[data-theme="light"] .strip-meta-pill--live {
+  color: var(--accent);
+  border-color: rgba(14, 116, 144, 0.28);
+  background: var(--live-active-bg);
+}
+
+[data-theme="light"] .strip-foot-em strong {
+  color: var(--accent);
+}
+
+[data-theme="light"] .strip-foot-warn {
+  color: #b42318;
+}
+
+[data-theme="light"] .strip-chip-k,
+[data-theme="light"] .strip-chip-d {
+  color: var(--text-dim);
+}
+
+[data-theme="light"] .strip-chip-v {
+  color: var(--text);
+}
+
+/* Ladder + panel labels */
+[data-theme="light"] .ladder-lbl,
+[data-theme="light"] .ladder-dist,
+[data-theme="light"] .ladder-px {
+  color: var(--text-muted);
+}
+
+[data-theme="light"] .panel-head h2,
+[data-theme="light"] .panel-hint {
+  color: var(--text-muted);
+}
+
+[data-theme="light"] .panel-hint {
+  opacity: 1;
+}
+
+/* Keyboard footer */
+[data-theme="light"] .kbd-hint {
+  color: var(--text-muted);
+}
+
+[data-theme="light"] .kbd-hint--muted {
+  color: var(--text-dim);
+  opacity: 1;
+}
+
+/* Playbook body copy */
+[data-theme="light"] .playbook-phase-detail,
+[data-theme="light"] .playbook-check p,
+[data-theme="light"] .playbook-exit p,
+[data-theme="light"] .playbook-size-breakdown,
+[data-theme="light"] .playbook-structure-note,
+[data-theme="light"] .playbook-clock {
+  color: var(--text-muted);
+}
+
+[data-theme="light"] .playbook-exit {
+  opacity: 0.72;
+}
+
+[data-theme="light"] .playbook-exit.active {
+  opacity: 1;
+}
+
+/* Chart typography + grid — readable axes */
+[data-theme="light"] .profile-axis-label,
+[data-theme="light"] .profile-axis-label--y,
+[data-theme="light"] .profile-axis-label--x {
+  fill: var(--text-muted);
+  opacity: 1;
+}
+
+[data-theme="light"] .profile-grid-line {
+  stroke: var(--chart-grid);
+  stroke-width: 1;
+}
+
+[data-theme="light"] .profile-grid-line--zero,
+[data-theme="light"] .profile-zero-axis {
+  stroke: var(--chart-zero);
+  stroke-width: 1.25;
+}
+
+[data-theme="light"] .gamma-profile-line {
+  stroke: var(--chart-line);
+  stroke-width: 2.25;
+}
+
+[data-theme="light"] .regime-band {
+  background: #f8fafc;
+}
+
+[data-theme="light"] .regime-band-title {
+  color: var(--text-muted);
+}
+
+[data-theme="light"] .regime-band-stat {
+  color: var(--text-muted);
+}
+
+[data-theme="light"] .hm-strike {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+[data-theme="light"] .hm-gex {
+  font-size: 0.64rem;
+  font-weight: 600;
+}
+
+[data-theme="light"] .hm-metric-lbl {
+  color: var(--text-dim);
+  opacity: 1;
+}
+
+[data-theme="light"] .gamma-profile-caption,
+[data-theme="light"] .exposure-profile-title,
+[data-theme="light"] .exposure-profile-metric {
+  color: var(--text-muted);
+}
+
+[data-theme="light"] .exposure-profile-spot {
+  color: var(--text-dim);
+}
+
+[data-theme="light"] .exposure-profile-spot strong {
+  color: var(--text);
+}
+
+[data-theme="light"] .btn-toolbar--demo {
+  color: var(--text-muted);
+}
+
+[data-theme="light"] .session-tick {
+  color: var(--session-tick-color, var(--text-muted));
+}
+
+[data-theme="light"] .session-tick.active {
+  color: var(--session-tick-active-color, var(--accent));
+}
+
+[data-theme="light"] .brand-tagline {
+  color: var(--text-dim);
+}

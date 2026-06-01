@@ -9,11 +9,11 @@ import {
   xTickAnchor,
 } from "../lib/gammaProfileAxis";
 import {
-  CHART_GAMMA_FILL_NEG,
-  CHART_GAMMA_FILL_POS,
+  getChartPalette,
 } from "../lib/chartPalette";
 import type { GammaProfilePoint, Levels } from "../types/snapshot";
 import { useReducedMotion } from "../hooks/useReducedMotion";
+import { useTheme } from "../hooks/useTheme";
 
 gsap.registerPlugin(useGSAP);
 
@@ -77,6 +77,8 @@ export function GammaProfileChart({
 }: GammaProfileChartProps) {
   const rootRef = useRef<SVGSVGElement>(null);
   const reducedMotion = useReducedMotion();
+  const { theme } = useTheme();
+  const palette = useMemo(() => getChartPalette(), [theme]);
   const uid = useId().replace(/:/g, "");
 
   const viewW = band ? VIEW_W_BAND : VIEW_W;
@@ -251,12 +253,12 @@ export function GammaProfileChart({
       >
         <defs>
           <linearGradient id={posGrad} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={CHART_GAMMA_FILL_POS.top.color} stopOpacity={CHART_GAMMA_FILL_POS.top.opacity} />
-            <stop offset="100%" stopColor={CHART_GAMMA_FILL_POS.base.color} stopOpacity={CHART_GAMMA_FILL_POS.base.opacity} />
+            <stop offset="0%" stopColor={palette.CHART_GAMMA_FILL_POS.top.color} stopOpacity={palette.CHART_GAMMA_FILL_POS.top.opacity} />
+            <stop offset="100%" stopColor={palette.CHART_GAMMA_FILL_POS.base.color} stopOpacity={palette.CHART_GAMMA_FILL_POS.base.opacity} />
           </linearGradient>
           <linearGradient id={negGrad} x1="0" y1="1" x2="0" y2="0">
-            <stop offset="0%" stopColor={CHART_GAMMA_FILL_NEG.top.color} stopOpacity={CHART_GAMMA_FILL_NEG.top.opacity} />
-            <stop offset="100%" stopColor={CHART_GAMMA_FILL_NEG.base.color} stopOpacity={CHART_GAMMA_FILL_NEG.base.opacity} />
+            <stop offset="0%" stopColor={palette.CHART_GAMMA_FILL_NEG.top.color} stopOpacity={palette.CHART_GAMMA_FILL_NEG.top.opacity} />
+            <stop offset="100%" stopColor={palette.CHART_GAMMA_FILL_NEG.base.color} stopOpacity={palette.CHART_GAMMA_FILL_NEG.base.opacity} />
           </linearGradient>
         </defs>
         <rect x={0} y={0} width={viewW} height={viewH} className="profile-bg" rx={band ? 0 : 6} />

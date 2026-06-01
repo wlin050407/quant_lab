@@ -23,10 +23,10 @@ export function useSnapshot(
     placeholderData: (prev) => prev,
     refetchInterval: (query) => {
       const data = query.state.data;
-      if (data?.meta?.data_source === "thetadata_live") {
-        return (data.meta.live_refresh_seconds ?? 60) * 1000;
+      if (data?.meta?.live_follow) {
+        return (data.meta.live_refresh_seconds ?? 30) * 1000;
       }
-      return livePollCandidate && !data ? 60_000 : false;
+      return livePollCandidate && !data ? 30_000 : false;
     },
     refetchIntervalInBackground: false,
   });

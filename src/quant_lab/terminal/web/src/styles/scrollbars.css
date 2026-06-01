@@ -11,7 +11,7 @@
 .app .heatmap-body,
 .app .workspace {
   scrollbar-width: thin;
-  scrollbar-color: rgba(148, 163, 184, 0.22) transparent;
+  scrollbar-color: var(--scrollbar-thumb, rgba(148, 163, 184, 0.22)) transparent;
 }
 
 .app ::-webkit-scrollbar,
@@ -33,7 +33,7 @@
 }
 
 .app ::-webkit-scrollbar-thumb {
-  background-color: rgba(148, 163, 184, 0.18);
+  background-color: var(--scrollbar-thumb, rgba(148, 163, 184, 0.18));
   border-radius: 999px;
   border: 1px solid transparent;
   background-clip: padding-box;
@@ -42,11 +42,11 @@
 }
 
 .app ::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(148, 163, 184, 0.38);
+  background-color: var(--scrollbar-thumb-hover, rgba(148, 163, 184, 0.38));
 }
 
 .app ::-webkit-scrollbar-thumb:active {
-  background-color: rgba(20, 184, 166, 0.45);
+  background-color: var(--scrollbar-thumb-active, rgba(20, 184, 166, 0.45));
 }
 
 /* Hover-reveal: idle scroll areas stay clean until pointer enters */
@@ -65,14 +65,14 @@
 .app .rail-panel-host:focus-within,
 .app .strategy-card:hover,
 .app .strategy-card:focus-within {
-  scrollbar-color: rgba(148, 163, 184, 0.28) transparent;
+  scrollbar-color: var(--scrollbar-thumb-hover, rgba(148, 163, 184, 0.28)) transparent;
 }
 
 .app .heatmap-rows-scroll:not(:hover):not(:focus-within)::-webkit-scrollbar-thumb,
 .app .price-ladder:not(:hover):not(:focus-within)::-webkit-scrollbar-thumb,
 .app .rail-panel-host:not(:hover):not(:focus-within)::-webkit-scrollbar-thumb,
 .app .strategy-card:not(:hover):not(:focus-within)::-webkit-scrollbar-thumb {
-  background-color: rgba(148, 163, 184, 0.08);
+  background-color: var(--scrollbar-idle, rgba(148, 163, 184, 0.08));
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -12,7 +12,9 @@ from quant_lab.factors.positioning import (
     oi_by_strike,
     oi_concentration,
     pin_magnet_ranking,
+    pin_score,
     pin_score_components,
+    pin_score_from_chain,
     put_call_ratio,
 )
 
@@ -143,8 +145,9 @@ def test_pin_score_components_hand_computed() -> None:
         spot=100.0,
         magnet_strike=100.0,
         oi_concentration_top3=0.45,
-        net_gex_bn_per_1pct=3.0,
+        magnet_gex_bn_per_1pct=3.0,
         time_to_close_pct=100.0,
+        max_gex_bn_reference=2.0,
     )
     assert parts["oi_concentration"] == pytest.approx(100.0)
     assert parts["magnet_proximity"] == pytest.approx(100.0)

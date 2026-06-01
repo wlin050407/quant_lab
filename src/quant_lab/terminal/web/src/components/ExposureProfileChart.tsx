@@ -3,15 +3,11 @@ import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 
 import { buildExposureProfileModel } from "../lib/exposureProfile";
-import {
-  CHART_AREA_NEG,
-  CHART_AREA_POS,
-  CHART_BAR_NEG,
-  CHART_BAR_POS,
-} from "../lib/chartPalette";
+import { getChartPalette } from "../lib/chartPalette";
 import { fmtGexBn, fmtPrice } from "../lib/format";
 import type { ExposureMetric, HeatmapRow, Levels } from "../types/snapshot";
 import { useReducedMotion } from "../hooks/useReducedMotion";
+import { useTheme } from "../hooks/useTheme";
 
 gsap.registerPlugin(useGSAP);
 
@@ -39,6 +35,8 @@ export function ExposureProfileChart({
   const rootRef = useRef<SVGSVGElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const reducedMotion = useReducedMotion();
+  const { theme } = useTheme();
+  const palette = useMemo(() => getChartPalette(), [theme]);
   const uid = useId().replace(/:/g, "");
 
   const model = useMemo(
@@ -104,22 +102,22 @@ export function ExposureProfileChart({
     >
         <defs>
           <linearGradient id={posGrad} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={CHART_AREA_POS.top.color} stopOpacity={CHART_AREA_POS.top.opacity} />
-            <stop offset="55%" stopColor={CHART_AREA_POS.mid.color} stopOpacity={CHART_AREA_POS.mid.opacity} />
-            <stop offset="100%" stopColor={CHART_AREA_POS.base.color} stopOpacity={CHART_AREA_POS.base.opacity} />
+            <stop offset="0%" stopColor={palette.CHART_AREA_POS.top.color} stopOpacity={palette.CHART_AREA_POS.top.opacity} />
+            <stop offset="55%" stopColor={palette.CHART_AREA_POS.mid.color} stopOpacity={palette.CHART_AREA_POS.mid.opacity} />
+            <stop offset="100%" stopColor={palette.CHART_AREA_POS.base.color} stopOpacity={palette.CHART_AREA_POS.base.opacity} />
           </linearGradient>
           <linearGradient id={negGrad} x1="0" y1="1" x2="0" y2="0">
-            <stop offset="0%" stopColor={CHART_AREA_NEG.top.color} stopOpacity={CHART_AREA_NEG.top.opacity} />
-            <stop offset="55%" stopColor={CHART_AREA_NEG.mid.color} stopOpacity={CHART_AREA_NEG.mid.opacity} />
-            <stop offset="100%" stopColor={CHART_AREA_NEG.base.color} stopOpacity={CHART_AREA_NEG.base.opacity} />
+            <stop offset="0%" stopColor={palette.CHART_AREA_NEG.top.color} stopOpacity={palette.CHART_AREA_NEG.top.opacity} />
+            <stop offset="55%" stopColor={palette.CHART_AREA_NEG.mid.color} stopOpacity={palette.CHART_AREA_NEG.mid.opacity} />
+            <stop offset="100%" stopColor={palette.CHART_AREA_NEG.base.color} stopOpacity={palette.CHART_AREA_NEG.base.opacity} />
           </linearGradient>
           <linearGradient id={barPosGrad} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={CHART_BAR_POS.top} stopOpacity="0.92" />
-            <stop offset="100%" stopColor={CHART_BAR_POS.bottom} stopOpacity={CHART_BAR_POS.bottomOpacity} />
+            <stop offset="0%" stopColor={palette.CHART_BAR_POS.top} stopOpacity="0.92" />
+            <stop offset="100%" stopColor={palette.CHART_BAR_POS.bottom} stopOpacity={palette.CHART_BAR_POS.bottomOpacity} />
           </linearGradient>
           <linearGradient id={barNegGrad} x1="0" y1="1" x2="0" y2="0">
-            <stop offset="0%" stopColor={CHART_BAR_NEG.top} stopOpacity="0.9" />
-            <stop offset="100%" stopColor={CHART_BAR_NEG.bottom} stopOpacity={CHART_BAR_NEG.bottomOpacity} />
+            <stop offset="0%" stopColor={palette.CHART_BAR_NEG.top} stopOpacity="0.9" />
+            <stop offset="100%" stopColor={palette.CHART_BAR_NEG.bottom} stopOpacity={palette.CHART_BAR_NEG.bottomOpacity} />
           </linearGradient>
         </defs>
 

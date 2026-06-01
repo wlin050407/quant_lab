@@ -56,6 +56,7 @@ def test_assemble_chain_produces_gex_heatmap_rows() -> None:
     chain = snap.chain
     assert len(chain) == 4
     assert chain["open_interest"].sum() > 0
+    assert "effective_open_interest" in chain.columns
     wg = add_bs_gamma_column(chain, snap.spot)
     gex = compute_dealer_gamma_exposure(wg, snap.spot)
     assert len(gex) >= 2

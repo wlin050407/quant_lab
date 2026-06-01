@@ -11,6 +11,7 @@ import pytest
 from quant_lab.data.base import OptionChainSnapshot
 from quant_lab.terminal import live_chain
 from quant_lab.terminal.live_chain import (
+    LIVE_TIME_OF_DAY,
     _effective_time_of_day,
     clear_live_cache,
     fetch_live_intraday_chain,
@@ -49,9 +50,20 @@ def test_is_live_session_today_only() -> None:
     assert is_live_session(date(2023, 7, 11)) is False
 
 
-def test_effective_time_caps_future_on_live_day() -> None:
-    from datetime import datetime
+def test_effective_time_live_follows_now() -> None:
+    from quant_lab.data.base import MARKET_TZ
 
+    session = date(2026, 5, 24)
+    fixed_now = datetime(2026, 5, 24, 14, 32, 15, tzinfo=MARKET_TZ)
+    with patch.object(live_chain, "is_live_session", return_value=True):
+        with patch.object(live_chain, "datetime") as mock_dt:
+            mock_dt.now.return_value = fixed_now
+            assert _effective_time_of_day(session, LIVE_TIME_OF_DAY) == "14:32:15"
+            assert _effective_time_of_day(session, "15:30:00") == "14:32:15"
+            assert _effective_time_of_day(session, "13:00:00") == "13:00:00"
+
+
+def test_effective_time_caps_future_on_live_day() -> None:
     from quant_lab.data.base import MARKET_TZ
 
     session = date(2026, 5, 24)
@@ -146,6 +158,34 @@ def test_load_intraday_chain_thetadata_when_local_missing() -> None:
     assert source == "thetadata"
     assert spot == 5200.0
     assert chain.iloc[0]["strike"] == 5200.0
+
+
+def test_load_intraday_chain_prefers_thetadata_over_local_for_recent_session() -> None:
+    """Cloud path: recent dates pull ThetaData even when local intraday parquet exists."""
+    remote_df = pd.DataFrame({"strike": [5300.0], "open_interest": [90]})
+    local_df = pd.DataFrame({"strike": [5000.0], "open_interest": [10]})
+    local_meta = pd.DataFrame({"spot": [5000.0]})
+    with patch.object(live_chain, "is_live_session", return_value=False):
+        with patch(
+            "quant_lab.terminal.snapshot.prefer_thetadata_intraday",
+            return_value=True,
+        ):
+            with patch(
+                "quant_lab.terminal.snapshot.fetch_intraday_chain_from_thetadata",
+                return_value=(remote_df, 5300.0, "13:00:00", False),
+            ) as mock_remote:
+                with patch(
+                    "quant_lab.terminal.snapshot.load_built_intraday_chain",
+                    return_value=(local_df, local_meta),
+                ) as mock_local:
+                    chain, spot, _time_used, source = _load_intraday_chain_safe(
+                        "2026-05-29", "^SPX", time_of_day="13:00:00"
+                    )
+    mock_remote.assert_called_once()
+    mock_local.assert_not_called()
+    assert source == "thetadata"
+    assert spot == 5300.0
+    assert chain.iloc[0]["strike"] == 5300.0
 
 
 def test_fetch_live_rejects_historical_date() -> None:

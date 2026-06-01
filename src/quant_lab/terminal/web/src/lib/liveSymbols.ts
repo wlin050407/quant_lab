@@ -18,6 +18,18 @@ function weekdayEt(iso: string): number {
   return map[label.slice(0, 3)] ?? 1;
 }
 
+/** Last Mon–Fri on or before ``todayIso`` (ET calendar). Mirrors backend default_date. */
+export function lastTradingSessionEt(todayIso: string): string {
+  let cursor = new Date(`${todayIso}T17:00:00Z`);
+  for (let i = 0; i < 8; i += 1) {
+    const iso = cursor.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+    const wd = weekdayEt(iso);
+    if (wd >= 1 && wd <= 5) return iso;
+    cursor.setUTCDate(cursor.getUTCDate() - 1);
+  }
+  return todayIso;
+}
+
 /** Pick startup date — mirrors backend ``default_date`` with client fallback for stale API. */
 export function pickInitialDate(
   symbol: string,
@@ -28,9 +40,10 @@ export function pickInitialDate(
   const { today, latest, dates } = data;
   if (!dates.length) return latest || today;
 
-  if (LIVE_INTRADAY_SYMBOLS.has(symbol) && today && dates.includes(today)) {
+  if (LIVE_INTRADAY_SYMBOLS.has(symbol) && today) {
     const wd = weekdayEt(today);
-    if (wd >= 1 && wd <= 5) return today;
+    if (wd >= 1 && wd <= 5 && dates.includes(today)) return today;
+    if (wd === 0 || wd === 6) return lastTradingSessionEt(today);
   }
 
   if (today && latest === today && (weekdayEt(today) === 0 || weekdayEt(today) === 6)) {

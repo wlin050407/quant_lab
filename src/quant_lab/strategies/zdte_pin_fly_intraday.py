@@ -33,8 +33,8 @@ from quant_lab.data.intraday_time import (
     session_datetime,
 )
 from quant_lab.data.thetadata_storage import load_parquet, spx_price_1m_path
-from quant_lab.factors.gex import compute_gex_profile, net_gex_bn_per_1pct, pct_dte_cohort_of_total
-from quant_lab.factors.positioning import atm_iv_from_chain, max_pain, oi_concentration, pin_score
+from quant_lab.factors.gex import compute_gex_profile, pct_dte_cohort_of_total
+from quant_lab.factors.positioning import atm_iv_from_chain, max_pain, pin_score_from_chain
 from quant_lab.factors.regime import regime_from_net_gex
 from quant_lab.strategies.zdte_ic_eod import (
     CONTRACT_MULTIPLIER,
@@ -114,17 +114,20 @@ def intraday_context_from_chain(
     profile = compute_gex_profile(chain, spot, dte_max=1)
     profile_all = compute_gex_profile(chain, spot, dte_max=None)
     mp = max_pain(chain, dte_max=1)
-    oi_conc = oi_concentration(chain, dte_max=1, top_n=3)
     king = profile.king_node
     hours_left = hours_to_close(session_date, time_of_day)
-    time_to_close_pct = float(max(0.0, min(100.0, hours_left / SESSION_HOURS * 100.0)))
-    pin = pin_score(
-        spot=spot,
-        magnet_strike=king if np.isfinite(king) else mp,
-        oi_concentration_top3=oi_conc if np.isfinite(oi_conc) else 0.0,
-        net_gex_bn_per_1pct=net_gex_bn_per_1pct(profile.net_gex),
+    time_to_close_pct = float(max(0.0, min(100.0, (1.0 - hours_left / SESSION_HOURS) * 100.0)))
+    pct = pct_dte_cohort_of_total(profile.net_gex, profile_all.net_gex)
+    oi_mode = "effective" if "effective_open_interest" in chain.columns else "settled"
+    pin_result = pin_score_from_chain(
+        chain,
+        spot,
+        dte_max=1,
         time_to_close_pct=time_to_close_pct,
+        pct_gex_dte1=pct,
+        oi_mode=oi_mode,
     )
+    pin = pin_result.score
     iv = atm_iv_from_chain(chain, spot, dte=INTRADAY_DTE)
     em = expected_move_intraday(spot, iv, session_date=session_date, time_of_day=time_of_day)
     return {

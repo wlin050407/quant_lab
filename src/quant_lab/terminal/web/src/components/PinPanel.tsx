@@ -60,6 +60,7 @@ export function PinPanel({ snapshot }: { snapshot: DashboardSnapshot }) {
   }
 
   const breakdown = pt.pin_score_breakdown ?? {};
+  const magnetShift = snapshot.meta?.magnet_shift === true;
 
   return (
     <section className="rail-content pin-panel">
@@ -68,13 +69,26 @@ export function PinPanel({ snapshot }: { snapshot: DashboardSnapshot }) {
         <span className="panel-hint">|GEX|×OI weight</span>
       </div>
 
-      <PinScoreGauge score={pt.pin_score ?? snapshot.metrics.pin_score} />
+      <PinScoreGauge
+        score={pt.pin_score ?? snapshot.metrics.pin_score}
+        adjustedScore={pt.pin_score_adjusted}
+        reliability={pt.pin_reliability}
+        reliabilityDetail={pt.pin_reliability_detail}
+      />
 
       {pt.primary_strike != null ? (
         <div className="pin-primary">
           <span className="pin-primary-k">Primary magnet</span>
           <strong>{fmtPrice(pt.primary_strike)}</strong>
           <span className="pin-primary-tag">{pt.primary_label === "king" ? "King" : "Top weight"}</span>
+          {magnetShift && snapshot.meta?.magnet_previous != null ? (
+            <span className="pin-magnet-shift" title="Magnet moved since last live poll">
+              ↑ from {fmtPrice(snapshot.meta.magnet_previous)}
+              {snapshot.meta.magnet_delta_pts != null
+                ? ` (${snapshot.meta.magnet_delta_pts >= 0 ? "+" : ""}${snapshot.meta.magnet_delta_pts.toFixed(0)} pts)`
+                : null}
+            </span>
+          ) : null}
         </div>
       ) : null}
 

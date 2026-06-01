@@ -70,6 +70,30 @@ def test_pin_playbook_short_gamma_zero_size() -> None:
     assert pb.actionable is False
 
 
+def test_pin_playbook_macro_day_zero_size() -> None:
+    pb = build_pin_playbook(
+        symbol="^SPX",
+        session_date=date(2026, 5, 6),
+        time_of_day="13:30:00",
+        regime="long_gamma",
+        pin_score=80.0,
+        pct_gex_dte1=50.0,
+        spot=5900.0,
+        put_wall=5850.0,
+        call_wall=5950.0,
+        king=5900.0,
+        max_pain=5895.0,
+        expected_move=25.0,
+        gate_should_trade=True,
+        gate_reason="ok",
+    )
+    assert pb.macro_multiplier == 0.0
+    assert pb.size_multiplier == 0.0
+    assert pb.actionable is False
+    macro_check = next(c for c in pb.checks if c.id == "macro")
+    assert macro_check.passed is False
+
+
 def test_pin_playbook_low_pin_caps_gate() -> None:
     pb = build_pin_playbook(
         symbol="SPY",

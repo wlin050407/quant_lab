@@ -10,6 +10,7 @@ from typing import Literal
 import numpy as np
 
 RegimeLabel = Literal["long_gamma", "short_gamma", "undetermined"]
+PinReliability = Literal["high", "moderate", "caution", "low", "unknown"]
 ShouldTradeReason = Literal[
     "ok",
     "no_zero_dte",
@@ -28,6 +29,36 @@ def regime_from_net_gex(net_gex: float, *, epsilon: float = 1e-6) -> RegimeLabel
     if net_gex < -epsilon:
         return "short_gamma"
     return "undetermined"
+
+
+# FlashAlpha: high pin + positive γ = clean; high pin + negative γ = unreliable pin.
+PIN_REGIME_SHORT_GAMMA_DISCOUNT = 0.70
+
+
+def pin_score_regime_adjusted(pin_score: float, regime: RegimeLabel) -> float:
+    """Discount pin score in short-γ when pin is elevated (FlashAlpha interpretation)."""
+    if not np.isfinite(pin_score):
+        return float("nan")
+    if regime == "short_gamma" and pin_score >= 50.0:
+        return float(np.clip(pin_score * PIN_REGIME_SHORT_GAMMA_DISCOUNT, 0.0, 100.0))
+    return float(np.clip(pin_score, 0.0, 100.0))
+
+
+def pin_reliability(pin_score: float, regime: RegimeLabel) -> tuple[PinReliability, str]:
+    """UI tier + short explanation for pin × regime interaction."""
+    if not np.isfinite(pin_score):
+        return "unknown", "Insufficient pin data"
+    if regime == "long_gamma" and pin_score >= 70.0:
+        return "high", "High pin with long γ — favorable magnet"
+    if regime == "short_gamma" and pin_score >= 70.0:
+        return "caution", "High pin in short γ — pin may fail (amplified vol)"
+    if regime == "short_gamma" and pin_score >= 50.0:
+        return "moderate", "Moderate pin in short γ — size down"
+    if pin_score >= 70.0:
+        return "moderate", "High pin — confirm regime before sizing"
+    if pin_score >= 40.0:
+        return "moderate", "Moderate pin"
+    return "low", "Low pin — magnet weak"
 
 
 def should_trade_zdte(

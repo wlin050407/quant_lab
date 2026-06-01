@@ -10,6 +10,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from quant_lab.terminal.auth import TerminalBasicAuthMiddleware
+from quant_lab.terminal.equity_live import build_equity_analysis
 from quant_lab.terminal.live_chain import market_today
 from quant_lab.terminal.snapshot import build_dashboard, list_terminal_dates, resolve_default_terminal_date
 
@@ -32,7 +33,11 @@ def _ui_index() -> Path:
 
 @app.get("/api/health")
 def health() -> dict[str, str]:
-    return {"status": "ok", "ui": "react" if (DIST_DIR / "index.html").exists() else "legacy"}
+    return {
+        "status": "ok",
+        "ui": "react" if (DIST_DIR / "index.html").exists() else "legacy",
+        "equity_api": "v1",
+    }
 
 
 @app.get("/api/dates")
@@ -53,7 +58,10 @@ def api_dates(symbol: str = Query(default="^SPX")) -> dict:
 def api_snapshot(
     symbol: str = Query(default="^SPX"),
     asof: str | None = Query(default=None, alias="date"),
-    time: str = Query(default="13:00:00", description="intraday ET time for ThetaData SPX"),
+    time: str = Query(
+        default="live",
+        description="intraday ET: 'live' (follow now) or HH:MM:SS pin-play slot",
+    ),
 ) -> dict:
     dates = list_terminal_dates(symbol)
     if not dates:
@@ -70,6 +78,19 @@ def api_snapshot(
         return build_dashboard(symbol, d, time_of_day=time)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.get("/api/equity/analyze")
+def api_equity_analyze(
+    ticker: str = Query(..., min_length=1, max_length=16),
+    refresh: bool = Query(default=False),
+) -> dict:
+    try:
+        return build_equity_analysis(ticker, refresh=refresh)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
 @app.get("/")
@@ -120,3 +141,17 @@ def favicon(request: Request) -> FileResponse:
 _assets_dir = DIST_DIR / "assets" if (DIST_DIR / "assets").is_dir() else STATIC_DIR
 if _assets_dir.is_dir():
     app.mount("/assets", StaticFiles(directory=_assets_dir), name="assets")
+
+
+@app.get("/{full_path:path}", include_in_schema=False)
+def spa_fallback(full_path: str) -> FileResponse:
+    """Serve React shell for direct URLs like ``/stock`` (hash routes use ``#/stock``)."""
+    if full_path.startswith("api") or full_path.startswith("assets"):
+        raise HTTPException(status_code=404, detail="Not Found")
+    path = _ui_index()
+    if not path.exists():
+        raise HTTPException(
+            status_code=503,
+            detail="Terminal UI not built. Run: python scripts/build_terminal_ui.py --install",
+        )
+    return FileResponse(path)

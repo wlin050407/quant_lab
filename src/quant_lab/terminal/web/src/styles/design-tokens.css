@@ -64,12 +64,31 @@
 
   --chart-gex-pos: #a3c95a;
   --chart-gex-pos-mid: #8fb340;
+  --chart-gex-pos-soft: #c4d96e;
   --chart-gex-neg: #9b8fd4;
   --chart-gex-neg-mid: #8578c4;
+  --chart-gex-neg-soft: #b8a8e0;
   --chart-line: rgba(226, 232, 240, 0.68);
   --chart-grid: rgba(148, 163, 184, 0.12);
   --chart-zero: rgba(148, 163, 184, 0.2);
   --chart-canvas: rgba(10, 14, 22, 0.42);
+
+  --brand-wordmark-quant-color: #f1f5f9;
+  --panel-spotlight-bg: rgba(6, 10, 18, 0.65);
+  --panel-spotlight-border: rgba(148, 163, 184, 0.12);
+  --panel-spotlight-color: rgba(20, 184, 166, 0.05);
+  --chrome-toolbar-bg: rgba(0, 0, 0, 0.18);
+  --topbar-fade: linear-gradient(180deg, rgba(12, 16, 24, 0.65) 0%, transparent 100%);
+  --scrollbar-thumb: rgba(148, 163, 184, 0.18);
+  --scrollbar-thumb-hover: rgba(148, 163, 184, 0.38);
+  --scrollbar-thumb-active: rgba(20, 184, 166, 0.45);
+  --scrollbar-idle: rgba(148, 163, 184, 0.08);
+  --ctrl-bg: rgba(8, 12, 20, 0.72);
+  --ctrl-bg-hover: rgba(255, 255, 255, 0.07);
+  --ctrl-border: rgba(148, 163, 184, 0.14);
+  --ctrl-inset: rgba(255, 255, 255, 0.03);
+  --live-active-bg: rgba(16, 185, 129, 0.1);
+  --live-active-text: #a7f3d0;
 
 
 

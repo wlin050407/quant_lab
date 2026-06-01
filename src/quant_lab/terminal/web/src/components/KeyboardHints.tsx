@@ -24,7 +24,13 @@ export function KeyboardHints({ focusMode, symbol }: KeyboardHintsProps) {
         <kbd>T</kbd> live today
       </span>
       <span className="kbd-hint">
+        <kbd>L</kbd> theme
+      </span>
+      <span className="kbd-hint">
         <kbd>F</kbd> {focusMode ? "exit focus" : "heatmap focus"}
+      </span>
+      <span className="kbd-hint">
+        <kbd>H</kbd> home
       </span>
       <span className="kbd-hint kbd-hint--muted">research only · not advice</span>
     </footer>

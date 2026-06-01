@@ -85,8 +85,6 @@ body {
 
 .session-slider {
   box-shadow: none;
-  background: rgba(8, 12, 20, 0.72);
-  border-color: rgba(148, 163, 184, 0.14);
 }
 
 .exposure-profile-wrap,
@@ -120,433 +118,220 @@ body {
   }
 }
 
-/* ── Root accent migration ── */
-
-:root {
-
-  --accent: var(--brand-teal);
-
-}
-
-
-
 /* ── Background mesh: subtle, no sky-blue corner ── */
-
 .app-mesh {
-
-  opacity: 0.28;
-
+  opacity: 0.42;
   background:
-
     linear-gradient(rgba(255, 255, 255, 0.014) 1px, transparent 1px),
-
     linear-gradient(90deg, rgba(255, 255, 255, 0.014) 1px, transparent 1px),
-
     radial-gradient(ellipse 70% 45% at 6% -10%, rgba(20, 184, 166, 0.045), transparent 58%),
-
     radial-gradient(ellipse 55% 38% at 98% 4%, rgba(148, 163, 184, 0.035), transparent 52%);
-
 }
-
-
 
 .app--focus .topbar {
-
   border-bottom-color: rgba(148, 163, 184, 0.14);
-
 }
-
-
-
-/* ── Controls: matte active states ── */
 
 .exp-btn.active,
-
 .view-btn.active {
-
   background: rgba(255, 255, 255, 0.07);
-
   color: var(--text);
-
   box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.14);
-
 }
-
-
 
 .btn-toolbar--demo {
-
   color: rgba(148, 163, 184, 0.75);
-
 }
-
-
 
 .btn-toolbar--demo:hover {
-
   color: var(--text-muted);
-
 }
-
-
 
 .live-dot {
-
   box-shadow: 0 0 0 1px rgba(20, 184, 166, 0.22);
-
 }
-
-
 
 /* ── Session slider ── */
-
 .session-slider-fill {
-
   background: var(--brand-teal);
-
 }
-
-
 
 .session-tick.active {
-
-  color: var(--brand-mint);
-
+  color: var(--session-tick-active-color, var(--brand-mint));
   font-weight: 600;
-
   background: var(--accent-muted);
-
 }
-
-
 
 /* ── Pin gauge (legacy gradient fallback) ── */
-
 .pin-fill {
-
   background: linear-gradient(90deg, var(--brand-teal), var(--brand-mint));
-
 }
-
-
 
 /* ── King / markers: flat, no glow ── */
-
 .king-mark {
-
   box-shadow: none;
-
 }
-
-
 
 .hm-row.king-row .hm-strike {
-
   text-shadow: none;
-
   font-weight: 600;
-
 }
-
-
 
 /* ── Spot pointer & chart NOW line ── */
-
 .profile-spot-line {
-
   stroke: var(--spot-line);
-
   stroke-width: 1.25;
-
   filter: none;
-
 }
-
-
 
 .profile-spot-label,
-
 .profile-spot-arrow {
-
   fill: var(--spot-label);
-
 }
-
-
 
 .spot-pointer::before {
-
   background: linear-gradient(
-
     90deg,
-
     transparent,
-
     rgba(20, 184, 166, 0.28) 18%,
-
     rgba(226, 232, 240, 0.75) 50%,
-
     rgba(20, 184, 166, 0.28) 82%,
-
     transparent
-
   );
-
   box-shadow: none;
-
 }
-
-
 
 .spot-pointer::after {
-
   border-right-color: var(--spot-line);
-
 }
-
-
 
 .hm-row.spot-row {
-
-  background: rgba(20, 184, 166, 0.05) !important;
-
-  box-shadow: inset 2px 0 0 rgba(20, 184, 166, 0.65);
-
+  background: var(--hm-row-spot-bg) !important;
+  box-shadow: inset 2px 0 0 var(--accent);
 }
-
-
 
 /* ── Heat bars: no outer glow on peaks ── */
-
 .hm-bar.heat-pos-max,
-
 .hm-bar.heat-neg-max,
-
 .hm-bar.heat-vex-pos-max,
-
 .hm-bar.heat-vex-neg-max {
-
   filter: none;
-
   box-shadow: none;
-
 }
-
-
 
 /* ── VEX palette: muted teal, not neon cyan ── */
-
 .dot-vex-pos {
-
   background: linear-gradient(135deg, var(--brand-teal), var(--brand-mint));
-
 }
-
-
 
 .dot-vex-neg {
-
   background: linear-gradient(135deg, #fb7185, #f472b6);
-
 }
-
-
-
-.hm-bar.heat-vex-pos {
-
-  background: linear-gradient(90deg, rgba(15, 118, 110, 0.85) 0%, var(--brand-teal) 100%);
-
-}
-
-
-
-.hm-bar.heat-vex-pos-high {
-
-  background: linear-gradient(90deg, rgba(20, 184, 166, 0.75) 0%, var(--brand-mint) 100%);
-
-}
-
-
 
 .hm-metric-lbl.lbl-vex,
-
 .hm-gex.vex-pos {
-
   color: var(--vex-pos-muted);
-
 }
-
-
 
 /* ── Call tags: desaturated sky ── */
-
 .tag-call,
-
 .levels-chip.call {
-
   background: rgba(125, 211, 252, 0.08);
-
   border-color: rgba(125, 211, 252, 0.22);
-
   color: var(--call-muted);
-
 }
-
-
 
 /* ── Empty / CTA states ── */
-
 .empty-panel-cta {
-
   color: var(--brand-mint);
-
   border-color: rgba(20, 184, 166, 0.28);
-
 }
 
+/* ── Command deck: restrained regime cells ── */
+.deck-regime.long_gamma {
+  background: rgba(74, 222, 128, 0.06);
+  border-left: 2px solid rgba(74, 222, 128, 0.55);
+}
 
+.deck-regime.short_gamma {
+  background: rgba(251, 191, 36, 0.06);
+  border-left: 2px solid rgba(251, 191, 36, 0.5);
+}
+
+.deck-regime.undetermined {
+  background: transparent;
+  border-left: 2px solid rgba(148, 163, 184, 0.2);
+}
+
+.deck-spot {
+  font-size: 1.65rem;
+  letter-spacing: -0.02em;
+}
 
 /* ── Chart wraps (gamma + exposure) ── */
-
 .exposure-profile-wrap,
-
 .gamma-profile-wrap {
-
   border-color: var(--surface-border);
-
-  background: transparent;
-
-  box-shadow: none;
-
+  background: rgba(8, 12, 20, 0.72);
+  box-shadow: inset 0 1px 0 var(--surface-inset);
 }
-
-
 
 .gamma-profile-wrap .profile-spot-line {
-
   stroke: var(--spot-line);
-
   filter: none;
-
 }
-
-
 
 .gamma-profile-wrap .profile-spot-label {
-
   fill: var(--spot-label);
-
 }
-
-
 
 /* ── Spotlight: terminal-subtle (react-bits) ── */
-
 .card-spotlight::before {
-
   opacity: 0;
-
   transition: opacity 0.5s var(--ease-out);
-
 }
-
-
 
 .card-spotlight:hover::before,
-
 .card-spotlight:focus-within::before {
-
   opacity: 0.55;
-
 }
-
-
 
 .card-spotlight {
-
   --spotlight-color: rgba(20, 184, 166, 0.04);
-
 }
-
-
 
 /* ── Panels: less glass, more matte ── */
-
 .panel,
-
 .card-spotlight.panel {
-
   backdrop-filter: blur(4px);
-
   box-shadow:
-
     inset 0 1px 0 var(--surface-inset),
-
     var(--panel-shadow);
-
 }
-
-
-
-/* Chart stack sizing moved to charts.css */
 
 /* ── Playbook rail density ── */
-
 .playbook-size-value {
-
   font-size: var(--text-xl);
-
 }
-
-
 
 .rail-content .playbook-section-title,
-
 .rail-content .panel-head h2 {
-
   font-size: var(--text-2xs);
-
 }
-
-
 
 /* ── Strategy card accent ── */
-
 .strategy-card {
-
   border-left-color: var(--brand-teal);
-
 }
-
-
 
 /* ── Hero strip legacy (if ever mounted) ── */
-
 .hero-strip .live-text {
-
   text-shadow: none;
-
 }
-
-
 
 @media (prefers-reduced-motion: reduce) {
-
   .card-spotlight::before {
-
     transition: none;
-
   }
-
 }
 
-.hm-bar.heat-pos-max,
-.hm-bar.heat-neg-max,
-.hm-bar.heat-vex-pos-max,
-.hm-bar.heat-vex-neg-max {
-  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.18);
-}
-
-.pin-gauge--playbook {
-  margin-bottom: 0.55rem;
-}

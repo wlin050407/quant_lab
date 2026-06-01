@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 import { distPct } from "../lib/heatmap";
 import { countValidLevels, DEALER_LEVELS, isValidLevel } from "../lib/levels";
-import { dataSourceLabel } from "../lib/snapshotMeta";
+import { dataSourceLabel, oiModeLabel, volumeSourceLabel } from "../lib/snapshotMeta";
 import { fmtPct, fmtPrice, regimeDesc, regimeShort, vannaLabel } from "../lib/format";
 import type { DashboardSnapshot, ExposureMetric } from "../types/snapshot";
 
@@ -53,6 +53,8 @@ export function InstrumentStrip({ snapshot, metric, loading }: InstrumentStripPr
   const strikes = snapshot.heatmap?.length ?? 0;
   const cohort = snapshot.meta?.cohort ?? "dte≤1";
   const source = dataSourceLabel(snapshot);
+  const oiLabel = oiModeLabel(snapshot.meta?.oi_mode);
+  const volLabel = volumeSourceLabel(snapshot.meta?.volume_source);
   const levelCount = countValidLevels(L);
 
   let exposureBlock: ReactNode;
@@ -211,9 +213,20 @@ export function InstrumentStrip({ snapshot, metric, loading }: InstrumentStripPr
 
         <span className="strip-foot-meta">
           <span className={`strip-meta-pill strip-meta-pill--${isLive ? "live" : "eod"}`}>{source}</span>
+          {snapshot.meta?.oi_mode === "effective" ? (
+            <span className="strip-meta-pill strip-meta-pill--oi">{oiLabel}</span>
+          ) : null}
+          {snapshot.meta?.volume_source && snapshot.meta.volume_source !== "settled" ? (
+            <span className="strip-meta-pill strip-meta-pill--vol">{volLabel}</span>
+          ) : null}
           {isLive && snapshot.meta?.quote_granularity ? (
             <span className="strip-meta-pill strip-meta-pill--refresh">
-              {snapshot.meta.quote_granularity} · ↻{snapshot.meta.live_refresh_seconds ?? 60}s
+              {snapshot.meta.quote_granularity} · ↻{snapshot.meta.live_refresh_seconds ?? 30}s
+            </span>
+          ) : null}
+          {snapshot.meta?.trinity_live_panels != null && snapshot.meta.trinity_live_panels > 0 ? (
+            <span className="strip-meta-pill strip-meta-pill--trinity">
+              Trinity {snapshot.meta.trinity_live_panels}/3 live
             </span>
           ) : null}
           <span>{snapshot.date}</span>

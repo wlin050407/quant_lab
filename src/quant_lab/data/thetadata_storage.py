@@ -36,13 +36,18 @@ def spx_price_1m_path(session_date: date, *, symbol: str = "SPX") -> Path:
     )
 
 
+def intraday_time_label(time_of_day: str) -> str:
+    """``HH:MM:SS`` → ``HHMM`` filename label used under ``intraday/``."""
+    return time_of_day[:5].replace(":", "")
+
+
 def option_intraday_path(
     session_date: date,
     time_label: str,
     *,
     symbol: str = "SPX",
 ) -> Path:
-    safe_label = time_label.replace(":", "")
+    safe_label = intraday_time_label(time_label) if ":" in time_label else time_label.replace(":", "")
     return (
         settings.paths.raw
         / "options"
@@ -59,7 +64,7 @@ def intraday_chain_path(
     *,
     symbol: str = "SPXW",
 ) -> Path:
-    safe_label = time_label.replace(":", "")
+    safe_label = intraday_time_label(time_label) if ":" in time_label else time_label.replace(":", "")
     return (
         settings.paths.raw
         / "options"

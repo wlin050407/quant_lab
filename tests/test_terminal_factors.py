@@ -15,7 +15,7 @@ from quant_lab.factors.gex import (
     strongest_floor,
 )
 from quant_lab.factors.positioning import expected_move_1sd, pin_score
-from quant_lab.factors.regime import regime_from_net_gex, should_trade_zdte
+from quant_lab.factors.regime import pin_reliability, pin_score_regime_adjusted, regime_from_net_gex, should_trade_zdte
 from quant_lab.factors.trinity import trinity_from_kings, trinity_score
 
 
@@ -55,8 +55,9 @@ def test_pin_score_high_when_concentrated_and_near_magnet() -> None:
         spot=100.0,
         magnet_strike=100.5,
         oi_concentration_top3=0.42,
-        net_gex_bn_per_1pct=2.5,
+        magnet_gex_bn_per_1pct=2.5,
         time_to_close_pct=100.0,
+        expected_move_1sd=2.0,
     )
     assert score > 70.0
 
@@ -65,6 +66,22 @@ def test_regime_from_net_gex() -> None:
     assert regime_from_net_gex(1.0) == "long_gamma"
     assert regime_from_net_gex(-1.0) == "short_gamma"
     assert regime_from_net_gex(0.0) == "undetermined"
+
+
+def test_pin_score_regime_adjusted_short_gamma() -> None:
+    adjusted = pin_score_regime_adjusted(80.0, "short_gamma")
+    assert adjusted == pytest.approx(56.0)
+
+
+def test_pin_reliability_high_long_gamma() -> None:
+    tier, _ = pin_reliability(75.0, "long_gamma")
+    assert tier == "high"
+
+
+def test_pin_reliability_caution_short_gamma() -> None:
+    tier, detail = pin_reliability(75.0, "short_gamma")
+    assert tier == "caution"
+    assert "short" in detail.lower()
 
 
 def test_should_trade_zdte_low_dte_share() -> None:

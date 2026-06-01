@@ -12,6 +12,11 @@ SESSION_CLOSE = time(16, 0)
 SESSION_HOURS = 6.5
 TRADING_DAYS_PER_YEAR = 365.0
 
+# Pin time sub-score (FlashAlpha ``time_to_close_hours`` semantics).
+PIN_TIME_CURVE_EXPONENT = 0.65
+PIN_TIME_LAST_2H_HOURS = 2.0
+PIN_TIME_LAST_2H_EXPONENT = 0.45
+
 
 def parse_time_of_day(value: str) -> time:
     """Parse ``HH:MM`` or ``HH:MM:SS`` into a ``time``."""
@@ -46,3 +51,36 @@ def intraday_time_to_expiry_years(session_date: date, time_of_day: str | time) -
     if hrs <= 0.0:
         return 0.0
     return hrs / (TRADING_DAYS_PER_YEAR * SESSION_HOURS)
+
+
+def pin_time_remaining_score(
+    hours_to_close: float,
+    *,
+    session_hours: float = SESSION_HOURS,
+) -> float:
+    """Pin time sub-score 0–100 from **hours to close** (FlashAlpha-aligned).
+
+    Base curve: ``(1 - hrs/session)^0.65``. Inside the final **2 hours** (Pin Play
+    entry window), acceleration uses a steeper exponent so afternoon pin ramps faster.
+    """
+    import numpy as np
+
+    hrs = float(np.clip(hours_to_close, 0.0, session_hours))
+    if session_hours <= 0:
+        return 100.0 if hrs <= 0 else 0.0
+    if hrs <= 0.0:
+        return 100.0
+
+    elapsed = 1.0 - hrs / session_hours
+    base = float(elapsed**PIN_TIME_CURVE_EXPONENT)
+
+    if hrs <= PIN_TIME_LAST_2H_HOURS:
+        window_elapsed = 1.0 - hrs / PIN_TIME_LAST_2H_HOURS
+        boost = float(window_elapsed**PIN_TIME_LAST_2H_EXPONENT)
+        base_at_2h = float(
+            (1.0 - PIN_TIME_LAST_2H_HOURS / session_hours) ** PIN_TIME_CURVE_EXPONENT
+        )
+        blended = base_at_2h + (1.0 - base_at_2h) * boost
+        return float(np.clip(blended * 100.0, 0.0, 100.0))
+
+    return float(np.clip(base * 100.0, 0.0, 100.0))

@@ -227,3 +227,61 @@
   margin-top: 0.35rem;
   color: rgba(148, 163, 184, 0.55);
 }
+
+.pin-reliability {
+  margin-top: 0.35rem;
+  padding: 0.28rem 0.4rem;
+  border-radius: 5px;
+  font-size: 0.58rem;
+  line-height: 1.35;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.pin-reliability--high {
+  color: #34d399;
+  border-color: rgba(52, 211, 153, 0.25);
+  background: rgba(52, 211, 153, 0.08);
+}
+
+.pin-reliability--moderate {
+  color: #94a3b8;
+  background: rgba(148, 163, 184, 0.06);
+}
+
+.pin-reliability--caution {
+  color: #fbbf24;
+  border-color: rgba(251, 191, 36, 0.3);
+  background: rgba(251, 191, 36, 0.08);
+}
+
+.pin-reliability--low,
+.pin-reliability--unknown {
+  color: var(--text-dim);
+}
+
+.pin-adjusted-ref {
+  margin-top: 0.2rem;
+  font-size: 0.54rem;
+  color: var(--text-dim);
+  font-family: var(--mono);
+}
+
+.pin-magnet-shift {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.56rem;
+  font-family: var(--mono);
+  color: #fbbf24;
+  animation: pin-shift-pulse 1.2s ease-out 1;
+}
+
+@keyframes pin-shift-pulse {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

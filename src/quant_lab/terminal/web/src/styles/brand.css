@@ -53,7 +53,7 @@
 }
 
 .brand-wordmark-quant {
-  color: #f1f5f9;
+  color: var(--brand-wordmark-quant-color, #f1f5f9);
 }
 
 .brand-wordmark-lab {

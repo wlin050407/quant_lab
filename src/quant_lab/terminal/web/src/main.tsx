@@ -2,6 +2,9 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import App from "./App";
+import { LocaleProvider } from "./providers/LocaleProvider";
+import { initTheme } from "./lib/theme";
+import { applyLocale, readStoredLocale } from "./lib/locale";
 import "./styles/design-tokens.css";
 import "./styles/brand.css";
 import "./styles/terminal.css";
@@ -16,6 +19,13 @@ import "./styles/charts.css";
 import "./styles/panel-sections.css";
 import "./styles/trace-layout.css";
 import "./styles/pin-panel.css";
+import "./styles/home.css";
+import "./styles/equity.css";
+import "./styles/themes.css";
+import "./styles/strike-plot-light.css";
+
+initTheme();
+applyLocale(readStoredLocale());
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -29,7 +39,9 @@ const queryClient = new QueryClient({
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <App />
+      <LocaleProvider>
+        <App />
+      </LocaleProvider>
     </QueryClientProvider>
   </StrictMode>,
 );

@@ -135,6 +135,9 @@ export interface PinTargets {
   primary_label: "king" | "top_magnet" | string;
   max_pain: number | null;
   pin_score: number | null;
+  pin_score_adjusted?: number | null;
+  pin_reliability?: "high" | "moderate" | "caution" | "low" | "unknown" | string;
+  pin_reliability_detail?: string | null;
   pin_score_breakdown: Record<string, number | null>;
   rankings: PinMagnetRow[];
 }
@@ -148,6 +151,7 @@ export interface PinPlaybook {
   size_multiplier: number;
   pin_multiplier: number;
   regime_multiplier: number;
+  macro_multiplier: number;
   gate_multiplier: number;
   checks: PlaybookCheck[];
   structure: PlaybookStructure | null;
@@ -188,6 +192,15 @@ export interface DashboardSnapshot {
     intraday_times_available?: string[];
     quote_granularity?: string | null;
     live_refresh_seconds?: number | null;
+    oi_mode?: "effective" | "settled" | string;
+    volume_source?: "trade" | "trade_signed" | "quote_proxy" | "oi_delta" | "settled" | string;
+    live_follow?: boolean;
+    chain_time_requested?: string | null;
+    trinity_live_panels?: number;
+    server_pulled_at?: string | null;
+    magnet_shift?: boolean;
+    magnet_previous?: number | null;
+    magnet_delta_pts?: number | null;
   };
 }
 

@@ -11,9 +11,26 @@ from quant_lab.terminal.live_chain import market_today
 DEFAULT_HISTORY_DAYS = 14
 
 
+def prefer_thetadata_intraday(session: date, *, today: date | None = None) -> bool:
+    """Recent sessions match cloud: pull intraday from ThetaData, not local parquet."""
+    anchor = today or market_today()
+    cutoff = history_cutoff_date(today=anchor)
+    if cutoff is None:
+        cutoff = anchor - timedelta(days=DEFAULT_HISTORY_DAYS)
+    return session >= cutoff
+
+
 def is_trading_weekday(session_date: date) -> bool:
     """US equity session calendar day (Mon–Fri). Holidays not filtered here."""
     return session_date.weekday() < 5
+
+
+def last_trading_session_date(*, anchor: date | None = None) -> date:
+    """Most recent Mon–Fri on or before ``anchor`` (default: today ET)."""
+    cursor = anchor or market_today()
+    while not is_trading_weekday(cursor):
+        cursor -= timedelta(days=1)
+    return cursor
 
 
 def history_retention_days() -> int | None:

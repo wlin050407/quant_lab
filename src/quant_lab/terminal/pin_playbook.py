@@ -8,6 +8,7 @@ from typing import Any, Literal
 
 import numpy as np
 
+from quant_lab.data.macro_calendar import macro_playbook_gate
 from quant_lab.data.intraday_time import SESSION_CLOSE, SESSION_OPEN, hours_to_close, parse_time_of_day
 from quant_lab.strategies.zdte_ic_conditional import pin_tier
 from quant_lab.strategies.zdte_pin_fly_eod import wing_width_from_expected_move
@@ -60,6 +61,7 @@ class PinPlaybook:
     pin_multiplier: float
     regime_multiplier: float
     gate_multiplier: float
+    macro_multiplier: float
     checks: tuple[PlaybookCheck, ...]
     structure: PlaybookStructure | None
     exits: tuple[PlaybookExitRule, ...]
@@ -245,6 +247,7 @@ def build_pin_playbook(
 
     pin_mult = _pin_multiplier(pin_score)
     regime_mult = _regime_multiplier(regime)
+    macro_mult, macro_detail = macro_playbook_gate(session_date)
 
     range_ok = _spot_in_play_range(
         spot,
@@ -259,6 +262,8 @@ def build_pin_playbook(
 
     gate_mult = 1.0
     if not regime_ok:
+        gate_mult = 0.0
+    elif macro_mult <= 0.0:
         gate_mult = 0.0
     else:
         if not pin_high:
@@ -302,6 +307,13 @@ def build_pin_playbook(
             passed=range_ok,
             detail="Inside walls or within 0.5× EM of King",
             weight=1.0 if range_ok else 0.25,
+        ),
+        PlaybookCheck(
+            id="macro",
+            label="Macro calendar",
+            passed=macro_mult > 0.0,
+            detail=macro_detail or "No FOMC / CPI on session",
+            weight=macro_mult,
         ),
         PlaybookCheck(
             id="gate",
@@ -348,6 +360,7 @@ def build_pin_playbook(
         pin_multiplier=pin_mult,
         regime_multiplier=regime_mult,
         gate_multiplier=gate_mult,
+        macro_multiplier=macro_mult,
         checks=checks,
         structure=structure,
         exits=_exit_rules(phase_id),

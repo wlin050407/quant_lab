@@ -27,6 +27,14 @@ def test_filter_dates_by_retention(monkeypatch: pytest.MonkeyPatch) -> None:
     assert filtered == ["2026-05-20", "2026-05-29"]
 
 
+def test_prefer_thetadata_intraday_recent_window() -> None:
+    friday = date(2026, 5, 29)
+    assert deploy.prefer_thetadata_intraday(date(2026, 5, 29), today=friday) is True
+    assert deploy.prefer_thetadata_intraday(date(2026, 5, 15), today=friday) is True
+    assert deploy.prefer_thetadata_intraday(date(2026, 5, 14), today=friday) is False
+    assert deploy.prefer_thetadata_intraday(date(2023, 7, 11), today=friday) is False
+
+
 def test_history_retention_unset_means_unlimited(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("TERMINAL_HISTORY_DAYS", raising=False)
     assert deploy.history_retention_days() is None

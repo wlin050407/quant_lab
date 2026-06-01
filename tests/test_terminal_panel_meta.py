@@ -60,7 +60,7 @@ def test_dashboard_panels_include_data_source() -> None:
                 mock_chain.side_effect = _side_effect
 
                 with patch("quant_lab.terminal.snapshot._prev_trading_date", return_value=None):
-                    with patch("quant_lab.terminal.snapshot.build_strike_heatmap", return_value=[{"strike": 4500.0}]):
+                    with patch("quant_lab.terminal.snapshot.build_strike_heatmap", return_value=([{"strike": 4500.0}], False)):
                         dash = build_dashboard("^SPX", date(2023, 7, 11), time_of_day="13:00:00")
 
     panels = {p["symbol"]: p for p in dash["panels"]}
