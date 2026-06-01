@@ -81,10 +81,191 @@
 }
 
 @media (max-width: 1024px) {
-  .equity-workspace {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto minmax(360px, 1fr);
+  .equity-terminal {
+    height: auto;
+    min-height: 100dvh;
+    overflow-x: hidden;
     overflow-y: auto;
+  }
+
+  .equity-terminal__body {
+    overflow: visible;
+  }
+
+  .equity-terminal .equity-workspace {
+    grid-template-columns: 1fr;
+    grid-template-rows: none;
+    grid-auto-rows: auto;
+    overflow: visible;
+  }
+
+  .equity-terminal .equity-rail {
+    min-height: auto;
+  }
+}
+
+/* Phone — scroll page, fixed chart height, compact chrome */
+@media (max-width: 768px) {
+  .equity-terminal {
+    height: auto;
+    min-height: 100dvh;
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+
+  .equity-terminal__body {
+    flex: none;
+    min-height: auto;
+    overflow: visible;
+    padding: 0 0.35rem calc(0.65rem + env(safe-area-inset-bottom, 0));
+  }
+
+  .equity-topbar .topbar-row {
+    grid-template-columns: 1fr;
+    gap: 0.35rem;
+  }
+
+  .equity-topbar .brand-tagline {
+    display: none;
+  }
+
+  .equity-topbar__controls {
+    gap: 0.3rem;
+  }
+
+  .equity-topbar__controls .chip {
+    font-size: 0.72rem;
+    padding: 0.28rem 0.45rem;
+  }
+
+  .equity-ticker-input {
+    flex: 1 1 4.5rem;
+    min-width: 0;
+    width: auto;
+    max-width: 6rem;
+  }
+
+  .equity-main-col {
+    flex: none;
+    min-height: clamp(280px, 46dvh, 420px);
+    overflow: visible;
+  }
+
+  .equity-chart-stage {
+    min-height: clamp(280px, 46dvh, 420px);
+    overflow: visible;
+  }
+
+  .equity-candles-wrap {
+    min-height: clamp(240px, 40dvh, 380px);
+  }
+
+  .equity-candles {
+    min-height: 200px;
+    flex: 1 1 auto;
+  }
+
+  .equity-chart-toolbar {
+    padding: 0.35rem 0.45rem;
+    gap: 0.3rem;
+  }
+
+  .equity-chart-toolbar__left {
+    flex: 1 1 100%;
+  }
+
+  .equity-chart-toolbar__vol {
+    margin-left: 0;
+    flex: 1 1 100%;
+  }
+
+  .equity-tf-bar {
+    flex: 1 1 100%;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .equity-tf-bar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .equity-tf-bar__btn {
+    flex-shrink: 0;
+  }
+
+  .equity-candles-head {
+    padding: 0.35rem 0.45rem;
+    font-size: 0.68rem;
+  }
+
+  .equity-candles-head__hint {
+    display: none;
+  }
+
+  .equity-candles-legend {
+    margin-left: 0;
+    flex: 1 1 100%;
+  }
+
+  .equity-instrument-strip .strip-exposure {
+    display: none;
+  }
+
+  .equity-instrument-strip .strip-regime {
+    flex: 0 0 56px;
+    padding: 0.3rem 0.35rem;
+  }
+
+  .equity-instrument-strip .strip-regime-v {
+    font-size: 0.58rem;
+  }
+
+  .equity-instrument-strip .strip-spot {
+    font-size: 1.15rem;
+  }
+
+  .equity-rail .rail-panel-host {
+    min-height: auto;
+    max-height: none;
+  }
+
+  .eq-signal-row__facts {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .equity-topbar .brand-wordmark {
+    font-size: 0.92rem;
+  }
+
+  .equity-chart-toolbar__title,
+  .equity-chart-toolbar__meta {
+    display: none;
+  }
+
+  .equity-candles-head__ohlc {
+    display: none;
+  }
+
+  .equity-candles-head__chg {
+    margin-left: auto;
+  }
+
+  .equity-instrument-strip .strip-levels-scroll {
+    order: 3;
+  }
+
+  .equity-instrument-strip .instrument-strip-foot {
+    gap: 0.25rem 0.45rem;
+  }
+
+  .equity-instrument-strip .strip-foot-item {
+    min-width: calc(50% - 0.35rem);
   }
 }
 
@@ -190,6 +371,7 @@ html[data-locale="zh"] .equity-chart-toolbar__title {
   min-height: 180px;
   height: 100% !important;
   width: 100%;
+  touch-action: pan-x pan-y pinch-zoom;
 }
 
 .equity-candles-head__tf {
@@ -208,6 +390,10 @@ html[data-locale="zh"] .equity-chart-toolbar__title {
 
 .equity-candles-head {
   flex-shrink: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.5rem;
   padding: 0.4rem 0.65rem;
   font-family: var(--mono);
   font-size: 0.75rem;
@@ -714,9 +900,10 @@ html[data-locale="zh"] .equity-horizon-panel__section h4 {
 }
 
 .equity-candles-legend {
-  margin-left: auto;
   display: flex;
-  gap: 0.65rem;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.65rem;
+  margin-left: auto;
   font-size: 0.68rem;
 }
 

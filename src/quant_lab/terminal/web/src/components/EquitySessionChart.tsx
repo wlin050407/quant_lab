@@ -297,11 +297,16 @@ export function EquityPriceChart({
 
     const ro = new ResizeObserver(() => buildChart());
     ro.observe(el);
+    const onVisualViewport = () => buildChart();
+    window.visualViewport?.addEventListener("resize", onVisualViewport);
+    window.visualViewport?.addEventListener("scroll", onVisualViewport);
     buildChart();
 
     return () => {
       disposed = true;
       ro.disconnect();
+      window.visualViewport?.removeEventListener("resize", onVisualViewport);
+      window.visualViewport?.removeEventListener("scroll", onVisualViewport);
       chart?.remove();
       chartRef.current = null;
     };
