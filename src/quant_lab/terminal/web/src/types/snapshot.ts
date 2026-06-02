@@ -182,6 +182,31 @@ export interface PinMagnetRow {
   tags: string[];
 }
 
+export interface PinClusterPayload {
+  is_cluster: boolean;
+  lower: number | null;
+  upper: number | null;
+  center: number | null;
+  width: number | null;
+  primary_strike: number | null;
+  secondary_strike: number | null;
+  strength_ratio: number | null;
+  cluster_strength: "high" | "moderate" | "low" | "none" | string;
+  merge_reason: string;
+  spot_zone_state:
+    | "inside_zone"
+    | "testing_upside_exit"
+    | "testing_downside_exit"
+    | "above_break"
+    | "below_break"
+    | "unknown"
+    | null;
+  interpretation: string | null;
+  up_break_level: number | null;
+  down_break_level: number | null;
+  buffer_pts: number | null;
+}
+
 export interface PinTargets {
   method: string;
   disclaimer: string;
@@ -195,6 +220,7 @@ export interface PinTargets {
   live_data_quality?: LivePinDataQuality | null;
   pin_score_breakdown: Record<string, number | null>;
   rankings: PinMagnetRow[];
+  pin_cluster?: PinClusterPayload;
 }
 
 export interface PinPlaybook {

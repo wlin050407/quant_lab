@@ -77,7 +77,9 @@ from quant_lab.factors.positioning import (
     pin_score_from_chain,
     resolve_cohort_time_years,
 )
+from quant_lab.factors.pin_cluster import detect_pin_cluster, pin_cluster_to_dict
 from quant_lab.factors.rates import resolve_gex_inputs
+from quant_lab.data.macro_calendar import macro_playbook_gate
 from quant_lab.factors.trinity import trinity_from_kings
 from quant_lab.terminal.pin_playbook import build_pin_playbook, pin_playbook_to_dict
 from quant_lab.terminal.session_status import (
@@ -911,6 +913,8 @@ def build_pin_targets(
     oi_near_magnet: float | None = None,
     net_gex_bn_per_1pct: float | None = None,
     regime: str = "undetermined",
+    symbol: str | None = None,
+    macro_blocked: bool = False,
     top_n: int = 5,
 ) -> dict[str, Any]:
     """Pin magnet ladder for terminal UI (relative weights, not calibrated probability)."""
@@ -955,6 +959,30 @@ def build_pin_targets(
         else ("unknown", "Insufficient pin data")
     )
 
+    cluster_result = detect_pin_cluster(
+        rankings,
+        spot,
+        symbol=symbol,
+        regime=regime,
+        pin_reliability=reliability_tier,
+        macro_blocked=macro_blocked,
+    )
+    cluster_payload = pin_cluster_to_dict(cluster_result)
+
+    if cluster_result.is_cluster:
+        cluster_strikes = {cluster_result.lower, cluster_result.upper}
+        tagged_rankings: list[dict[str, Any]] = []
+        for row in rankings:
+            row_copy = dict(row)
+            tags = list(row_copy.get("tags") or [])
+            strike_f = float(row_copy["strike"])
+            if any(abs(strike_f - s) <= 0.51 for s in cluster_strikes):
+                if "cluster" not in tags:
+                    tags.append("cluster")
+            row_copy["tags"] = tags
+            tagged_rankings.append(row_copy)
+        rankings = tagged_rankings
+
     return {
         "method": "gex_times_oi_heuristic",
         "disclaimer": "Relative magnet weight from |GEX|×OI — not a calibrated close probability.",
@@ -967,6 +995,7 @@ def build_pin_targets(
         "pin_reliability_detail": reliability_detail,
         "pin_score_breakdown": {k: _f(v) for k, v in breakdown.items()},
         "rankings": rankings,
+        "pin_cluster": cluster_payload,
     }
 
 
@@ -1408,6 +1437,7 @@ def build_dashboard(
     )
 
     session_hours = pin_playbook.hours_to_close
+    macro_mult, _macro_detail = macro_playbook_gate(asof)
     pin_targets = build_pin_targets(
         heatmap,
         spot,
@@ -1421,6 +1451,8 @@ def build_dashboard(
         pct_gex_dte1=pct_dte if np.isfinite(pct_dte) else None,
         net_gex_bn_per_1pct=_f(net_gex_bn_per_1pct(net_dte)),
         regime=regime,
+        symbol=symbol,
+        macro_blocked=macro_mult <= 0.0,
     )
 
     live_follow = _is_live_follow_request(asof, time_of_day)

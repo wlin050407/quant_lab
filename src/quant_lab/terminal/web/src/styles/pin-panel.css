@@ -275,6 +275,135 @@
   animation: pin-shift-pulse 1.2s ease-out 1;
 }
 
+/* Pinning zone hero — replaces single-point headline when cluster detected */
+.pin-zone-hero {
+  padding: 0.5rem 0.55rem;
+  margin: 0.35rem 0 0.45rem;
+  border-radius: 6px;
+  border: 1px solid rgba(20, 184, 166, 0.32);
+  background: linear-gradient(135deg, rgba(20, 184, 166, 0.08), rgba(6, 78, 59, 0.12));
+}
+
+.pin-zone-hero-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.45rem;
+  margin-bottom: 0.35rem;
+}
+
+.pin-zone-k {
+  font-size: 0.48rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.pin-zone-strength {
+  font-size: 0.48rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 0.05rem 0.32rem;
+  border-radius: 3px;
+  border: 1px solid transparent;
+}
+
+.pin-zone-strength--high {
+  color: #34d399;
+  border-color: rgba(52, 211, 153, 0.35);
+  background: rgba(52, 211, 153, 0.1);
+}
+
+.pin-zone-strength--moderate {
+  color: #94a3b8;
+  border-color: rgba(148, 163, 184, 0.3);
+  background: rgba(148, 163, 184, 0.08);
+}
+
+.pin-zone-state {
+  font-size: 0.48rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 0.05rem 0.32rem;
+  border-radius: 3px;
+}
+
+.pin-zone-state--inside {
+  color: #6ee7b7;
+  background: rgba(110, 231, 183, 0.12);
+  border: 1px solid rgba(110, 231, 183, 0.25);
+}
+
+.pin-zone-state--testing {
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.1);
+  border: 1px solid rgba(251, 191, 36, 0.28);
+}
+
+.pin-zone-state--break {
+  color: #fb7185;
+  background: rgba(251, 113, 133, 0.1);
+  border: 1px solid rgba(251, 113, 133, 0.28);
+}
+
+.pin-zone-range {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  font-family: var(--mono);
+  margin-bottom: 0.3rem;
+}
+
+.pin-zone-range strong {
+  font-size: 1rem;
+  color: var(--brand-mint);
+  font-weight: 800;
+}
+
+.pin-zone-dash {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+.pin-zone-meta,
+.pin-zone-breaks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.65rem;
+  font-family: var(--mono);
+  font-size: 0.54rem;
+  color: var(--text-dim);
+  margin-bottom: 0.25rem;
+}
+
+.pin-zone-members {
+  margin: 0.25rem 0 0;
+  font-family: var(--mono);
+  font-size: 0.54rem;
+  color: rgba(148, 163, 184, 0.75);
+}
+
+.pin-zone-copy {
+  margin: 0.4rem 0 0;
+  font-size: 0.58rem;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
+.pin-magnet-row--cluster {
+  border-color: rgba(20, 184, 166, 0.28);
+  background: rgba(20, 184, 166, 0.06);
+}
+
+.pin-magnet-tag--cluster {
+  color: var(--brand-mint);
+  border-color: rgba(20, 184, 166, 0.35);
+  background: rgba(20, 184, 166, 0.1);
+}
+
 @keyframes pin-shift-pulse {
   from {
     opacity: 0;
