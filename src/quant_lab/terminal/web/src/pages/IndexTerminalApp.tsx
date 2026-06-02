@@ -6,6 +6,7 @@ import { navigateTo } from "../lib/appRoute";
 
 import { TopBar } from "../components/TopBar";
 import { InstrumentStrip } from "../components/InstrumentStrip";
+import { ModelAssumptionStrip } from "../components/ModelAssumptionStrip";
 import { PriceLadder } from "../components/PriceLadder";
 import { HeatmapSection } from "../components/HeatmapSection";
 import { RightRail } from "../components/RightRail";
@@ -219,7 +220,12 @@ export function IndexTerminalApp() {
         />
       ) : snapshot ? (
         <>
-          {!focusMode ? <InstrumentStrip snapshot={snapshot} metric={metric} loading={loading} /> : null}
+          {!focusMode ? (
+            <>
+              <InstrumentStrip snapshot={snapshot} metric={metric} loading={loading} />
+              <ModelAssumptionStrip snapshot={snapshot} />
+            </>
+          ) : null}
           <main className={workspaceClass}>
             {!focusMode ? <PriceLadder snapshot={snapshot} /> : null}
             <HeatmapSection

@@ -7,6 +7,8 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
+from quant_lab.factors.equity.prices import price_series_for_returns
+
 
 @dataclass(frozen=True)
 class RelativeStrength:
@@ -32,8 +34,8 @@ def relative_strength_vs_benchmark(
     benchmark_daily: pd.DataFrame,
 ) -> RelativeStrength:
     """Arithmetic RS spread: stock return minus benchmark return over N days (% points)."""
-    t_close = pd.to_numeric(ticker_daily["close"], errors="coerce")
-    b_close = pd.to_numeric(benchmark_daily["close"], errors="coerce")
+    t_close = price_series_for_returns(ticker_daily)
+    b_close = price_series_for_returns(benchmark_daily)
     aligned = pd.concat([t_close.rename("ticker"), b_close.rename("benchmark")], axis=1).dropna()
     if aligned.empty:
         nan = float("nan")

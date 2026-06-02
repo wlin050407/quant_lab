@@ -71,7 +71,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date
-from typing import Mapping
+from typing import Literal, Mapping
 
 import numpy as np
 import pandas as pd
@@ -102,6 +102,124 @@ def effective_time_to_expiry_years(chain: pd.DataFrame) -> np.ndarray:
     t_years = chain["dte"].astype("float64") / TRADING_DAYS_PER_YEAR
     mask0 = (chain["dte"].astype("float64") == 0) & (t_years <= 0)
     return t_years.mask(mask0, 1.0 / (TRADING_DAYS_PER_YEAR * TRADING_HOURS_PER_DAY)).to_numpy()
+
+
+_FALLBACK_T_YEARS = 1.0 / (TRADING_DAYS_PER_YEAR * TRADING_HOURS_PER_DAY)
+
+
+@dataclass(frozen=True)
+class TimeToExpiryDiagnostics:
+    """How year-fraction T was resolved for a 0DTE cohort (terminal metadata)."""
+
+    mode: Literal[
+        "exact_intraday",
+        "hours_to_close",
+        "dte_over_365",
+        "fallback_1h",
+        "unknown",
+    ]
+    fallback_used: bool
+    t_years_median: float
+    warning: str | None
+
+
+def diagnose_cohort_time_to_expiry(
+    chain: pd.DataFrame,
+    *,
+    dte_max: int | None = 1,
+    hours_to_close: float | None = None,
+) -> TimeToExpiryDiagnostics:
+    """Summarize T resolution for API disclosure (no side effects)."""
+    if chain.empty:
+        return TimeToExpiryDiagnostics(
+            mode="unknown",
+            fallback_used=False,
+            t_years_median=float("nan"),
+            warning=None,
+        )
+
+    work = chain
+    if dte_max is not None and "dte" in chain.columns:
+        filtered = chain[chain["dte"] <= dte_max]
+        if not filtered.empty:
+            work = filtered
+
+    if "time_to_expiry_years" in work.columns:
+        t = pd.to_numeric(work["time_to_expiry_years"], errors="coerce")
+        positive = t[t > 0]
+        if not positive.empty:
+            dte = pd.to_numeric(work["dte"], errors="coerce")
+            used_fallback = bool(
+                ((dte == 0) & (~np.isfinite(t) | (t <= 0))).any()
+            )
+            median_t = float(positive.median())
+            if used_fallback:
+                return TimeToExpiryDiagnostics(
+                    mode="fallback_1h",
+                    fallback_used=True,
+                    t_years_median=median_t,
+                    warning=(
+                        "Some dte=0 rows lack intraday T; ~1 trading hour fallback was "
+                        "used. 0DTE gamma is highly sensitive to time-to-expiry."
+                    ),
+                )
+            return TimeToExpiryDiagnostics(
+                mode="exact_intraday",
+                fallback_used=False,
+                t_years_median=median_t,
+                warning=None,
+            )
+
+    if hours_to_close is not None and np.isfinite(hours_to_close) and hours_to_close > 0:
+        t_years = float(hours_to_close / (TRADING_DAYS_PER_YEAR * TRADING_HOURS_PER_DAY))
+        return TimeToExpiryDiagnostics(
+            mode="hours_to_close",
+            fallback_used=False,
+            t_years_median=t_years,
+            warning=None,
+        )
+
+    if "dte" not in work.columns:
+        return TimeToExpiryDiagnostics(
+            mode="unknown",
+            fallback_used=False,
+            t_years_median=float("nan"),
+            warning=None,
+        )
+
+    dte_min = int(pd.to_numeric(work["dte"], errors="coerce").min())
+    if dte_min <= 0:
+        return TimeToExpiryDiagnostics(
+            mode="fallback_1h",
+            fallback_used=True,
+            t_years_median=_FALLBACK_T_YEARS,
+            warning=(
+                "EoD dte=0 without intraday T; ~1 trading hour fallback was used. "
+                "0DTE gamma is highly sensitive to time-to-expiry."
+            ),
+        )
+    t_years = float(max(dte_min, 1) / TRADING_DAYS_PER_YEAR)
+    return TimeToExpiryDiagnostics(
+        mode="dte_over_365",
+        fallback_used=False,
+        t_years_median=t_years,
+        warning=None,
+    )
+
+
+FlipConfidence = Literal["high", "medium", "low", "none"]
+
+
+@dataclass(frozen=True)
+class GammaFlipResult:
+    """All zero-GEX crossings on a hypothetical-spot grid."""
+
+    primary_flip: float
+    primary_rule: str
+    all_flips: tuple[float, ...]
+    search_radius_pct: float
+    n_search_points: int
+    confidence: FlipConfidence
 
 
 def bs_gamma(
@@ -818,8 +936,9 @@ def compute_gex_profile(
     )
     per_strike = compute_dealer_gamma_exposure(with_gamma, spot)
     net = total_net_gex(per_strike)
-    flip = (
-        gamma_flip_level(
+    flip = float("nan")
+    if compute_flip:
+        flip = compute_gamma_flip(
             work,
             spot,
             symbol=sym,
@@ -827,10 +946,7 @@ def compute_gex_profile(
             r=r_eff,
             q=q_eff,
             model=model_eff,
-        )
-        if compute_flip
-        else float("nan")
-    )
+        ).primary_flip
     return GexProfile(
         net_gex=net,
         flip_level=float(flip),
@@ -1046,7 +1162,27 @@ def compute_gamma_profile_curve(
     ]
 
 
-def gamma_flip_level(
+def _flip_confidence(
+    *,
+    n_flips: int,
+    spot: float,
+    grid: np.ndarray,
+    primary_flip: float,
+) -> FlipConfidence:
+    if n_flips == 0 or not np.isfinite(primary_flip):
+        return "none"
+    if n_flips > 3:
+        return "low"
+    span = float(grid[-1] - grid[0]) if len(grid) > 1 else 0.0
+    step_pct = (span / spot / max(len(grid) - 1, 1)) if spot > 0 else 1.0
+    if n_flips == 1 and step_pct <= 0.01:
+        return "high"
+    if n_flips <= 2 and step_pct <= 0.02:
+        return "medium"
+    return "low"
+
+
+def compute_gamma_flip(
     chain: pd.DataFrame,
     spot: float,
     *,
@@ -1060,44 +1196,14 @@ def gamma_flip_level(
     multiplier: int = DEFAULT_CONTRACT_MULTIPLIER,
     search_radius_pct: float = 0.10,
     n_search_points: int = 41,
-) -> float:
-    """The spot price at which total dealer net GEX would cross zero.
+) -> GammaFlipResult:
+    """Find all net-GEX zero crossings; primary = nearest to ``spot``.
 
-    Recomputes BS gamma at a grid of hypothetical spot prices in
-    `[spot · (1 - r), spot · (1 + r)]` (default ±10%) and linearly interpolates
-    the zero crossing. The intuition: at the flip level, dealer hedging stops
-    being a damper and becomes an amplifier — the most-watched single number in
-    0DTE positioning commentary.
-
-    If the net GEX is monotone (same sign at both ends of the search interval),
-    no crossing exists in the searched range and we return NaN. The caller can
-    widen `search_radius_pct` or interpret "no flip in ±10%" as "we are
-    deep in a single regime today".
-
-    The chain must have `strike`, `dte`, `implied_volatility`, `right`,
-    `open_interest`. `gamma_col` is recomputed on the fly at each grid point;
-    if you pass `gamma_col="gamma"` (the dataset's static value) the result
-    will be biased because that gamma doesn't update with hypothetical spot.
-    For correctness with non-BS gamma sources, use `bs_gamma` here.
-
-    Args:
-        chain: snapshot option chain.
-        spot: current spot price (anchor for the search grid).
-        r, q: BS inputs.
-        gamma_col: column name to recompute. Must be 'bs_gamma' for now —
-            other gamma columns are static and would give wrong flip levels.
-        dealer_sign: per-right sign convention.
-        multiplier: contract multiplier.
-        search_radius_pct: fractional spot range to search on each side.
-        n_search_points: grid resolution. 41 points across ±10% = 0.5%
-            increments, plenty for piecewise-linear interpolation.
-
-    Returns:
-        Flip-level spot price (float), or NaN if no zero crossing in range.
+    Recomputes BS gamma at hypothetical spots (see ``gamma_flip_level`` doc).
     """
     if gamma_col != "bs_gamma":
         raise ValueError(
-            "gamma_flip_level requires recomputing gamma at hypothetical spots; "
+            "compute_gamma_flip requires recomputing gamma at hypothetical spots; "
             "static gamma columns (e.g. dataset 'gamma') would give wrong answers. "
             "Use gamma_col='bs_gamma'."
         )
@@ -1121,19 +1227,86 @@ def gamma_flip_level(
         n_search_points=n_search_points,
     )
     if len(curve) < 2:
-        return float("nan")
+        return GammaFlipResult(
+            primary_flip=float("nan"),
+            primary_rule="nearest_to_spot",
+            all_flips=(),
+            search_radius_pct=search_radius_pct,
+            n_search_points=n_search_points,
+            confidence="none",
+        )
 
     grid = np.array([p.spot for p in curve], dtype="float64")
     net_at_grid = np.array([p.net_gex for p in curve], dtype="float64")
 
     signs = np.sign(net_at_grid)
-    crossings = np.where(np.diff(signs) != 0)[0]
-    if len(crossings) == 0:
-        return float("nan")
+    crossing_idx = np.where(np.diff(signs) != 0)[0]
+    flips: list[float] = []
+    for i in crossing_idx:
+        s0, s1 = float(grid[i]), float(grid[i + 1])
+        g0, g1 = float(net_at_grid[i]), float(net_at_grid[i + 1])
+        if g1 == g0:
+            flips.append(s0)
+        else:
+            flips.append(float(s0 - g0 * (s1 - s0) / (g1 - g0)))
 
-    i = int(crossings[0])
-    s0, s1 = grid[i], grid[i + 1]
-    g0, g1 = net_at_grid[i], net_at_grid[i + 1]
-    if g1 == g0:
-        return float(s0)
-    return float(s0 - g0 * (s1 - s0) / (g1 - g0))
+    if not flips:
+        return GammaFlipResult(
+            primary_flip=float("nan"),
+            primary_rule="nearest_to_spot",
+            all_flips=(),
+            search_radius_pct=search_radius_pct,
+            n_search_points=n_search_points,
+            confidence="none",
+        )
+
+    primary = min(flips, key=lambda f: abs(f - spot))
+    confidence = _flip_confidence(
+        n_flips=len(flips),
+        spot=spot,
+        grid=grid,
+        primary_flip=primary,
+    )
+    return GammaFlipResult(
+        primary_flip=primary,
+        primary_rule="nearest_to_spot",
+        all_flips=tuple(flips),
+        search_radius_pct=search_radius_pct,
+        n_search_points=n_search_points,
+        confidence=confidence,
+    )
+
+
+def gamma_flip_level(
+    chain: pd.DataFrame,
+    spot: float,
+    *,
+    symbol: str | None = None,
+    asof: date | None = None,
+    r: float | None = None,
+    q: float | None = None,
+    model: GexModel | None = None,
+    gamma_col: str = "bs_gamma",
+    dealer_sign: Mapping[str, int] = DEFAULT_DEALER_SIGN,
+    multiplier: int = DEFAULT_CONTRACT_MULTIPLIER,
+    search_radius_pct: float = 0.10,
+    n_search_points: int = 41,
+) -> float:
+    """Primary gamma flip (nearest zero crossing to ``spot``).
+
+    See ``compute_gamma_flip`` for all crossings and confidence.
+    """
+    return compute_gamma_flip(
+        chain,
+        spot,
+        symbol=symbol,
+        asof=asof,
+        r=r,
+        q=q,
+        model=model,
+        gamma_col=gamma_col,
+        dealer_sign=dealer_sign,
+        multiplier=multiplier,
+        search_radius_pct=search_radius_pct,
+        n_search_points=n_search_points,
+    ).primary_flip

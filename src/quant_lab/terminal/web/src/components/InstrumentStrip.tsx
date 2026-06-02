@@ -108,6 +108,10 @@ export function InstrumentStrip({ snapshot, metric, loading }: InstrumentStripPr
   if (!isIntraday && sym === "SPX") warnings.push("No intraday chain");
   if (strikes === 0) warnings.push("Empty chain");
   if (levelCount === 0) warnings.push("Levels need 0DTE chain");
+  const modelWarnings = snapshot.meta?.model_metadata?.data_quality_warnings ?? [];
+  for (const w of modelWarnings) {
+    if (!warnings.includes(w)) warnings.push(w);
+  }
 
   return (
     <section
@@ -212,7 +216,9 @@ export function InstrumentStrip({ snapshot, metric, loading }: InstrumentStripPr
         ) : null}
 
         {M.vanna_interpretation && metric !== "gex" ? (
-          <span className="strip-foot-item strip-foot-vanna">{vannaLabel(M.vanna_interpretation)}</span>
+          <span className="strip-foot-item strip-foot-vanna" title={snapshot.meta?.model_metadata?.vex_interpretation_warning}>
+            {vannaLabel(M.vanna_interpretation)}
+          </span>
         ) : null}
 
         <span className="strip-foot-meta">

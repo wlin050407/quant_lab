@@ -60,6 +60,14 @@ from quant_lab.factors.regime import (
     should_trade_zdte,
 )
 from quant_lab.terminal.magnet_state import record_magnet_shift
+from quant_lab.terminal.live_chain import live_chain_poll_meta
+from quant_lab.terminal.live_pin_quality import (
+    assess_live_pin_quality,
+    cap_pin_reliability,
+    live_pin_quality_to_dict,
+)
+from quant_lab.terminal.model_metadata import build_model_metadata, compute_flip_result_for_chain
+from quant_lab.factors.gex import diagnose_cohort_time_to_expiry
 from quant_lab.factors.positioning import (
     PIN_SCORE_MODEL_VERSION,
     atm_iv_from_chain,
@@ -1342,6 +1350,22 @@ def build_dashboard(
     magnet_level = _f(row.get("magnet_dte1"))
     if magnet_level is None:
         magnet_level = _f(row.get("king_dte1"))
+    gex_inputs = resolve_gex_inputs(symbol, asof=asof)
+    meta_warnings: list[str] = []
+    if cohort_fallback:
+        meta_warnings.append("Cohort fallback: dte≤1 filter empty; full chain used.")
+    flip_result = (
+        compute_flip_result_for_chain(
+            chain,
+            spot,
+            symbol=symbol,
+            asof=asof,
+            gex_inputs=gex_inputs,
+            dte_max=1,
+        )
+        if not chain.empty
+        else None
+    )
     levels = {
         "flip": _f(row.get("flip_dte1")),
         "call_wall": _f(row.get("call_wall_dte1")),
@@ -1355,7 +1379,6 @@ def build_dashboard(
         "expected_upper": spot + em if np.isfinite(em) else None,
         "expected_lower": spot - em if np.isfinite(em) else None,
     }
-
     playbook_time = intraday_time or (
         DEFAULT_INTRADAY_TIME if time_of_day.strip().lower() == LIVE_TIME_OF_DAY else time_of_day
     )
@@ -1400,11 +1423,65 @@ def build_dashboard(
         regime=regime,
     )
 
+    live_follow = _is_live_follow_request(asof, time_of_day)
+    live_poll = (
+        live_chain_poll_meta(symbol, asof, time_of_day, chain_mode=chain_mode)
+        if live_follow and main_chain_source == "live"
+        else None
+    )
+    t_diag = diagnose_cohort_time_to_expiry(
+        chain if not chain.empty else pd.DataFrame(),
+        dte_max=1,
+        hours_to_close=session_hours,
+    )
+    flip_conf = flip_result.confidence if flip_result is not None else None
+    live_quality = assess_live_pin_quality(
+        is_live_poll=live_follow,
+        live_follow=live_follow,
+        data_source=(
+            "thetadata_live"
+            if main_chain_source == "live"
+            else ("thetadata" if "ThetaData" in data_mode else "eod")
+        ),
+        cohort_fallback=cohort_fallback,
+        t_diag=t_diag,
+        n_strikes=len(heatmap),
+        flip_confidence=flip_conf,
+        chain_poll=live_poll,
+        hours_to_close=session_hours,
+        main_chain_source=main_chain_source,
+    )
+    if live_quality is not None and pin_targets is not None:
+        tier, detail = cap_pin_reliability(
+            pin_targets["pin_reliability"],  # type: ignore[arg-type]
+            str(pin_targets.get("pin_reliability_detail", "")),
+            live_quality,
+        )
+        pin_targets["pin_reliability"] = tier
+        pin_targets["pin_reliability_detail"] = detail
+        pin_targets["live_data_quality"] = live_pin_quality_to_dict(live_quality)
+
     magnet_shift = None
     if _is_live_follow_request(asof, time_of_day) and main_chain_source == "live":
         magnet_shift = record_magnet_shift(symbol, iso, levels["king"])
 
-    gex_inputs = resolve_gex_inputs(symbol, asof=asof)
+    ds_meta = (
+        "thetadata_live"
+        if "live" in data_mode.lower()
+        else ("thetadata" if "ThetaData" in data_mode else "eod")
+    )
+    model_metadata = build_model_metadata(
+        gex_inputs=gex_inputs,
+        chain=chain,
+        spot=spot,
+        hours_to_close=session_hours,
+        data_source=ds_meta,
+        oi_mode=pos_meta.get("oi_mode"),
+        flip_result=flip_result,
+        extra_warnings=meta_warnings or None,
+        live_pin_quality=live_pin_quality_to_dict(live_quality),
+        live_chain_poll=live_poll,
+    )
 
     payload = {
         "symbol": symbol,
@@ -1451,13 +1528,15 @@ def build_dashboard(
             "risk_free_rate_source": gex_inputs.r_source,
             "dividend_yield_source": gex_inputs.q_source,
             "data_mode": data_mode,
-            "data_source": (
-                "thetadata_live"
-                if "live" in data_mode.lower()
-                else ("thetadata" if "ThetaData" in data_mode else "eod")
-            ),
+            "data_source": ds_meta,
             "n_strikes": len(heatmap),
             "intraday_time": intraday_time[:5] if intraday_time else None,
+            "hours_to_close": _f(session_hours),
+            "chain_clock_used": (
+                str(live_poll.get("chain_time_used"))
+                if live_poll and live_poll.get("chain_time_used")
+                else (intraday_time[:8] if intraday_time else None)
+            ),
             "chain_time_requested": chain_time_requested,
             "intraday_times_available": ["live", *list(PIN_PLAY_TIMES_ET)],
             "quote_granularity": "1m" if main_chain_source in ("live", "local", "thetadata") else None,
@@ -1478,6 +1557,7 @@ def build_dashboard(
             "pin_score_model": PIN_SCORE_MODEL_VERSION,
             "t_years_at_calc": _f(row.get("t_years_at_calc")),
             "em_source": row.get("em_source"),
+            "model_metadata": model_metadata,
         },
     }
     return json_safe(payload)

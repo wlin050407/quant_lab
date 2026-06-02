@@ -7,6 +7,8 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
+from quant_lab.factors.equity.prices import price_series_for_returns
+
 
 @dataclass(frozen=True)
 class MaStructure:
@@ -21,7 +23,7 @@ class MaStructure:
 
 
 def ma_structure(daily: pd.DataFrame) -> MaStructure:
-    close = pd.to_numeric(daily["close"], errors="coerce").dropna()
+    close = price_series_for_returns(daily).dropna()
     if close.empty:
         nan = float("nan")
         return MaStructure(nan, nan, nan, nan, False, False, False, False)

@@ -15,6 +15,54 @@ export interface KingDistance {
   signed_pct: number;
 }
 
+export interface ModelMetadata {
+  dealer_sign_assumption: string;
+  dealer_sign_observed: boolean;
+  interpretation_warning: string;
+  vex_interpretation_warning?: string;
+  pricing_inputs?: {
+    model: string;
+    r: number;
+    q: number;
+    rate_source: string;
+    dividend_source: string;
+  };
+  time_to_expiry?: {
+    mode: string;
+    fallback_used: boolean;
+    t_years_median: number | null;
+    warning: string | null;
+  };
+  gamma_flip?: {
+    primary_flip: number | null;
+    primary_rule: string;
+    all_flips: (number | null)[];
+    search_radius_pct?: number;
+    grid_points?: number;
+    confidence: string;
+  } | null;
+  data_quality_warnings?: string[];
+  hours_to_close?: number | null;
+  live_chain_poll?: {
+    from_cache?: boolean;
+    stale_served?: boolean;
+    chain_age_seconds?: number;
+    chain_time_used?: string;
+  } | null;
+  live_pin_quality?: LivePinDataQuality | null;
+}
+
+export interface LivePinDataQuality {
+  grade: "ok" | "degraded" | "poor" | string;
+  live_follow?: boolean;
+  reasons?: string[];
+  chain_from_cache?: boolean;
+  chain_stale_served?: boolean;
+  chain_age_seconds?: number | null;
+  hours_to_close?: number | null;
+  n_strikes?: number;
+}
+
 export interface Levels {
   flip: number | null;
   call_wall: number | null;
@@ -144,6 +192,7 @@ export interface PinTargets {
   pin_score_adjusted?: number | null;
   pin_reliability?: "high" | "moderate" | "caution" | "low" | "unknown" | string;
   pin_reliability_detail?: string | null;
+  live_data_quality?: LivePinDataQuality | null;
   pin_score_breakdown: Record<string, number | null>;
   rankings: PinMagnetRow[];
 }
@@ -217,6 +266,16 @@ export interface DashboardSnapshot {
     magnet_shift?: boolean;
     magnet_previous?: number | null;
     magnet_delta_pts?: number | null;
+    model_metadata?: ModelMetadata;
+    gex_model?: string;
+    risk_free_rate?: number | null;
+    dividend_yield?: number | null;
+    risk_free_rate_source?: string;
+    dividend_yield_source?: string;
+    t_years_at_calc?: number | null;
+    em_source?: string;
+    hours_to_close?: number | null;
+    chain_clock_used?: string | null;
   };
 }
 

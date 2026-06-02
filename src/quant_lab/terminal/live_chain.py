@@ -47,10 +47,11 @@ tick but short enough that we never display badly out-of-date pin levels.
 """
 
 # Key: (terminal_symbol, session_date_iso, time_label, chain_mode)
-# Value: (expires_at_monotonic, chain, spot, time_used)
+# Value: (expires_at_monotonic, chain, spot, time_used, fetched_at_monotonic)
 _CacheKey = tuple[str, str, str, str]
-_CacheValue = tuple[float, pd.DataFrame, float, str]
+_CacheValue = tuple[float, pd.DataFrame, float, str, float]
 _live_cache: dict[_CacheKey, _CacheValue] = {}
+_live_poll_flags: dict[_CacheKey, dict[str, bool | float | str]] = {}
 
 
 def live_refresh_seconds() -> float:
@@ -114,6 +115,44 @@ def _effective_time_of_day(session_date: date, time_of_day: str) -> str:
 def clear_live_cache() -> None:
     """Clear in-memory live chain cache (tests)."""
     _live_cache.clear()
+    _live_poll_flags.clear()
+
+
+def live_chain_poll_meta(
+    symbol: str,
+    session_date: date,
+    time_of_day: str,
+    *,
+    chain_mode: ChainMode = "pin",
+) -> dict[str, float | bool | str] | None:
+    """Metadata for the latest live poll (cache age, stale serve) — UI disclosure."""
+    if not is_live_session(session_date):
+        return None
+    spec = resolve_intraday_spec(symbol)
+    if spec is None:
+        return None
+    effective_time = _effective_time_of_day(session_date, time_of_day)
+    live_follow = (
+        time_of_day.strip().lower() == LIVE_TIME_OF_DAY and is_live_session(session_date)
+    )
+    cache_key: _CacheKey = (
+        spec.terminal_symbol,
+        session_date.isoformat(),
+        "live" if live_follow else effective_time,
+        chain_mode,
+    )
+    flags = _live_poll_flags.get(cache_key)
+    if flags is None:
+        return None
+    now_mono = time.monotonic()
+    fetched_at = float(flags.get("fetched_at_mono", now_mono))
+    age = max(0.0, now_mono - fetched_at)
+    return {
+        "from_cache": bool(flags.get("from_cache", False)),
+        "stale_served": bool(flags.get("stale_served", False)),
+        "chain_age_seconds": round(age, 1),
+        "chain_time_used": str(flags.get("time_used", effective_time)),
+    }
 
 
 def _serve_stale_cache(
@@ -134,7 +173,7 @@ def _serve_stale_cache(
     stale = _live_cache.get(cache_key)
     if stale is None:
         return None
-    expires_at, chain, spot, time_used = stale
+    expires_at, chain, spot, time_used, fetched_at = stale
     overdue = now_mono - expires_at
     if overdue > STALE_CACHE_MAX_SECONDS:
         return None
@@ -148,6 +187,12 @@ def _serve_stale_cache(
         STALE_CACHE_MAX_SECONDS,
         exc,
     )
+    _live_poll_flags[cache_key] = {
+        "fetched_at_mono": fetched_at,
+        "from_cache": True,
+        "stale_served": True,
+        "time_used": time_used,
+    }
     return chain.copy(), spot, time_used, True
 
 
@@ -194,7 +239,7 @@ def fetch_intraday_chain_from_thetadata(
     now_mono = time.monotonic()
     cached = _live_cache.get(cache_key)
     if cached is not None:
-        expires_at, chain, spot, time_used = cached
+        expires_at, chain, spot, time_used, fetched_at = cached
         if now_mono < expires_at:
             log.debug(
                 "ThetaData chain cache hit %s %s @ %s mode=%s",
@@ -203,6 +248,12 @@ def fetch_intraday_chain_from_thetadata(
                 time_used,
                 chain_mode,
             )
+            _live_poll_flags[cache_key] = {
+                "fetched_at_mono": fetched_at,
+                "from_cache": True,
+                "stale_served": False,
+                "time_used": time_used,
+            }
             return chain.copy(), spot, time_used, True
 
     client = get_thetadata_client(dataframe_type="pandas")
@@ -260,12 +311,20 @@ def fetch_intraday_chain_from_thetadata(
     elapsed_ms = (time.monotonic() - t0) * 1000.0
     chain = snapshot.chain.copy()
     spot = float(snapshot.spot)
+    fetched_at = now_mono
     _live_cache[cache_key] = (
         now_mono + ttl,
         chain.copy(),
         spot,
         effective_time,
+        fetched_at,
     )
+    _live_poll_flags[cache_key] = {
+        "fetched_at_mono": fetched_at,
+        "from_cache": False,
+        "stale_served": False,
+        "time_used": effective_time,
+    }
     log.info(
         "ThetaData intraday chain %s %s @ %s mode=%s (%d rows, %.0fms)",
         spec.terminal_symbol,

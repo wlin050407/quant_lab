@@ -2,7 +2,7 @@ import type { Locale } from "../locale";
 
 const STRINGS = {
   en: {
-    tagline: "Equity research terminal",
+    tagline: "Trading structure · multi-horizon",
     tickerPlaceholder: "Ticker",
     analyze: "Analyze",
     refresh: "Refresh",
@@ -59,7 +59,7 @@ const STRINGS = {
         title: "Volume profile",
         sub: "POC · value area",
         explain:
-          "POC and value area (VAH/VAL) mark where today's volume concentrated. Spot above POC often supports continuation; below suggests rejection.",
+          "POC and value area (VAH/VAL) mark where today's volume concentrated. Spot above POC can favor continuation; below may suggest rejection — context only.",
       },
       trend: {
         title: "Trend & RS",
@@ -214,7 +214,7 @@ const STRINGS = {
     },
   },
   zh: {
-    tagline: "个股研究终端",
+    tagline: "交易结构 · 多周期",
     tickerPlaceholder: "代码",
     analyze: "分析",
     refresh: "刷新",

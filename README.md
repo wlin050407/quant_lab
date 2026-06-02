@@ -17,7 +17,7 @@ Quantlab Terminal is a FastAPI + React application with two modes:
 | Mode | Route | Question it answers |
 |------|-------|---------------------|
 | **Index 0DTE** | `#/index` | Where is dealer gamma concentrated today, what is the regime, and where are pin magnets? |
-| **Equity research** | `#/stock?t=TICKER` | For a single US name, what do **short / mid / long** horizons imply, and what is the weakest evidence link? |
+| **Trading structure** (equity) | `#/stock?t=TICKER` | For a single US name, what do **short / mid / long** horizons imply (liquidity, flow, RS, options overlay — not fundamentals)? |
 
 Both modes share the same engineering rules: typed Python factors, Parquet or ephemeral fetch → compute → JSON, explicit provenance, and no blended “black box” scores without layer disclosure.
 
@@ -64,7 +64,7 @@ The playbook encodes a **checklist** (regime, gate, trinity, distance to King/wa
 
 ---
 
-## How we analyze — Equity research terminal
+## How we analyze — Equity trading structure terminal
 
 ### Design stance
 

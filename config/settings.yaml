@@ -15,8 +15,8 @@ defaults:
 # Override r via QUANT_LAB_RISK_FREE_RATE; q via QUANT_LAB_DIVIDEND_YIELD_SPX etc.
 positioning:
   risk_free_rate: 0.05
-  # Optional: data/processed/rates/sofr_daily.parquet columns date, rate (decimal).
-  risk_free_rate_series: null
+  # Run scripts/update_sofr_rates.py locally; columns date, rate (decimal).
+  risk_free_rate_series: data/processed/rates/sofr_daily.parquet
   dividend_yield:
     default: 0.013
     SPX: 0.013

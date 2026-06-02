@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import asdict
 from datetime import datetime, timezone
 from typing import Any
 
@@ -9,10 +10,16 @@ import numpy as np
 import yfinance as yf
 
 from quant_lab.data.equity_fetch import EquityBarBundle, fetch_equity_bars
-from quant_lab.data.macro_calendar import macro_events_on
+from quant_lab.data.macro_calendar import macro_events_on, macro_calendar_meta
 from quant_lab.factors.equity.evidence_grades import grade_l1, grade_l2, grade_l3, grade_l5, grade_l6
+from quant_lab.factors.equity.intraday_quality import intraday_session_quality
 from quant_lab.factors.equity.layer_signals import compute_module_signals
-from quant_lab.factors.equity.liquidity import amihud_illiquidity, amihud_percentile_threshold, average_dollar_volume
+from quant_lab.factors.equity.liquidity import (
+    amihud_illiquidity,
+    amihud_percentile_threshold,
+    average_dollar_volume,
+    liquidity_quality_flags,
+)
 from quant_lab.factors.equity.liquidity_thresholds import ADV_ELIGIBLE_USD, grade_l0
 from quant_lab.factors.equity.ma_structure import ma_structure
 from quant_lab.factors.equity.options_overlay import options_overlay_metrics
@@ -137,9 +144,11 @@ def _layer_payload(
             "amihud_threshold": illiq_threshold,
             "eligible": eligible,
             "grade": l0_grade,
+            "liquidity_quality": liquidity_quality_flags(bundle.daily),
         },
         "L1": {
             "macro_events": [{"type": e.event_type, "label": e.label} for e in macro],
+            "macro_calendar": macro_calendar_meta(),
             "earnings_window": _earnings_within_days(bundle.ticker),
             "vol_regime": vol.regime,
             "grade": l1_grade,
@@ -153,6 +162,13 @@ def _layer_payload(
             "open_ret_pct": opening.ticker_ret_pct,
             "benchmark_open_ret_pct": opening.benchmark_ret_pct,
             "grade": l2_grade,
+            "intraday_quality": asdict(
+                intraday_session_quality(
+                    bundle.intraday,
+                    bundle.session_date,
+                    intraday_source=bundle.intraday_source,
+                )
+            ),
         },
         "L3": {
             "poc": profile.poc,
@@ -178,7 +194,11 @@ def _layer_payload(
             "pcr_oi": options.pcr_oi,
             "max_pain": options.max_pain,
             "n_contracts": options.n_contracts,
-            "grade": grade_l6(n_contracts=options.n_contracts),
+            "n_expiries": options.n_expiries,
+            "source": options.source,
+            "oi_timestamp_known": options.oi_timestamp_known,
+            "warning": options.warning,
+            "grade": options.evidence_grade,
         },
     }
 
@@ -240,6 +260,8 @@ def build_equity_analysis(ticker: str, *, refresh: bool = False) -> dict[str, An
         "session_date": bundle.session_date.isoformat(),
         "asof": asof,
         "spot": bundle.spot,
+        "product_stance": "trading_structure",
+        "product_title": "Trading Structure",
         "provenance": {
             "daily_bars": bundle.daily_source,
             "intraday_bars": bundle.intraday_source,

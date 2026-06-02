@@ -2047,3 +2047,78 @@ html[data-locale="zh"] {
 .strategy-card.compact p {
   font-size: 0.68rem;
 }
+
+.model-context-line {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0 0.35rem;
+  padding: 0.2rem 0;
+  font-size: 0.62rem;
+  color: var(--text-dim);
+  line-height: 1.35;
+}
+.model-context-line__more {
+  flex-shrink: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--accent, #2dd4bf);
+  font-size: 0.62rem;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.model-assumption-strip {
+  margin: 0 0 0.35rem;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  background: rgba(45, 212, 191, 0.03);
+  font-size: 0.62rem;
+  color: var(--text-dim);
+  line-height: 1.35;
+}
+.model-assumption-strip__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.model-context-line__summary {
+  flex: 1;
+  min-width: 0;
+}
+.model-assumption-strip__note {
+  margin: 0.25rem 0 0;
+}
+.model-assumption-strip__warnings {
+  margin: 0.25rem 0 0;
+  padding-left: 1rem;
+  color: var(--warn, #fbbf24);
+}
+.model-assumption-strip--alert {
+  border-color: rgba(251, 191, 36, 0.45);
+  background: rgba(251, 191, 36, 0.08);
+}
+
+.live-pin-quality--compact {
+  margin: 0 0 0.35rem;
+  padding: 0.25rem 0.45rem;
+  border-radius: 4px;
+  font-size: 0.6rem;
+  line-height: 1.35;
+  border: 1px solid var(--border-subtle);
+}
+.live-pin-quality--compact strong {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.live-pin-quality--degraded {
+  background: rgba(251, 191, 36, 0.08);
+  border-color: rgba(251, 191, 36, 0.35);
+  color: var(--text-dim);
+}
+.live-pin-quality--poor {
+  background: rgba(248, 113, 113, 0.1);
+  border-color: rgba(248, 113, 113, 0.4);
+}

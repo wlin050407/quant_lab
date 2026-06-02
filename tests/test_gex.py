@@ -26,6 +26,8 @@ from quant_lab.factors.gex import (
     compute_dealer_vanna_exposure,
     compute_gamma_profile_curve,
     compute_vex_profile,
+    compute_gamma_flip,
+    diagnose_cohort_time_to_expiry,
     gamma_flip_level,
     net_gex_bn_per_1pct,
     total_net_gex,
@@ -245,6 +247,40 @@ def _make_realistic_chain(
             }
         )
     return pd.DataFrame(rows)
+
+
+def test_compute_gamma_flip_primary_is_nearest_to_spot() -> None:
+    """With two crossings, primary must be closest to spot (not first grid crossing)."""
+    spot = 470.0
+    chain = _make_realistic_chain(
+        spot,
+        put_oi_by_strike={k: 5000 for k in [420.0, 430.0, 440.0]},
+        call_oi_by_strike={k: 5000 for k in [500.0, 510.0, 520.0]},
+    )
+    chain = add_bs_gamma_column(chain, spot=spot)
+    result = compute_gamma_flip(chain, spot=spot, search_radius_pct=0.15, n_search_points=61)
+    if len(result.all_flips) >= 2:
+        primary = result.primary_flip
+        assert primary == min(result.all_flips, key=lambda f: abs(f - spot))
+        assert result.primary_rule == "nearest_to_spot"
+
+
+def test_diagnose_cohort_time_fallback_1h_warns() -> None:
+    chain = _make_realistic_chain(470.0, flat_call_oi=100, flat_put_oi=100)
+    chain["dte"] = 0
+    diag = diagnose_cohort_time_to_expiry(chain, dte_max=1)
+    assert diag.mode == "fallback_1h"
+    assert diag.fallback_used is True
+    assert diag.warning is not None
+
+
+def test_diagnose_cohort_time_exact_intraday() -> None:
+    chain = _make_realistic_chain(470.0, flat_call_oi=100, flat_put_oi=100)
+    chain["dte"] = 0
+    chain["time_to_expiry_years"] = 2.0 / (365 * 6.5)
+    diag = diagnose_cohort_time_to_expiry(chain, dte_max=1)
+    assert diag.mode == "exact_intraday"
+    assert diag.fallback_used is False
 
 
 def test_gamma_flip_level_finds_crossing_with_split_oi() -> None:

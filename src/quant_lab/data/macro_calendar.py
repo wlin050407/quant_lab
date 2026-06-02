@@ -140,6 +140,20 @@ def macro_playbook_gate(session_date: date) -> tuple[float, str | None]:
     return 0.0, f"Macro event day — {labels} (Pin Play 0×)"
 
 
+def macro_calendar_meta() -> dict[str, str]:
+    """Provenance for equity L1 / terminal disclosure."""
+    last_embedded = max(date.fromisoformat(iso) for iso, _, _ in _EMBEDDED)
+    path = _macro_events_path()
+    source = "embedded"
+    if path.is_file():
+        source = "embedded+parquet"
+    return {
+        "source": source,
+        "last_embedded_date": last_embedded.isoformat(),
+        "confidence": "medium",
+    }
+
+
 def clear_macro_calendar_cache() -> None:
     """Reset cached calendar (tests)."""
     _load_events_index.cache_clear()

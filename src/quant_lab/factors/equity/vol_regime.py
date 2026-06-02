@@ -8,6 +8,8 @@ from typing import Literal
 import numpy as np
 import pandas as pd
 
+from quant_lab.factors.equity.prices import price_series_for_returns
+
 VolRegime = Literal["low", "normal", "elevated"]
 
 
@@ -19,7 +21,7 @@ class VolRegimeResult:
 
 
 def realized_vol_regime(daily: pd.DataFrame) -> VolRegimeResult:
-    close = pd.to_numeric(daily["close"], errors="coerce").dropna()
+    close = price_series_for_returns(daily).dropna()
     if len(close) < 25:
         return VolRegimeResult("normal", float("nan"), float("nan"))
 

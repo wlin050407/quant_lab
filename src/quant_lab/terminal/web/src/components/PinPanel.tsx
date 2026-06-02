@@ -1,5 +1,6 @@
 import { fmtGexBn, fmtPct, fmtPrice } from "../lib/format";
 import type { DashboardSnapshot, PinMagnetRow } from "../types/snapshot";
+import { LivePinQualityBanner } from "./LivePinQualityBanner";
 import { PinScoreGauge } from "./PinScoreGauge";
 
 const BREAKDOWN_LABELS: Record<string, string> = {
@@ -51,7 +52,7 @@ export function PinPanel({ snapshot }: { snapshot: DashboardSnapshot }) {
     return (
       <section className="rail-content pin-panel">
         <div className="panel-head">
-          <h2>Pin Magnets</h2>
+          <h2>Pin magnets</h2>
           <span className="panel-hint">0DTE</span>
         </div>
         <p className="pin-panel-empty">No 0DTE chain — pin magnets need dte≤1 OI + GEX.</p>
@@ -65,9 +66,11 @@ export function PinPanel({ snapshot }: { snapshot: DashboardSnapshot }) {
   return (
     <section className="rail-content pin-panel">
       <div className="panel-head">
-        <h2>Pin Magnets</h2>
+        <h2>Pin magnets</h2>
         <span className="panel-hint">|GEX|×OI weight</span>
       </div>
+
+      <LivePinQualityBanner snapshot={snapshot} />
 
       <PinScoreGauge
         score={pt.pin_score ?? snapshot.metrics.pin_score}

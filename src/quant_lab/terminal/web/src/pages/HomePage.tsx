@@ -20,8 +20,8 @@ const ROUTES = [
   },
   {
     id: "stock" as const,
-    title: "Single Equity",
-    desc: "Per-ticker positioning and earnings-window context.",
+    title: "Trading Structure",
+    desc: "Per-ticker liquidity, flow, RS, and options overlay (not fundamentals).",
     status: "Preview",
     primary: false,
   },
