@@ -87,6 +87,22 @@ def test_recommend_short_gamma_no_premium() -> None:
     assert hint.label == "sit_out"
 
 
+def test_recommend_short_gamma_none_flip_does_not_crash() -> None:
+    """Live deploy hit 503 when flip was None but short_gamma + high 0DTE GEX."""
+    hint = recommend_strategy(
+        regime="short_gamma",
+        pin_score=40.0,
+        spot=5000.0,
+        put_wall=4900.0,
+        call_wall=5100.0,
+        king=5020.0,
+        flip=None,
+        pct_gex_dte1=60.0,
+        should_trade=True,
+    )
+    assert hint.label == "sit_out"
+
+
 def test_api_health() -> None:
     client = TestClient(app)
     res = client.get("/api/health")

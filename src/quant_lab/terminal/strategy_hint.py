@@ -45,7 +45,7 @@ def recommend_strategy(
     put_wall: float,
     call_wall: float,
     king: float,
-    flip: float,
+    flip: float | None,
     pct_gex_dte1: float,
     should_trade: bool,
     iv_ratio: float | None = None,
@@ -66,7 +66,8 @@ def recommend_strategy(
         )
 
     if regime == "short_gamma":
-        if np.isfinite(pct_gex_dte1) and pct_gex_dte1 > 50 and np.isfinite(flip):
+        flip_ok = flip is not None and np.isfinite(flip)
+        if np.isfinite(pct_gex_dte1) and pct_gex_dte1 > 50 and flip_ok:
             side = "below" if spot < flip else "above"
             return StrategyHint(
                 label="breakout",
