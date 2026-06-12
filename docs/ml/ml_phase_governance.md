@@ -1,7 +1,7 @@
 # ML Phase Governance — QuantLab 0DTE Research
 
 **Date:** 2026-06-11  
-**Status:** Proposed (Phase 0 audit output — **not yet applied** to `AGENTS.md` / `ROADMAP.md`)  
+**Status:** **Applied** — merged into `AGENTS.md` and `ROADMAP.md` at ML-P0.5 (2026-06-11)  
 **Authority chain:** `AGENTS.md` → `ROADMAP.md` → `QUANTLAB_0DTE_ML_CURSOR_IMPLEMENTATION_PLAN.md` → `.cursor/rules/quantlab-0dte-ml.mdc`
 
 ---
@@ -10,23 +10,23 @@
 
 This document resolves naming collisions and policy conflicts between the existing QuantLab roadmap (strategy phases 0–6) and the new 0DTE ML implementation plan (18 engineering phases). It defines when ML work is permitted, how module boundaries extend, and what Cursor must not do without owner sign-off.
 
-**Phase 0 does not modify `AGENTS.md` or `ROADMAP.md`.** Owner review is required before merging the proposed amendments in Section 8.
+**Phase 0 did not modify `AGENTS.md` or `ROADMAP.md`.** ML-P0.5 merged the amendments in Section 8 into those files.
 
 ---
 
 ## 2. Two parallel phase systems
 
-### 2.1 ROADMAP phases (strategy / product) — unchanged
+### 2.1 ROADMAP phases (strategy / product) — prefix `ROADMAP-P`
 
-| Phase | Name | Role |
-|-------|------|------|
-| 0 | Data foundation | EoD history, quality |
-| 1 | Positioning factors | GEX, max pain, PCR |
-| 2 | Backtest + baselines | Engine validation |
-| 3 | EoD 0DTE approx + Pin pivot | IC, King adsorption, fly@King |
-| 4 | Paid intraday backtest | ThetaData spend gate |
-| 5 | Paper trading | tastytrade |
-| 6 | Live small size | Execution |
+| ROADMAP-P | Name | Role |
+|-----------|------|------|
+| ROADMAP-P0 | Data foundation | EoD history, quality |
+| ROADMAP-P1 | Positioning factors | GEX, max pain, PCR |
+| ROADMAP-P2 | Backtest + baselines | Engine validation |
+| ROADMAP-P3 | EoD 0DTE approx + Pin pivot | IC, King adsorption, fly@King |
+| ROADMAP-P4 | Paid intraday backtest | ThetaData spend gate |
+| ROADMAP-P5 | Paper trading | tastytrade |
+| ROADMAP-P6 | Live small size | Execution |
 
 These gates control **capital, data spend, and live trading**.
 
@@ -37,6 +37,7 @@ All references in commits, Cursor prompts, and new docs must use **`ML-Pn`**, no
 | ML-P | Name (short) |
 |------|----------------|
 | ML-P0 | Repository & governance audit ✅ |
+| ML-P0.5 | Research branch, governance merge, test baseline freeze ✅ |
 | ML-P1 | ThetaData capability audit |
 | ML-P2 | Storage & throughput estimator |
 | ML-P3 | Immutable raw event lake |
@@ -199,6 +200,12 @@ All dealer positioning outputs: **model-implied** / **OI-based estimate** — ne
 - Do not expose local laptop as unauthenticated public endpoint.
 - Every `/api/ml/*` response includes: model version, schema version, timestamp, quality flags, prediction source (`student` | `teacher` | `deterministic_fallback`).
 
+### 6.1 Ruff baseline (ML-P0.5)
+
+- **Known debt:** the repository currently has **157** Ruff findings repo-wide (`python -m ruff check src tests scripts`, frozen 2026-06-11). Do not mass-fix in ML phases unless explicitly scoped.
+- **Rule from ML-P0 onward:** every Python file **added or modified** by an ML phase must pass Ruff in isolation before that phase is marked complete.
+- Record phase-local Ruff commands and pass/fail in the phase report.
+
 ---
 
 ## 7. Git workflow
@@ -211,9 +218,9 @@ All dealer positioning outputs: **model-implied** / **OI-based estimate** — ne
 
 ---
 
-## 8. Proposed minimal amendments (owner action required)
+## 8. Applied amendments (ML-P0.5)
 
-Phase 0 **does not apply** these edits. Owner may merge after review.
+The following were merged into `AGENTS.md` and `ROADMAP.md` on 2026-06-11.
 
 ### 8.1 `AGENTS.md` — replace stale phase pointer + clarify ML
 
@@ -285,17 +292,18 @@ Update ML bullet:
 | 2026-06-11 | Adopt `ML-Pn` prefix | Eliminate Phase 4 collision (ROADMAP vs ML) |
 | 2026-06-11 | Approve `src/quant_lab/ml/` boundary in writing | Extends architecture without breaking `factors/` purity |
 | 2026-06-11 | Keep deterministic Pin/GEX as production authority | ML is candidate until walk-forward + calibration gates pass |
-| 2026-06-11 | Defer AGENTS/ROADMAP edits to owner | Phase 0 scope: propose, not apply |
+| 2026-06-11 | ML-P0.5 governance merge + Ruff baseline | AGENTS/ROADMAP updated; 157 Ruff debt frozen |
+| 2026-06-11 | Defer AGENTS/ROADMAP edits to owner | Phase 0 scope: propose, not apply — **superseded by ML-P0.5** |
 | 2026-06-11 | ML-P0 gate conditional on 3 pre-existing test failures | Documented in `repository_audit.md` §16–18 |
 
 ---
 
 ## 11. Next step
 
-**Owner review checklist:**
+**Owner review checklist (ML-P0.5):**
 
-- [ ] Approve or edit Section 8 amendments → merge into `AGENTS.md` / `ROADMAP.md` / `README.md`
-- [ ] Fix or waive `tests/test_terminal_m4.py` failures (3 tests)
+- [x] Section 8 amendments merged into `AGENTS.md` / `ROADMAP.md`
+- [ ] Fix or waive `tests/test_terminal_m4.py` failures (3 tests) — see [`preexisting_test_failures.md`](./preexisting_test_failures.md)
 - [ ] Authorize **ML-P1** prompt: ThetaData capability audit (read-only probes, no bulk download)
 
 **Do not** authorize bulk historical tick download or model training until ML-P1–P6 gates pass.

@@ -333,8 +333,17 @@ Phase 3a（directional flip）FAIL 后，按 FlashAlpha / SpotGamma / Vilkov 共
 
 明确说"现在不做"，避免被引诱：
 
-- ❌ ML / 深度学习因子：等 Phase 4 之后再考虑，先做透 linear factor
+- ❌ **未治理的** ML / 深度学习因子：不要直接塞进 `factors/` 或 production Terminal
+- ✅ **受 `src/quant_lab/ml/` 治理的研究轨**：见 [`docs/ml/ml_phase_governance.md`](./docs/ml/ml_phase_governance.md) 与 [`QUANTLAB_0DTE_ML_CURSOR_IMPLEMENTATION_PLAN.md`](./QUANTLAB_0DTE_ML_CURSOR_IMPLEMENTATION_PLAN.md)（`ML-P0`–`ML-P18`）
 - ❌ 多标的扩展（QQQ, IWM 0DTE）：先把 SPX 做透
 - ❌ 高频 / 做市：跟散户 0DTE 完全不同范式，不要混
 - ❌ Crypto 期权：分散精力，pass
 - ❌ 自建 OPRA feed：钱不够，没必要
+
+### ML 研究轨（平行，不替代 ROADMAP 决策门）
+
+- 0DTE ML 工程计划见 [`QUANTLAB_0DTE_ML_CURSOR_IMPLEMENTATION_PLAN.md`](./QUANTLAB_0DTE_ML_CURSOR_IMPLEMENTATION_PLAN.md)（**ML-P0**–**ML-P18**）。
+- ML 基础设施（审计、replay、泄漏测试）可在 ROADMAP-P4 前启动；**模型训练与 Terminal 生产替换**需 ROADMAP-P4 数据基础 + **ML-P6** 标签规范签署 + **ML-P12** walk-forward 验收。
+- ML 输出**不得**修改确定性 Pin/GEX/VEX 的金融定义；进入 production Terminal 前须通过 ML Master Plan 规定验收门。
+- 模块边界：`data → quality → factors → terminal` 保持不变；`ml/` 负责研究、训练、校准、registry、inference。
+- 详见 [`docs/ml/ml_phase_governance.md`](./docs/ml/ml_phase_governance.md)。

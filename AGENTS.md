@@ -11,9 +11,11 @@
 
 ## 项目阶段
 
-- **当前**：Phase 0 数据地基。
+- **ROADMAP 当前重心**：ROADMAP-P4 付费 intraday Pin Play 真回测（见 `ROADMAP.md`）。
+- **ML 研究轨**：见 `QUANTLAB_0DTE_ML_CURSOR_IMPLEMENTATION_PLAN.md` 与 `docs/ml/ml_phase_governance.md`；
+  使用 **`ML-Pn`** 编号（ML-P0–ML-P18），与 ROADMAP-P0–ROADMAP-P6 区分。
 - 阶段路线图、出口判据、决策门见 `ROADMAP.md`。
-- **没达成当前阶段出口判据**之前，**不要**碰下一阶段的代码。
+- **没达成当前 ROADMAP 阶段出口判据**之前，**不要**提前进入该阶段的执行/花钱步骤。
   这是这个项目最容易踩的坑，比任何技术 bug 都贵。
 
 ## 关于"为什么 GEX / positioning 不是远期任务"
@@ -43,8 +45,9 @@
 | `quality/` | 只读检查 | 修改数据 |
 | `factors/` | 干净数据 → 因子张量 | 抓网络、写盘 |
 | `backtest/` | 因子 + 价格 → PnL / 指标 | 调网络、动数据源 |
-| `strategies/`（Phase 2 起） | 因子组合 → 仓位 series | 写盘、抓网络 |
-| `broker/`（Phase 5 起） | 仓位 series → 真实下单 | 跟 `DataSource` 共享代码 |
+| `strategies/`（ROADMAP-P2 起） | 因子组合 → 仓位 series | 写盘、抓网络 |
+| `ml/` | 数据集、训练、校准、registry、推理 | 网络 I/O、`factors/` 公式修改、自动下单 |
+| `broker/`（ROADMAP-P5 起） | 仓位 series → 真实下单 | 跟 `DataSource` 共享代码 |
 
 **特别强调**：`broker/` 和 `data/` 是**两个独立协议**。
 不要把研究用的 `DataSource` 拓展成「也能下单」。
@@ -107,5 +110,6 @@
 - 不要在 Phase 3 的判据不达标时强行进 Phase 4（要花钱了）。
 - 不要把策略代码写到 `factors/` 里——因子是无状态计算，策略才有时序逻辑。
 - 不要为「将来扩展」预留代码（YAGNI）——`broker/` 在用到之前不创建。
-- 不要主动建议加 ML / 深度学习因子，等 Phase 4 之后再说。
+- 不要在没有 `docs/ml/` 数据契约、泄漏测试和 walk-forward 证据的情况下，把 ML 因子塞进 `factors/` 或替换 Terminal 确定性引擎。
+  受治理的 `src/quant_lab/ml/` 研究轨除外（见 `docs/ml/ml_phase_governance.md`）。
 - 不要建议扩展到 QQQ / IWM / crypto——先把 SPX 做透。
