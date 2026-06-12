@@ -1,0 +1,99 @@
+---
+description: QuantLab SPX/SPXW 0DTE ML research and implementation rules
+alwaysApply: true
+---
+
+# QuantLab 0DTE ML Cursor Rule
+
+Read these files before changing code:
+
+- `AGENTS.md`
+- `ROADMAP.md`
+- `README.md`
+- `QUANTLAB_0DTE_ML_CURSOR_IMPLEMENTATION_PLAN.md`
+
+## Phase control
+
+- Execute only the phase explicitly requested by the user.
+- Do not proceed to the next phase.
+- End every phase with files changed, commands run, test results, assumptions, risks, and acceptance-gate status.
+- Do not make broad unrelated refactors.
+- Use a feature branch, not `main`.
+
+## Architecture
+
+Preserve:
+
+```text
+data/       network and storage
+quality/    validation
+factors/    pure deterministic calculations, no network I/O
+terminal/   API and payload assembly
+ml/         datasets, training, calibration, registry, inference
+```
+
+Do not duplicate an existing abstraction without first documenting why it cannot be extended.
+
+## Financial rules
+
+- Dealer positioning is model-implied, not observed.
+- Open interest does not identify dealer direction.
+- Keep sign assumptions in metadata.
+- Use exact point-in-time time to expiry for 0DTE.
+- Separate SPX AM settlement and SPXW PM settlement.
+- Do not silently change Pin/GEX/VEX definitions.
+- Do not add automatic trade execution.
+
+## No-lookahead rules
+
+At timestamp `t`, use only source events with timestamp `<= t`.
+
+Never use:
+
+- final daily option volume;
+- quotes/trades/Greeks after `t`;
+- next-day OI;
+- closing data to recompute an earlier Pin zone;
+- post-release macro results before the release;
+- a strike universe selected from the future close.
+
+Train/validation/test splits must group by complete trading session. Never use random row-level splitting.
+
+## Data rules
+
+- Raw source data is immutable.
+- Use Parquet for market-data storage.
+- Use atomic writes, manifests, checksums, and schema versions.
+- Never log or commit credentials.
+- Do not overwrite incomplete partitions silently.
+- Preserve source timestamps and data-age fields.
+- Do not call NBBO a full L2 order book unless the capability audit proves it.
+
+## Modeling rules
+
+- Complete transparent baselines before deep fusion.
+- Advanced models are candidates, not presumed winners.
+- Use proper scoring rules and probability calibration.
+- Do not select by accuracy alone.
+- Keep a locked final holdout.
+- Use OOF predictions for stacking.
+- Reject complexity that does not produce stable walk-forward gains.
+- Add model, dataset, feature, and label version metadata to every artifact.
+
+## Deployment rules
+
+- Local RTX GPU is for training/teacher inference.
+- Railway must remain CPU-safe.
+- Railway must have a deterministic fallback if the student model is missing.
+- Every prediction must identify model version, schema, timestamp, quality, and prediction source.
+- Do not expose a local laptop via an unauthenticated public endpoint.
+
+## Required validation
+
+Before marking work complete:
+
+1. run relevant unit tests;
+2. run full pytest when practical;
+3. run ruff;
+4. report exact commands and results;
+5. state whether the phase acceptance gate passed.
