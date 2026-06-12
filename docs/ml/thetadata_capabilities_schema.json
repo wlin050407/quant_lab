@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ThetaDataCapabilityManifest",
+  "description": "ML-P1 machine-readable capability audit (no secrets). Example shape only.",
+  "type": "object",
+  "required": [
+    "audit_version",
+    "run_timestamp",
+    "git_commit",
+    "client",
+    "conclusions"
+  ],
+  "properties": {
+    "audit_version": { "type": "string" },
+    "run_timestamp": { "type": "string", "format": "date-time" },
+    "git_commit": { "type": ["string", "null"] },
+    "dry_run": { "type": "boolean" },
+    "account_entitlements": {
+      "type": "object",
+      "properties": {
+        "options_subscription": { "type": ["string", "null"] },
+        "indices_subscription": { "type": ["string", "null"] },
+        "stock_subscription": { "type": ["string", "null"] }
+      }
+    },
+    "client": {
+      "type": "object",
+      "properties": {
+        "library": { "type": "string" },
+        "transport": { "type": "string" },
+        "credential_source": { "type": "string" }
+      }
+    },
+    "test_dates": { "type": "object" },
+    "request_budget": { "type": "object" },
+    "contract_discovery": { "type": "object" },
+    "quotes": { "type": "object" },
+    "trades": { "type": "object" },
+    "greeks": { "type": "object" },
+    "open_interest": { "type": "object" },
+    "underlying": { "type": "object" },
+    "realtime": { "type": "object" },
+    "time_semantics": { "type": "object" },
+    "limits": { "type": "object" },
+    "errors": { "type": "object" },
+    "conclusions": { "type": "object" }
+  }
+}
