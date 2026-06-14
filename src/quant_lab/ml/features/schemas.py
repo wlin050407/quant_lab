@@ -7,6 +7,14 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Any, Literal
 
+from quant_lab.ml.schemas import FEATURE_SCHEMA_VERSION  # re-export for manifest/builder
+
+__all__ = [
+    "FEATURE_SCHEMA_VERSION",
+    "FEATURE_MANIFEST_VERSION",
+    "MAX_SOURCE_TIMESTAMP_RULE",
+]
+
 FEATURE_MANIFEST_VERSION = "pit-features-v1"
 MAX_SOURCE_TIMESTAMP_RULE = "source_timestamp <= as_of_timestamp"
 
