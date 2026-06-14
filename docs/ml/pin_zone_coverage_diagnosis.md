@@ -102,7 +102,20 @@ ML-P6 primary zone label requires `has_valid_zone=true`. With frozen Pinning Zon
 
 1. ✅ **Adapter fix merged** — keep for all future builds  
 2. ❌ **Do not run Stage B / ML-P8B** — valid_zone_ratio still 0%  
-3. **Expand date sample** biased toward long-γ sessions OR pursue label spec governance (Option A/B) before baseline training
+3. **ML-P7.6.2:** Long-γ candidate discovery — see `docs/ml/long_gamma_candidate_report.md`
+4. **Expand date sample** biased toward long-γ sessions OR pursue label spec governance (Option A/B) before baseline training
+
+## ML-P7.6.2 Update
+
+Dry-run scan (3 existing lake dates):
+
+| Date | long_γ anchor ratio | valid zone ratio |
+|------|---------------------|------------------|
+| 2024-07-03 | 100% | 0% (secondary_strength_too_low) |
+| 2024-01-05 | 0% | 0% (short_gamma_regime) |
+| 2025-04-04 | 0% | 0% (short_gamma_regime) |
+
+Full discovery with controlled ingest: `scripts/discover_long_gamma_candidates.py --ingest-missing`
 
 ## Commands
 

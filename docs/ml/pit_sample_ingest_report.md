@@ -82,12 +82,21 @@ All 231 rows excluded with `no_valid_zone_at_as_of` / `close_location_skipped_no
 - **valid_zone_ratio:** still **0%** — root cause is frozen contract gates (`short_gamma_regime`, `secondary_too_weak`), not missing ingest
 - See [`pin_zone_coverage_diagnosis.md`](pin_zone_coverage_diagnosis.md)
 
+## ML-P7.6.2 Update (Long-Gamma Candidate Discovery)
+
+- **Discovery config:** `config/ml/pit_long_gamma_candidates_v1.yaml` (19 candidate dates)
+- **Dry-run (3 lake dates):** `valid_zone_anchor_ratio_mean=0%`; 2024-07-03 is 100% long-γ but secondary_strength_too_low
+- **Full scan:** controlled ingest for 16 missing dates via `discover_long_gamma_candidates.py --ingest-missing`
+- **Stage A+ config:** `config/ml/pit_sample_long_gamma_v1.yaml` → separate outputs under `pit_sample_long_gamma_v1/`
+- **Governance proposal:** `docs/ml/label_spec_governance_options.md` (not implemented)
+- See [`long_gamma_candidate_report.md`](long_gamma_candidate_report.md)
+
 ## Next Step Recommendation
 
-1. Re-run Stage A after early-close anchor fix; confirm leakage PASS
-2. Investigate pin-cluster zone validity on full RTH chain (without changing Pin/GEX formulas)
-3. Consider additional dates or strike universe review if cluster remains invalid
-4. Only then run Stage B (≤20 dates)
+1. Complete long-γ discovery ingest + Stage A+ rebuild
+2. If `valid_zone_ratio >= 20%` → expand to 20-day long-γ-aware sample
+3. If still ~0% → label spec governance (Option B) before ML-P8B
+4. **Do not** run ML-P8B until zone coverage or governance resolved
 
 ## Commands
 
