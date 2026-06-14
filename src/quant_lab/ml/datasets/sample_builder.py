@@ -19,6 +19,11 @@ from quant_lab.data.intraday_lake import partition_dir
 from quant_lab.data.intraday_manifest import is_partition_complete
 from quant_lab.data.intraday_time import session_datetime
 from quant_lab.ml.datasets.join import JoinedRow, strict_join_batches
+from quant_lab.ml.datasets.lake_ingest import (
+    DateIngestResult,
+    build_rth_ingest_plan,
+    ingest_rth_trade_date,
+)
 from quant_lab.ml.datasets.point_in_time import (
     AnchorConfig,
     BuildConfig,
@@ -32,6 +37,8 @@ from quant_lab.ml.datasets.reporting import (
     LeakageValidationResult,
     build_coverage_report,
     build_split_readiness_report,
+    evaluate_p8b_readiness,
+    evaluate_stage_a_gate,
     validate_joined_dataset_leakage,
     write_reports,
 )
@@ -82,6 +89,13 @@ class SampleBuildConfig:
     joined_root: Path
     ingest_enabled: bool
     ingest_full_rth: bool
+    ingest_max_retries: int
+    ingest_request_budget_per_date: int
+    ingest_write_raw_lake: bool
+    ingest_idempotent_skip_existing: bool
+    quote_resolution: str
+    index_resolution: str
+    stage_a_dates: tuple[date, ...]
     seed_from_pilot_lake: Path | None
     dates: tuple[DateEntry, ...]
 
@@ -121,8 +135,12 @@ class DryRunPlan:
     anchors_per_date: dict[str, int]
     total_anchors: int
     missing_partitions: dict[str, list[str]]
+    partitions_to_skip: dict[str, list[str]]
+    ingest_plans: dict[str, dict[str, Any]]
     output_paths: dict[str, str]
     estimated_api_calls_per_date: int
+    estimated_total_api_calls: int
+    estimated_runtime_minutes: float
     ingest_enabled: bool
 
     def to_dict(self) -> dict[str, Any]:
@@ -131,10 +149,15 @@ class DryRunPlan:
             "anchors_per_date": self.anchors_per_date,
             "total_anchors": self.total_anchors,
             "missing_partitions": self.missing_partitions,
+            "partitions_to_skip": self.partitions_to_skip,
+            "ingest_plans": self.ingest_plans,
             "output_paths": self.output_paths,
             "estimated_api_calls_per_date": self.estimated_api_calls_per_date,
+            "estimated_total_api_calls": self.estimated_total_api_calls,
+            "estimated_runtime_minutes": self.estimated_runtime_minutes,
             "ingest_enabled": self.ingest_enabled,
             "expected_partitions_per_date": len(OPTION_DATASETS) + len(INDEX_DATASETS) + 1,
+            "thetadata_requests_note": "Per-date counts include quote tick fallback slot when tick_or_1s",
         }
 
 
@@ -165,24 +188,34 @@ def load_sample_config(path: Path) -> SampleBuildConfig:
         )
     ingest = raw.get("ingest") or {}
     seed = raw.get("seed_from_pilot_lake")
+    data = raw.get("data") or {}
+    stage_a_raw = raw.get("stage_a_dates") or []
+    stage_a_dates = tuple(date.fromisoformat(str(d)) for d in stage_a_raw)
     return SampleBuildConfig(
         version=str(raw["version"]),
-        root=str(raw["root"]),
+        root=str(raw.get("root", data.get("root", "SPXW"))),
         index_symbol=str(raw.get("index_symbol", "SPX")),
-        strike_range=int(raw.get("strike_range", 60)),
+        strike_range=int(raw.get("strike_range", data.get("strike_range", 60))),
         strike_range_fallback=int(raw.get("strike_range_fallback", 30)),
         anchor_type=str(raw.get("anchor_type", "regular_5min")),
         anchor_start_offset_minutes=int(raw.get("anchor_start_offset_minutes", 5)),
         anchor_end_offset_minutes=int(raw.get("anchor_end_offset_minutes", 5)),
         session_rth_start=str(raw.get("session_rth_start", "09:30:00")),
         session_rth_end=str(raw.get("session_rth_end", "16:00:00")),
-        lake_root=Path(raw.get("lake_root", "artifacts/raw_lake_sample")),
-        dataset_root=Path(raw.get("dataset_root", "artifacts/datasets/pit_sample_v1")),
-        feature_root=Path(raw.get("feature_root", "artifacts/features/pit_sample_v1")),
-        report_root=Path(raw.get("report_root", "artifacts/reports/pit_sample_v1")),
+        lake_root=Path(raw.get("lake_root", raw.get("outputs", {}).get("raw_lake", "artifacts/raw_lake_sample"))),
+        dataset_root=Path(raw.get("dataset_root", raw.get("outputs", {}).get("dataset", "artifacts/datasets/pit_sample_v1"))),
+        feature_root=Path(raw.get("feature_root", raw.get("outputs", {}).get("features", "artifacts/features/pit_sample_v1"))),
+        report_root=Path(raw.get("report_root", raw.get("outputs", {}).get("reports", "artifacts/reports/pit_sample_v1"))),
         joined_root=Path(raw.get("joined_root", "artifacts/datasets/pit_sample_v1/joined")),
         ingest_enabled=bool(ingest.get("enabled", False)),
         ingest_full_rth=bool(ingest.get("full_rth", True)),
+        ingest_max_retries=int(ingest.get("max_retries", 2)),
+        ingest_request_budget_per_date=int(ingest.get("request_budget_per_date", 8)),
+        ingest_write_raw_lake=bool(ingest.get("write_raw_lake", True)),
+        ingest_idempotent_skip_existing=bool(ingest.get("idempotent_skip_existing", True)),
+        quote_resolution=str(data.get("quote_resolution", ingest.get("quote_resolution", "tick_or_1s"))),
+        index_resolution=str(data.get("index_resolution", ingest.get("index_resolution", "tick_or_1s"))),
+        stage_a_dates=stage_a_dates,
         seed_from_pilot_lake=Path(seed) if seed else None,
         dates=tuple(dates),
     )
@@ -200,11 +233,13 @@ def _anchor_config_for_date(config: SampleBuildConfig, entry: DateEntry) -> Anch
     if anchor_type == "manual":
         timestamps = tuple(session_datetime(entry.trade_date, t) for t in entry.manual_anchors)
         return AnchorConfig(anchor_type="manual", manual_timestamps=timestamps)
+    session_close = "13:00:00" if entry.day_type == "early_close" else None
     return AnchorConfig(
         anchor_type=anchor_type,  # type: ignore[arg-type]
         interval_minutes=5 if anchor_type == "regular_5min" else 1,
         start_offset_minutes=config.anchor_start_offset_minutes,
         end_offset_minutes=config.anchor_end_offset_minutes,
+        session_close_time=session_close,
     )
 
 
@@ -249,17 +284,49 @@ def build_dry_run_plan(config: SampleBuildConfig, *, max_dates: int | None = Non
     validate_dates_not_future(d.trade_date for d in selected)
     anchors_map: dict[str, int] = {}
     missing: dict[str, list[str]] = {}
+    skip_map: dict[str, list[str]] = {}
+    ingest_plans: dict[str, dict[str, Any]] = {}
     total = 0
+    api_per_date: list[int] = []
     for entry in selected:
-        anchors_map[entry.trade_date.isoformat()] = count_anchors(config, entry)
-        total += anchors_map[entry.trade_date.isoformat()]
-        missing[entry.trade_date.isoformat()] = missing_partitions_for_date(config, entry.trade_date)
+        key = entry.trade_date.isoformat()
+        anchors_map[key] = count_anchors(config, entry)
+        total += anchors_map[key]
+        missing[key] = missing_partitions_for_date(config, entry.trade_date)
+        if config.ingest_enabled and config.ingest_full_rth:
+            try:
+                plan = build_rth_ingest_plan(
+                    trade_date=entry.trade_date,
+                    day_type=entry.day_type,
+                    lake_root=config.lake_root,
+                    root=config.root,
+                    symbol=config.index_symbol,
+                    strike_range=config.strike_range,
+                    session_rth_start=config.session_rth_start,
+                    session_rth_end=config.session_rth_end,
+                    quote_resolution=config.quote_resolution,  # type: ignore[arg-type]
+                    index_resolution=config.index_resolution,  # type: ignore[arg-type]
+                    idempotent_skip_existing=config.ingest_idempotent_skip_existing,
+                )
+                ingest_plans[key] = plan.to_dict()
+                skip_map[key] = list(plan.partitions_to_skip)
+                api_per_date.append(plan.estimated_api_calls)
+            except Exception as exc:
+                ingest_plans[key] = {"error": str(exc)}
+                api_per_date.append(0)
+        else:
+            api_per_date.append(7 if config.ingest_enabled else 0)
+    avg_api = int(sum(api_per_date) / len(api_per_date)) if api_per_date else 0
+    total_api = sum(api_per_date)
+    est_runtime = total_api * 0.5 + total * 1.5  # rough minutes: 30s/request + 1.5s/anchor pipeline
     return DryRunPlan(
         config=config,
         dates=[d.trade_date for d in selected],
         anchors_per_date=anchors_map,
         total_anchors=total,
         missing_partitions=missing,
+        partitions_to_skip=skip_map,
+        ingest_plans=ingest_plans,
         output_paths={
             "lake_root": str(config.lake_root),
             "dataset_root": str(config.dataset_root),
@@ -267,7 +334,9 @@ def build_dry_run_plan(config: SampleBuildConfig, *, max_dates: int | None = Non
             "joined_root": str(config.joined_root),
             "report_root": str(config.report_root),
         },
-        estimated_api_calls_per_date=7 if config.ingest_enabled else 0,
+        estimated_api_calls_per_date=avg_api,
+        estimated_total_api_calls=total_api,
+        estimated_runtime_minutes=est_runtime,
         ingest_enabled=config.ingest_enabled,
     )
 
@@ -300,20 +369,51 @@ def seed_pilot_lake_for_date(config: SampleBuildConfig, trade_date: date) -> boo
     return copied
 
 
-def try_ingest_date(config: SampleBuildConfig, trade_date: date, *, dry_run: bool) -> tuple[bool, str]:
+def try_ingest_date(
+    config: SampleBuildConfig,
+    entry: DateEntry,
+    *,
+    dry_run: bool,
+) -> tuple[bool, str, DateIngestResult | None]:
     """Attempt network ingestion if enabled; otherwise report missing partitions."""
-    missing = missing_partitions_for_date(config, trade_date)
+    missing = missing_partitions_for_date(config, entry.trade_date)
     if not missing:
-        return True, "partitions_complete_skip"
-    if seed_pilot_lake_for_date(config, trade_date):
-        missing = missing_partitions_for_date(config, trade_date)
+        return True, "partitions_complete_skip", None
+    if seed_pilot_lake_for_date(config, entry.trade_date):
+        missing = missing_partitions_for_date(config, entry.trade_date)
         if not missing:
-            return True, "seeded_from_pilot_lake"
+            return True, "seeded_from_pilot_lake", None
     if dry_run:
-        return False, f"missing_partitions_dry_run:{','.join(missing)}"
+        return False, f"missing_partitions_dry_run:{','.join(missing)}", None
     if not config.ingest_enabled:
-        return False, f"missing_partitions_ingest_disabled:{','.join(missing)}"
-    return False, f"missing_partitions_network_ingest_not_implemented_full_rth:{','.join(missing)}"
+        return False, f"missing_partitions_ingest_disabled:{','.join(missing)}", None
+    if not config.ingest_full_rth:
+        return False, f"missing_partitions_network_ingest_not_implemented_full_rth:{','.join(missing)}", None
+    if not config.ingest_write_raw_lake:
+        return False, "ingest_write_raw_lake_disabled", None
+
+    result = ingest_rth_trade_date(
+        trade_date=entry.trade_date,
+        day_type=entry.day_type,
+        lake_root=config.lake_root,
+        root=config.root,
+        symbol=config.index_symbol,
+        strike_range=config.strike_range,
+        session_rth_start=config.session_rth_start,
+        session_rth_end=config.session_rth_end,
+        quote_resolution=config.quote_resolution,  # type: ignore[arg-type]
+        index_resolution=config.index_resolution,  # type: ignore[arg-type]
+        max_retries=config.ingest_max_retries,
+        request_budget_per_date=config.ingest_request_budget_per_date,
+        idempotent_skip_existing=config.ingest_idempotent_skip_existing,
+        dry_run=False,
+    )
+    if not result.success:
+        return False, result.reason, result
+    still_missing = missing_partitions_for_date(config, entry.trade_date)
+    if still_missing:
+        return False, f"ingest_incomplete:{','.join(still_missing)}", result
+    return True, result.reason, result
 
 
 def _dir_size_bytes(path: Path) -> int:
@@ -343,13 +443,19 @@ def build_sample_dataset(
     failures: list[DateBuildFailure] = []
     replay_times: list[float] = []
     feature_times: list[float] = []
+    ingest_results: list[DateIngestResult] = []
+    successful_dates: list[str] = []
 
     for entry in selected:
-        ok, reason = try_ingest_date(config, entry.trade_date, dry_run=False)
+        ok, reason, ingest_result = try_ingest_date(config, entry, dry_run=False)
+        if ingest_result is not None:
+            ingest_results.append(ingest_result)
         if not ok:
             failures.append(DateBuildFailure(entry.trade_date, reason))
             log.warning("skip %s: %s", entry.trade_date, reason)
             continue
+
+        successful_dates.append(entry.trade_date.isoformat())
 
         anchor_cfg = _anchor_config_for_date(config, entry)
         anchors = generate_anchors(entry.trade_date, anchor_cfg)
@@ -401,8 +507,12 @@ def build_sample_dataset(
             "joined": 0,
         },
         date_entries=[{"date": d.trade_date.isoformat(), "day_type": d.day_type} for d in selected],
+        ingest_results=ingest_results,
+        successful_dates=successful_dates,
     )
     split_readiness = build_split_readiness_report(sessions)
+    stage_a_gate = evaluate_stage_a_gate(coverage, leakage_passed=leakage.passed)
+    p8b_readiness = evaluate_p8b_readiness(coverage, leakage_passed=leakage.passed)
 
     config.dataset_root.mkdir(parents=True, exist_ok=True)
     config.feature_root.mkdir(parents=True, exist_ok=True)
@@ -453,7 +563,14 @@ def build_sample_dataset(
     }
     (config.dataset_root / "sample_manifest.json").write_text(json.dumps(sample_manifest, indent=2), encoding="utf-8")
 
-    write_reports(config.report_root, coverage=coverage, split_readiness=split_readiness, leakage=leakage)
+    write_reports(
+        config.report_root,
+        coverage=coverage,
+        split_readiness=split_readiness,
+        leakage=leakage,
+        stage_a_gate=stage_a_gate,
+        p8b_readiness=p8b_readiness,
+    )
 
     return SampleBuildResult(
         joined_rows=joined,

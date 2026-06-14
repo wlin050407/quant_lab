@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from quant_lab.ml.datasets.join import JOIN_KEYS, JoinedRow, extract_join_keys
+from quant_lab.ml.datasets.lake_ingest import DateIngestResult
 from quant_lab.ml.features.leakage import check_no_label_columns_in_features
 from quant_lab.ml.leakage import check_label_timestamp_after_as_of, check_split_config
 from quant_lab.ml.splits import (
@@ -74,6 +75,8 @@ def build_coverage_report(
     timings: dict[str, float],
     sizes_bytes: dict[str, int],
     date_entries: list[dict[str, Any]],
+    ingest_results: list[DateIngestResult] | None = None,
+    successful_dates: list[str] | None = None,
 ) -> dict[str, Any]:
     """Aggregate coverage / missingness metrics (no raw market data)."""
     rows = [j.to_dict() for j in joined_rows]
@@ -105,6 +108,18 @@ def build_coverage_report(
 
     sessions = sorted({str(r.get("session_id") or r.get("trade_date")) for r in rows})
     anchors = n
+
+    theta_requests = sum(r.api_request_count for r in (ingest_results or []))
+    quote_resolutions = {
+        r.trade_date.isoformat(): r.quote_resolution_used
+        for r in (ingest_results or [])
+        if r.quote_resolution_used
+    }
+    quote_fallbacks = {
+        r.trade_date.isoformat(): r.quote_fallback_reason
+        for r in (ingest_results or [])
+        if r.quote_fallback_reason
+    }
 
     return {
         "date_count_configured": len(date_entries),
@@ -143,6 +158,10 @@ def build_coverage_report(
         "joined_dataset_size_bytes": sizes_bytes.get("joined", 0),
         "failed_dates": failed_dates,
         "failure_reasons": dict(Counter(f.get("reason", "unknown") for f in failed_dates)),
+        "successful_dates": successful_dates or [],
+        "thetadata_request_count": theta_requests,
+        "quote_resolution_by_date": quote_resolutions,
+        "quote_fallback_by_date": quote_fallbacks,
         "timings_sec": timings,
         "sizes_bytes": sizes_bytes,
     }
@@ -187,7 +206,47 @@ def build_split_readiness_report(session_ids: list[str]) -> dict[str, Any]:
     }
 
 
-def write_reports(report_root: Path, *, coverage: dict[str, Any], split_readiness: dict[str, Any], leakage: LeakageValidationResult) -> None:
+def evaluate_stage_a_gate(coverage: dict[str, Any], *, leakage_passed: bool) -> dict[str, Any]:
+    """ML-P7.6 Stage A smoke criteria (3-day build)."""
+    checks = {
+        "date_count_built_gte_3": coverage.get("date_count_built", 0) >= 3,
+        "row_count_gt_100": coverage.get("row_count", 0) > 100,
+        "valid_zone_ratio_gt_0": coverage.get("valid_zone_ratio", 0.0) > 0.0,
+        "leakage_passed": leakage_passed,
+        "failed_dates_empty": len(coverage.get("failed_dates") or []) == 0,
+    }
+    passed = all(checks.values())
+    return {"passed": passed, "checks": checks}
+
+
+def evaluate_p8b_readiness(coverage: dict[str, Any], *, leakage_passed: bool) -> dict[str, Any]:
+    """Minimum criteria before ML-P8B baseline training."""
+    zone_dist = coverage.get("close_location_distribution") or {}
+    zone_categories = len([k for k, v in zone_dist.items() if v and k is not None])
+    checks = {
+        "row_count_gte_1000": coverage.get("row_count", 0) >= 1000,
+        "included_rows_gte_300": coverage.get("included_row_count", 0) >= 300,
+        "valid_zone_ratio_gte_20pct": coverage.get("valid_zone_ratio", 0.0) >= 0.20,
+        "zone_categories_gte_2": zone_categories >= 2,
+        "leakage_passed": leakage_passed,
+    }
+    passed = all(checks.values())
+    return {
+        "ready_for_ml_p8b": passed,
+        "checks": checks,
+        "note": "Mechanism may pass while sample size blocks training.",
+    }
+
+
+def write_reports(
+    report_root: Path,
+    *,
+    coverage: dict[str, Any],
+    split_readiness: dict[str, Any],
+    leakage: LeakageValidationResult,
+    stage_a_gate: dict[str, Any] | None = None,
+    p8b_readiness: dict[str, Any] | None = None,
+) -> None:
     report_root.mkdir(parents=True, exist_ok=True)
     (report_root / "coverage_report.json").write_text(json.dumps(coverage, indent=2), encoding="utf-8")
     (report_root / "split_readiness.json").write_text(json.dumps(split_readiness, indent=2), encoding="utf-8")
@@ -195,6 +254,10 @@ def write_reports(report_root: Path, *, coverage: dict[str, Any], split_readines
         json.dumps({"passed": leakage.passed, "violations": leakage.violations}, indent=2),
         encoding="utf-8",
     )
+    if stage_a_gate is not None:
+        (report_root / "stage_a_gate.json").write_text(json.dumps(stage_a_gate, indent=2), encoding="utf-8")
+    if p8b_readiness is not None:
+        (report_root / "p8b_readiness.json").write_text(json.dumps(p8b_readiness, indent=2), encoding="utf-8")
 
 
 def verify_join_keys_match(rows: list[JoinedRow]) -> bool:

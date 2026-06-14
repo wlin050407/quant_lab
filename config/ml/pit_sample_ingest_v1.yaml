@@ -1,0 +1,97 @@
+# ML-P7.6 controlled ThetaData ingest + 20-day PIT sample build.
+# No credentials in this file. Requires local ThetaData entitlement.
+
+version: pit-sample-ingest-v1
+root: SPXW
+index_symbol: SPX
+expiration_mode: same_day
+strike_range: 60
+strike_range_fallback: 30
+
+anchor_type: regular_5min
+anchor_start_offset_minutes: 5
+anchor_end_offset_minutes: 5
+
+session_rth_start: "09:30:00"
+session_rth_end: "16:00:00"
+
+outputs:
+  raw_lake: artifacts/raw_lake_sample
+  dataset: artifacts/datasets/pit_sample_v1
+  features: artifacts/features/pit_sample_v1
+  reports: artifacts/reports/pit_sample_v1
+
+lake_root: artifacts/raw_lake_sample
+dataset_root: artifacts/datasets/pit_sample_v1
+feature_root: artifacts/features/pit_sample_v1
+report_root: artifacts/reports/pit_sample_v1
+joined_root: artifacts/datasets/pit_sample_v1/joined
+
+ingest:
+  enabled: true
+  max_dates: 20
+  max_retries: 2
+  request_budget_per_date: 10
+  write_raw_lake: true
+  idempotent_skip_existing: true
+  full_rth: true
+
+data:
+  root: SPXW
+  expiration: trade_date
+  session: RTH
+  strike_range: 60
+  quote_resolution: tick_or_1s  # full RTH sr=60 skips tick attempt; uses quote_1s with manifest reason
+  trade_resolution: tick
+  greeks_resolution: 1m
+  index_resolution: tick_or_1s
+  oi: true
+
+anchors:
+  type: regular_5min
+
+# Stage A smoke dates (first 3 in build order)
+stage_a_dates:
+  - "2024-01-05"
+  - "2024-07-03"
+  - "2025-04-04"
+
+dates:
+  - date: "2024-01-05"
+    day_type: normal
+  - date: "2024-07-03"
+    day_type: early_close
+  - date: "2025-04-04"
+    day_type: monthly_opex
+  - date: "2024-01-19"
+    day_type: monthly_opex
+  - date: "2024-02-13"
+    day_type: high_vol
+  - date: "2024-03-08"
+    day_type: trend_down
+  - date: "2024-04-05"
+    day_type: range
+  - date: "2024-05-03"
+    day_type: trend_up
+  - date: "2024-06-07"
+    day_type: normal
+  - date: "2024-08-02"
+    day_type: high_vol
+  - date: "2024-09-06"
+    day_type: normal
+  - date: "2024-10-04"
+    day_type: monthly_opex
+  - date: "2024-11-01"
+    day_type: trend_up
+  - date: "2024-11-29"
+    day_type: early_close
+  - date: "2024-12-06"
+    day_type: range
+  - date: "2025-01-03"
+    day_type: normal
+  - date: "2025-02-07"
+    day_type: high_vol
+  - date: "2025-03-07"
+    day_type: trend_down
+  - date: "2025-05-02"
+    day_type: recent

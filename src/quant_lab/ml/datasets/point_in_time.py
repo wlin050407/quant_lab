@@ -60,6 +60,7 @@ class AnchorConfig:
     interval_minutes: int = 5
     start_offset_minutes: int = 5
     end_offset_minutes: int = 5
+    session_close_time: str | None = None
     manual_timestamps: tuple[datetime, ...] = field(default_factory=tuple)
     event_types: tuple[str, ...] = field(default_factory=lambda: EVENT_DRIVEN_ANCHOR_TYPES)
 
@@ -323,7 +324,8 @@ def generate_anchors(trade_date: date, config: AnchorConfig) -> list[tuple[datet
     if config.anchor_type == "event_driven":
         return []
     open_dt = session_datetime(trade_date, "09:30:00")
-    close_dt = session_datetime(trade_date, SESSION_CLOSE)
+    close_tod = config.session_close_time or SESSION_CLOSE.strftime("%H:%M:%S")
+    close_dt = session_datetime(trade_date, close_tod)
     start = open_dt + timedelta(minutes=config.start_offset_minutes)
     end = close_dt - timedelta(minutes=config.end_offset_minutes)
     interval = timedelta(minutes=config.interval_minutes)

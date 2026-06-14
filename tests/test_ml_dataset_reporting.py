@@ -1,14 +1,18 @@
-"""Tests for ML-P7.5 reporting and leakage validation."""
+"""Tests for ML-P7.5/7.6 reporting and leakage validation."""
 
 from __future__ import annotations
 
 import json
+from datetime import date
 from pathlib import Path
 
 from quant_lab.ml.datasets.join import JoinedRow
+from quant_lab.ml.datasets.lake_ingest import DateIngestResult
 from quant_lab.ml.datasets.reporting import (
     build_coverage_report,
     build_split_readiness_report,
+    evaluate_p8b_readiness,
+    evaluate_stage_a_gate,
     validate_joined_dataset_leakage,
     write_reports,
 )
@@ -76,5 +80,51 @@ def test_write_reports(tmp_path: Path) -> None:
         coverage={"row_count": 1},
         split_readiness={"folds": 1},
         leakage=LeakageValidationResult(passed=True),
+        stage_a_gate={"passed": False},
+        p8b_readiness={"ready_for_ml_p8b": False},
     )
     assert (tmp_path / "coverage_report.json").is_file()
+    assert (tmp_path / "stage_a_gate.json").is_file()
+
+
+def test_stage_a_gate_pass() -> None:
+    coverage = {
+        "date_count_built": 3,
+        "row_count": 150,
+        "valid_zone_ratio": 0.5,
+        "failed_dates": [],
+    }
+    gate = evaluate_stage_a_gate(coverage, leakage_passed=True)
+    assert gate["passed"]
+
+
+def test_stage_a_gate_fail_low_rows() -> None:
+    coverage = {"date_count_built": 3, "row_count": 50, "valid_zone_ratio": 0.5, "failed_dates": []}
+    gate = evaluate_stage_a_gate(coverage, leakage_passed=True)
+    assert not gate["passed"]
+    assert not gate["checks"]["row_count_gt_100"]
+
+
+def test_p8b_readiness_not_ready() -> None:
+    coverage = {
+        "row_count": 100,
+        "included_row_count": 50,
+        "valid_zone_ratio": 0.1,
+        "close_location_distribution": {"inside": 10},
+    }
+    readiness = evaluate_p8b_readiness(coverage, leakage_passed=True)
+    assert not readiness["ready_for_ml_p8b"]
+
+
+def test_coverage_includes_thetadata_request_count() -> None:
+    report = build_coverage_report(
+        joined_rows=[_joined()],
+        failed_dates=[],
+        timings={},
+        sizes_bytes={},
+        date_entries=[],
+        ingest_results=[
+            DateIngestResult(trade_date=date(2024, 1, 5), success=True, reason="ok", api_request_count=7)
+        ],
+    )
+    assert report["thetadata_request_count"] == 7

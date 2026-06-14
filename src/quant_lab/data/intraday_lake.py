@@ -499,6 +499,8 @@ def build_session_metadata_row(
     window_end: str,
     quote_interval: str,
     pilot_label: str,
+    session_rth_start: str = "09:30:00",
+    session_rth_end: str = "16:00:00",
 ) -> pd.DataFrame:
     dataset = "session_metadata"
     evt = session_datetime(trade_date, window_start)
@@ -514,8 +516,8 @@ def build_session_metadata_row(
             {
                 **meta,
                 "event_timestamp": evt,
-                "session_rth_start": "09:30:00",
-                "session_rth_end": "16:00:00",
+                "session_rth_start": session_rth_start,
+                "session_rth_end": session_rth_end,
                 "strike_range": strike_range,
                 "quote_interval": quote_interval,
                 "trade_window_start": window_start,

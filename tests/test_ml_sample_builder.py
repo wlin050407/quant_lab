@@ -1,14 +1,16 @@
-"""Tests for ML-P7.5 sample builder."""
+"""Tests for ML-P7.5/7.6 sample builder."""
 
 from __future__ import annotations
 
 from dataclasses import replace
 from datetime import date, timedelta
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
 import yaml
 
+from quant_lab.ml.datasets.lake_ingest import DateIngestResult
 from quant_lab.ml.datasets.sample_builder import (
     DateEntry,
     SampleBuildConfig,
@@ -17,6 +19,7 @@ from quant_lab.ml.datasets.sample_builder import (
     load_sample_config,
     missing_partitions_for_date,
     seed_pilot_lake_for_date,
+    try_ingest_date,
     validate_dates_not_future,
 )
 
@@ -40,6 +43,13 @@ def _minimal_config(tmp_path: Path, dates: list[DateEntry]) -> SampleBuildConfig
         joined_root=tmp_path / "joined",
         ingest_enabled=False,
         ingest_full_rth=True,
+        ingest_max_retries=2,
+        ingest_request_budget_per_date=8,
+        ingest_write_raw_lake=True,
+        ingest_idempotent_skip_existing=True,
+        quote_resolution="tick_or_1s",
+        index_resolution="tick_or_1s",
+        stage_a_dates=(),
         seed_from_pilot_lake=None,
         dates=tuple(dates),
     )
@@ -52,6 +62,8 @@ def test_load_config_from_yaml(tmp_path: Path) -> None:
             {
                 "version": "pit-sample-v1",
                 "root": "SPXW",
+                "ingest": {"enabled": True, "max_retries": 2, "request_budget_per_date": 10},
+                "data": {"quote_resolution": "tick_or_1s"},
                 "dates": [{"date": "2024-01-05", "day_type": "normal"}],
             }
         ),
@@ -59,7 +71,9 @@ def test_load_config_from_yaml(tmp_path: Path) -> None:
     )
     cfg = load_sample_config(cfg_path)
     assert cfg.version == "pit-sample-v1"
-    assert len(cfg.dates) == 1
+    assert cfg.ingest_enabled is True
+    assert cfg.quote_resolution == "tick_or_1s"
+    assert cfg.ingest_request_budget_per_date == 10
 
 
 def test_future_date_rejection() -> None:
@@ -81,6 +95,15 @@ def test_dry_run_plan(tmp_path: Path) -> None:
     assert "2024-01-05" in plan.missing_partitions
 
 
+def test_dry_run_ingest_enabled_plan(tmp_path: Path) -> None:
+    entry = DateEntry(trade_date=date(2024, 1, 5), day_type="normal")
+    cfg = replace(_minimal_config(tmp_path, [entry]), ingest_enabled=True)
+    plan = build_dry_run_plan(cfg)
+    assert plan.ingest_enabled is True
+    assert "2024-01-05" in plan.ingest_plans
+    assert plan.estimated_total_api_calls >= 0
+
+
 def test_idempotent_seed_from_pilot(tmp_path: Path) -> None:
     import sys
 
@@ -97,7 +120,7 @@ def test_idempotent_seed_from_pilot(tmp_path: Path) -> None:
     )
     cfg = replace(cfg, lake_root=sample_lake, seed_from_pilot_lake=pilot)
     assert seed_pilot_lake_for_date(cfg, trade) is True
-    assert seed_pilot_lake_for_date(cfg, trade) is False  # idempotent skip
+    assert seed_pilot_lake_for_date(cfg, trade) is False
     assert len(missing_partitions_for_date(cfg, trade)) == 0
 
 
@@ -135,3 +158,62 @@ def test_sample_build_from_seeded_lake(tmp_path: Path) -> None:
     assert len(result.joined_rows) == 1
     assert result.leakage.passed
     assert (cfg.joined_root / "joined.parquet").is_file()
+
+
+def test_try_ingest_disabled_records_reason(tmp_path: Path) -> None:
+    entry = DateEntry(trade_date=date(2024, 1, 5), day_type="normal")
+    cfg = _minimal_config(tmp_path, [entry])
+    ok, reason, ingest = try_ingest_date(cfg, entry, dry_run=False)
+    assert not ok
+    assert "ingest_disabled" in reason
+    assert ingest is None
+
+
+@patch("quant_lab.ml.datasets.sample_builder.ingest_rth_trade_date")
+def test_try_ingest_enabled_success(mock_ingest: MagicMock, tmp_path: Path) -> None:
+    entry = DateEntry(trade_date=date(2024, 1, 5), day_type="normal")
+    cfg = replace(_minimal_config(tmp_path, [entry]), ingest_enabled=True)
+    mock_ingest.return_value = DateIngestResult(
+        trade_date=date(2024, 1, 5),
+        success=True,
+        reason="ingest_complete",
+    )
+    with patch(
+        "quant_lab.ml.datasets.sample_builder.missing_partitions_for_date",
+        side_effect=[["option_trade_tick"], []],
+    ):
+        ok, reason, result = try_ingest_date(cfg, entry, dry_run=False)
+    assert ok
+    assert result is not None
+    mock_ingest.assert_called_once()
+
+
+@patch("quant_lab.ml.datasets.sample_builder.ingest_rth_trade_date")
+def test_try_ingest_records_failure(mock_ingest: MagicMock, tmp_path: Path) -> None:
+    entry = DateEntry(trade_date=date(2024, 1, 5), day_type="normal")
+    cfg = replace(_minimal_config(tmp_path, [entry]), ingest_enabled=True)
+    mock_ingest.return_value = DateIngestResult(
+        trade_date=date(2024, 1, 5),
+        success=False,
+        reason="ingest_failed:RuntimeError:no creds",
+    )
+    ok, reason, _ = try_ingest_date(cfg, entry, dry_run=False)
+    assert not ok
+    assert reason.startswith("ingest_failed")
+
+
+def test_early_close_anchors_respect_session_close() -> None:
+    from quant_lab.data.intraday_time import session_datetime
+    from quant_lab.ml.datasets.point_in_time import AnchorConfig, generate_anchors
+
+    trade = date(2024, 7, 3)
+    cfg = AnchorConfig(
+        anchor_type="regular_5min",
+        interval_minutes=5,
+        start_offset_minutes=5,
+        end_offset_minutes=5,
+        session_close_time="13:00:00",
+    )
+    anchors = generate_anchors(trade, cfg)
+    assert len(anchors) == 41
+    assert max(ts for ts, _ in anchors) <= session_datetime(trade, "12:55:00")
