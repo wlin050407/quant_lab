@@ -16,7 +16,7 @@
 | 客户端 | `thetadata` Python v3 `ThetaClient`，gRPC 至 ThetaData cloud |
 | Entitlement | Options **Standard**、Indices **Standard**、Stock **Value** |
 | SPXW 0DTE 历史 quote | **支持**（5/5 测试日，1m，`strike_range=2`） |
-| 历史 trade tick | **支持**（4/5 日；2025-07-03 早收盘日 trade 窗口无数据） |
+| 历史 trade tick | **支持**（4/5 日；2025-07-03 早收盘日 **13:00+ 窗口无成交**，见 ML-P2 修订） |
 | Greeks / IV | **支持**（1m 一阶 Greek + `implied_vol`；**无 `gamma` 字段**） |
 | Open Interest | **支持**（5/5 日有返回；**发布时间语义未确认**） |
 | SPX underlying | **支持**（`index_at_time_price` + `index_history_price` 1m） |
@@ -24,6 +24,21 @@
 | Underlying 总评 | **B. 部分足够，但需要验证/补齐** |
 | Point-in-time replay | **有条件可行**（1m quote/Greek/OI + tick trade；需 OI 语义与 1s 分辨率验证） |
 | **ML-P2** | **允许开始**（storage estimator / 窄窗口验证），但 OI 语义与 1s 分辨率须在 P2 首项闭环 |
+
+---
+
+## ML-P2 修订摘要（2026-06-14）
+
+详见 [`thetadata_p2_closure_report.md`](thetadata_p2_closure_report.md) 与 [`storage_and_throughput_report.md`](storage_and_throughput_report.md)。
+
+| 项 | ML-P2 结论 |
+|----|------------|
+| Quote 1s | **已实测支持** |
+| Quote tick | **已实测支持**（`interval="tick"`）；`raw` 无效 |
+| Index 1s/tick | **已实测支持** |
+| Gamma | **B：本地 Black-76**（Standard 无 second_order） |
+| 早收盘 2025-07-03 | **13:00+ 无 trade = 已收盘/无成交，非数据缺失** |
+| 单日 1s pilot | **~41 MB/日**（strike_range=60，估算） |
 
 **证据分级**（全文沿用）：
 
