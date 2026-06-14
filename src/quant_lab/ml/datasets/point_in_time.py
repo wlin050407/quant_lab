@@ -27,6 +27,7 @@ from quant_lab.data.point_in_time_replay import (
 from quant_lab.factors.gex import compute_dealer_gamma_exposure, filter_chain_by_dte
 from quant_lab.factors.pin_cluster import detect_pin_cluster
 from quant_lab.factors.positioning import pin_magnet_ranking
+from quant_lab.factors.regime import pin_reliability, regime_from_net_gex
 from quant_lab.ml.labels import compute_all_labels
 from quant_lab.ml.schemas import (
     DATASET_MANIFEST_VERSION,
@@ -268,7 +269,16 @@ def build_as_of_context(
         king=bundle.king_node,
         max_pain=bundle.max_pain,
     )
-    cluster = detect_pin_cluster(rankings, spot, symbol=symbol.replace("^", ""))
+    regime = regime_from_net_gex(bundle.net_gex)
+    pin_score_val = float(bundle.pin_score) if bundle.pin_score is not None else float("nan")
+    reliability_tier, _ = pin_reliability(pin_score_val, regime)
+    cluster = detect_pin_cluster(
+        rankings,
+        spot,
+        symbol=symbol.replace("^", ""),
+        regime=regime,
+        pin_reliability=reliability_tier,
+    )
     has_valid = bool(cluster.is_cluster)
     z_low = float(cluster.lower) if has_valid else None
     z_high = float(cluster.upper) if has_valid else None

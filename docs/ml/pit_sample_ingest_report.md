@@ -75,7 +75,14 @@ All 231 rows excluded with `no_valid_zone_at_as_of` / `close_location_skipped_no
 | zone categories ≥ 2 | FAIL |
 | leakage PASS | FAIL (first run; fix pending re-build) |
 
-## Next steps (before ML-P8B)
+## ML-P7.6.1 Update (Stage A Rerun)
+
+- **Leakage:** PASS after early-close anchor fix (195 rows, 2024-07-03 latest anchor 12:55 ET)
+- **Adapter fix:** replay path now passes `regime` + `pin_reliability` to `detect_pin_cluster()` (Terminal parity)
+- **valid_zone_ratio:** still **0%** — root cause is frozen contract gates (`short_gamma_regime`, `secondary_too_weak`), not missing ingest
+- See [`pin_zone_coverage_diagnosis.md`](pin_zone_coverage_diagnosis.md)
+
+## Next Step Recommendation
 
 1. Re-run Stage A after early-close anchor fix; confirm leakage PASS
 2. Investigate pin-cluster zone validity on full RTH chain (without changing Pin/GEX formulas)
