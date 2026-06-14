@@ -6,7 +6,7 @@ import hashlib
 import json
 import logging
 from contextlib import suppress
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, datetime, time
 from pathlib import Path
 from typing import Any, Literal
@@ -371,23 +371,19 @@ def compute_state_hash(
 
 
 def to_gex_adapter_frame(option_chain: pd.DataFrame) -> pd.DataFrame:
-    """Map replay chain columns to a GEX-friendly shape without changing formulas."""
+    """Backward-compatible GEX subset; prefer ``to_deterministic_input_frame``."""
     if option_chain.empty:
         return pd.DataFrame(
             columns=["strike", "right", "open_interest", "spot", "implied_vol", "gamma"]
         )
-    out = pd.DataFrame(
-        {
-            "strike": option_chain["strike"],
-            "right": option_chain["right"],
-            "open_interest": option_chain["open_interest"],
-            "spot": option_chain["underlying_price_from_greeks"],
-            "implied_vol": option_chain["implied_vol"],
-            "gamma": option_chain["gamma"],
-            "contract_identifier": option_chain["contract_identifier"],
-        }
+    spot = (
+        float(option_chain["underlying_price_from_greeks"].dropna().iloc[0])
+        if option_chain["underlying_price_from_greeks"].notna().any()
+        else float("nan")
     )
-    return out
+    full = to_deterministic_input_frame(option_chain, spot=spot)
+    cols = ["strike", "right", "open_interest", "spot", "implied_vol", "gamma", "contract_identifier"]
+    return full[cols]
 
 
 def _load_dataset(
@@ -938,3 +934,304 @@ def default_pilot_data_root() -> Path:
     if PILOT_LAKE_ROOT.is_dir():
         return PILOT_LAKE_ROOT
     return Path("data/raw/thetadata")
+
+
+# --- ML-P5 deterministic input contract (frozen) ---
+
+DETERMINISTIC_INPUT_COLUMNS: tuple[str, ...] = (
+    "strike",
+    "right",
+    "open_interest",
+    "spot",
+    "implied_vol",
+    "gamma",
+    "gamma_method",
+    "gamma_method_version",
+    "bid",
+    "ask",
+    "mid",
+    "expiration",
+    "time_to_expiry_years",
+    "contract_identifier",
+    "quote_timestamp",
+    "greek_timestamp",
+    "oi_event_timestamp",
+    "oi_semantics_status",
+    "oi_publication_time_confirmed",
+    "data_quality_flags",
+)
+
+
+@dataclass(frozen=True)
+class DeterministicBundle:
+    """Headline deterministic outputs from one normalized chain (ML-P5 contract)."""
+
+    net_gex: float
+    net_vex: float
+    flip_level: float
+    call_wall: float
+    put_wall: float
+    king_node: float
+    max_pain: float
+    pin_score: float
+    expected_move_1sd: float
+    gamma_source: str
+    oi_semantics_status: str | None
+    data_quality_flags: tuple[str, ...]
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+
+def to_deterministic_input_frame(
+    option_chain: pd.DataFrame,
+    *,
+    spot: float,
+) -> pd.DataFrame:
+    """Freeze replay ``option_chain`` into the ML-P5 normalized deterministic schema."""
+    if option_chain.empty:
+        return pd.DataFrame({c: pd.Series(dtype="object") for c in DETERMINISTIC_INPUT_COLUMNS})
+    bid = pd.to_numeric(option_chain.get("latest_bid"), errors="coerce")
+    ask = pd.to_numeric(option_chain.get("latest_ask"), errors="coerce")
+    mid = (bid + ask) / 2.0
+    tte = (
+        option_chain["time_to_expiry_years"]
+        if "time_to_expiry_years" in option_chain.columns
+        else pd.Series([pd.NA] * len(option_chain), index=option_chain.index)
+    )
+    out = pd.DataFrame(
+        {
+            "strike": option_chain["strike"],
+            "right": option_chain["right"],
+            "open_interest": option_chain["open_interest"],
+            "spot": spot,
+            "implied_vol": option_chain["implied_vol"],
+            "gamma": option_chain["gamma"],
+            "gamma_method": option_chain["gamma_method"],
+            "gamma_method_version": option_chain["gamma_method_version"],
+            "bid": bid,
+            "ask": ask,
+            "mid": mid,
+            "expiration": option_chain["expiration"],
+            "time_to_expiry_years": tte,
+            "contract_identifier": option_chain["contract_identifier"],
+            "quote_timestamp": option_chain.get("latest_quote_timestamp"),
+            "greek_timestamp": option_chain.get("greek_timestamp"),
+            "oi_event_timestamp": option_chain.get("oi_event_timestamp"),
+            "oi_semantics_status": option_chain.get("oi_semantics_status"),
+            "oi_publication_time_confirmed": option_chain.get("oi_publication_time_confirmed"),
+            "data_quality_flags": option_chain.get("data_quality_flags", ""),
+        }
+    )
+    return out[list(DETERMINISTIC_INPUT_COLUMNS)]
+
+
+def _factor_right(value: Any) -> str:
+    raw = str(value).upper()
+    if raw in {"C", "CALL"}:
+        return "C"
+    if raw in {"P", "PUT"}:
+        return "P"
+    return raw[:1]
+
+
+def deterministic_input_to_factor_chain(
+    input_df: pd.DataFrame,
+    *,
+    spot: float,
+    symbol: str = "^SPX",
+    dte: int = 0,
+    hours_to_close: float | None = None,
+) -> pd.DataFrame:
+    """Map frozen deterministic input to factor-layer chain columns."""
+    if input_df.empty:
+        return pd.DataFrame(
+            columns=[
+                "strike",
+                "right",
+                "open_interest",
+                "implied_volatility",
+                "dte",
+                "symbol",
+                "bs_gamma",
+                "gamma_method",
+                "oi_semantics_status",
+                "data_quality_flags",
+            ]
+        )
+    from quant_lab.factors.positioning import resolve_cohort_time_years
+
+    out = pd.DataFrame(
+        {
+            "strike": pd.to_numeric(input_df["strike"], errors="coerce"),
+            "right": input_df["right"].map(_factor_right),
+            "open_interest": pd.to_numeric(input_df["open_interest"], errors="coerce"),
+            "implied_volatility": pd.to_numeric(input_df["implied_vol"], errors="coerce"),
+            "dte": dte,
+            "symbol": symbol,
+            "gamma_method": input_df.get("gamma_method"),
+            "gamma_method_version": input_df.get("gamma_method_version"),
+            "oi_semantics_status": input_df.get("oi_semantics_status"),
+            "oi_publication_time_confirmed": input_df.get("oi_publication_time_confirmed"),
+            "data_quality_flags": input_df.get("data_quality_flags", ""),
+            "contract_identifier": input_df.get("contract_identifier"),
+        }
+    )
+    if "time_to_expiry_years" in input_df.columns and input_df["time_to_expiry_years"].notna().any():
+        out["time_to_expiry_years"] = pd.to_numeric(
+            input_df["time_to_expiry_years"], errors="coerce"
+        )
+    elif hours_to_close is not None:
+        out["time_to_expiry_years"] = resolve_cohort_time_years(
+            out, dte_max=1, hours_to_close=hours_to_close
+        )
+    if "gamma" in input_df.columns:
+        out["bs_gamma"] = pd.to_numeric(input_df["gamma"], errors="coerce")
+    return out
+
+
+def compute_deterministic_bundle(
+    input_df: pd.DataFrame,
+    spot: float,
+    *,
+    symbol: str = "^SPX",
+    asof: date | None = None,
+    dte_max: int = 1,
+    hours_to_close: float | None = None,
+    time_to_close_pct: float | None = None,
+    use_precomputed_gamma: bool = True,
+    oi_mode: str = "settled",
+) -> DeterministicBundle:
+    """Run frozen deterministic outputs on normalized input (no network)."""
+    from quant_lab.factors.effective_oi import chain_for_positioning
+    from quant_lab.factors.gex import (
+        add_bs_gamma_column,
+        compute_gex_profile,
+        compute_vex_profile,
+        pct_dte_cohort_of_total,
+    )
+    from quant_lab.factors.positioning import (
+        atm_iv_from_chain,
+        expected_move_1sd,
+        max_pain,
+        pin_score_from_chain,
+        resolve_cohort_time_years,
+    )
+
+    chain = deterministic_input_to_factor_chain(
+        input_df,
+        spot=spot,
+        symbol=symbol,
+        dte=0,
+        hours_to_close=hours_to_close,
+    )
+    work = chain_for_positioning(chain, oi_mode=oi_mode)
+
+    precomputed = (
+        use_precomputed_gamma
+        and "bs_gamma" in work.columns
+        and work["bs_gamma"].notna().any()
+    )
+    method_ok = True
+    if "gamma_method" in work.columns and work["gamma_method"].notna().any():
+        method_ok = (work["gamma_method"].dropna() == "black76").all()
+    has_precomputed = precomputed and method_ok
+    gamma_source = "derived_black76_precomputed" if has_precomputed else "recomputed_bs_or_black76"
+
+    if has_precomputed:
+        with_gamma = work.copy()
+    else:
+        with_gamma = add_bs_gamma_column(work, spot, symbol=symbol, asof=asof)
+        gamma_source = "recomputed_bs_or_black76"
+
+    if has_precomputed:
+        from quant_lab.factors.gex import (
+            call_wall,
+            compute_dealer_gamma_exposure,
+            compute_gamma_flip,
+            filter_chain_by_dte,
+            king_node,
+            put_wall,
+            strongest_ceiling,
+            strongest_floor,
+            total_net_gex,
+        )
+
+        cohort = filter_chain_by_dte(with_gamma, dte_max=dte_max)
+        per_strike = compute_dealer_gamma_exposure(cohort, spot, gamma_col="bs_gamma")
+        net = total_net_gex(per_strike)
+        flip = compute_gamma_flip(
+            cohort, spot, symbol=symbol, asof=asof
+        ).primary_flip
+        cw = call_wall(per_strike)
+        pw = put_wall(per_strike)
+        king = king_node(per_strike)
+        floor = strongest_floor(per_strike, spot)
+        ceiling = strongest_ceiling(per_strike, spot)
+        profile_all_cohort = filter_chain_by_dte(with_gamma, dte_max=None)
+        per_all = compute_dealer_gamma_exposure(profile_all_cohort, spot, gamma_col="bs_gamma")
+        net_all = total_net_gex(per_all)
+    else:
+        profile = compute_gex_profile(
+            with_gamma,
+            spot,
+            symbol=symbol,
+            asof=asof,
+            dte_max=dte_max,
+            compute_flip=True,
+        )
+        net = profile.net_gex
+        flip = profile.flip_level
+        cw = profile.call_wall
+        pw = profile.put_wall
+        king = profile.king_node
+        floor = profile.floor_strike
+        ceiling = profile.ceiling_strike
+        profile_all = compute_gex_profile(
+            with_gamma, spot, symbol=symbol, asof=asof, dte_max=None, compute_flip=False
+        )
+        net_all = profile_all.net_gex
+
+    vex = compute_vex_profile(with_gamma, spot, symbol=symbol, asof=asof, dte_max=dte_max)
+    pct_dte = pct_dte_cohort_of_total(net, net_all)
+    t_years = resolve_cohort_time_years(work, dte_max=dte_max, hours_to_close=hours_to_close)
+    iv = atm_iv_from_chain(work, spot, dte_max=dte_max)
+    em = expected_move_1sd(spot, iv, time_years=t_years, dte=1)
+    pin = pin_score_from_chain(
+        work,
+        spot,
+        dte_max=dte_max,
+        hours_to_close=hours_to_close,
+        time_to_close_pct=time_to_close_pct,
+        pct_gex_dte1=pct_dte,
+        oi_mode=oi_mode,
+    )
+    oi_status = None
+    if "oi_semantics_status" in input_df.columns and input_df["oi_semantics_status"].notna().any():
+        oi_status = str(input_df["oi_semantics_status"].dropna().iloc[0])
+    flags: set[str] = set()
+    if "data_quality_flags" in input_df.columns:
+        for raw in input_df["data_quality_flags"].astype(str):
+            flags.update(p for p in raw.split("|") if p)
+    if oi_status == "unconfirmed":
+        flags.add("oi_semantics_unconfirmed")
+
+    return DeterministicBundle(
+        net_gex=float(net),
+        net_vex=float(vex.net_vex),
+        flip_level=float(flip),
+        call_wall=float(cw),
+        put_wall=float(pw),
+        king_node=float(king),
+        max_pain=float(max_pain(work, dte_max=dte_max)),
+        pin_score=float(pin.score),
+        expected_move_1sd=float(em),
+        gamma_source=gamma_source,
+        oi_semantics_status=oi_status,
+        data_quality_flags=tuple(sorted(flags)),
+        metadata={
+            "n_contracts": int(len(work)),
+            "pct_gex_dte1": float(pct_dte),
+            "magnet_strike": float(pin.magnet_strike),
+            "floor_strike": float(floor),
+            "ceiling_strike": float(ceiling),
+        },
+    )
