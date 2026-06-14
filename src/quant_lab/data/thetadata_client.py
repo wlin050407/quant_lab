@@ -58,6 +58,27 @@ def resolve_email_password() -> tuple[str, str] | None:
     return lines[0].strip(), lines[1].strip()
 
 
+def _redact_email(email: str) -> str:
+    """Mask email for logs (first character + domain only)."""
+    if "@" not in email:
+        return "***"
+    local, _, domain = email.partition("@")
+    head = local[:1] if local else "*"
+    return f"{head}***@{domain}"
+
+
+def credential_source_label() -> str:
+    """Non-secret label describing where credentials are loaded from."""
+    if resolve_email_password() is not None:
+        if env_var("THETADATA_EMAIL") and env_var("THETADATA_PASSWORD"):
+            return "THETADATA_EMAIL+THETADATA_PASSWORD"
+        return "THETADATA_CREDENTIALS_FILE"
+    creds = resolve_credentials_file()
+    if creds is not None:
+        return f"THETADATA_CREDENTIALS_FILE ({creds.name})"
+    return "missing"
+
+
 @lru_cache(maxsize=1)
 def get_thetadata_client(*, dataframe_type: DataFrameType = "pandas"):
     """Return an authenticated ``ThetaClient`` (cached singleton)."""
@@ -76,10 +97,15 @@ def get_thetadata_client(*, dataframe_type: DataFrameType = "pandas"):
 
     if email_password is not None:
         email, password = email_password
-        log.info("ThetaData client: authenticating as %s", email)
+        log.info(
+            "ThetaData client: authenticating (%s)",
+            credential_source_label(),
+        )
+        log.debug("ThetaData client: identity %s", _redact_email(email))
         return ThetaClient(email=email, password=password, dataframe_type=dataframe_type)
 
     if creds_path is not None:
+        log.info("ThetaData client: authenticating (%s)", credential_source_label())
         return ThetaClient(creds_file=str(creds_path), dataframe_type=dataframe_type)
 
     raise ThetaDataConfigError(

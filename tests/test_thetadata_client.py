@@ -2,19 +2,25 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import date
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pandas as pd
 import pytest
 
 from quant_lab.data import thetadata_client as td_client_mod
-from quant_lab.data.thetadata_client import resolve_credentials_file, resolve_email_password
+from quant_lab.data.thetadata_client import (
+    _redact_email,
+    credential_source_label,
+    resolve_credentials_file,
+    resolve_email_password,
+)
 from quant_lab.data.thetadata_intraday import (
+    _normalize_timestamps,
     fetch_spx_price_1m,
     resolve_option_root,
-    _normalize_timestamps,
 )
 from quant_lab.data.thetadata_storage import spx_price_1m_path
 
@@ -67,3 +73,34 @@ def test_resolve_option_root_falls_back_to_spx() -> None:
 def test_spx_price_path_layout() -> None:
     p = spx_price_1m_path(date(2025, 5, 20))
     assert p.as_posix().endswith("intraday/SPX/price_1m/2025-05-20.parquet")
+
+
+def test_redact_email_masks_local_part() -> None:
+    assert _redact_email("user@example.com") == "u***@example.com"
+
+
+def test_get_thetadata_client_log_does_not_emit_full_email(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    monkeypatch.setenv("THETADATA_EMAIL", "secret.user@example.com")
+    monkeypatch.setenv("THETADATA_PASSWORD", "not-the-real-password")
+    monkeypatch.delenv("THETADATA_CREDENTIALS_FILE", raising=False)
+    td_client_mod.get_thetadata_client.cache_clear()
+    mock_client = MagicMock()
+    with patch("thetadata.ThetaClient", return_value=mock_client), caplog.at_level(
+        logging.INFO, logger="quant_lab.data.thetadata_client"
+    ):
+        td_client_mod.get_thetadata_client()
+    combined = caplog.text
+    assert "secret.user@example.com" not in combined
+    assert "not-the-real-password" not in combined
+    assert "THETADATA_EMAIL" in combined or "credential" in combined.lower()
+
+
+def test_credential_source_label_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("THETADATA_EMAIL", "a@b.com")
+    monkeypatch.setenv("THETADATA_PASSWORD", "x")
+    monkeypatch.delenv("THETADATA_CREDENTIALS_FILE", raising=False)
+    td_client_mod.get_thetadata_client.cache_clear()
+    assert credential_source_label() == "THETADATA_EMAIL+THETADATA_PASSWORD"
