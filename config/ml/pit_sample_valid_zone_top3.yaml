@@ -1,0 +1,49 @@
+# ML-P7.6.5 valid-zone top-3 sample (ranking: 2024-01-19, 2024-10-04, 2025-05-02)
+# Build only missing dates; merge with existing 2024-01-19 per-date report.
+
+version: pit-sample-valid-zone-top3
+root: SPXW
+index_symbol: SPX
+strike_range: 60
+strike_range_fallback: 30
+
+anchor_type: regular_5min
+anchor_start_offset_minutes: 5
+anchor_end_offset_minutes: 5
+
+session_rth_start: "09:30:00"
+session_rth_end: "16:00:00"
+
+outputs:
+  raw_lake: artifacts/raw_lake_sample
+  dataset: artifacts/datasets/pit_sample_valid_zone_top3
+  features: artifacts/features/pit_sample_valid_zone_top3
+  reports: artifacts/reports/pit_sample_valid_zone_top3
+
+lake_root: artifacts/raw_lake_sample
+dataset_root: artifacts/datasets/pit_sample_valid_zone_top3
+feature_root: artifacts/features/pit_sample_valid_zone_top3
+report_root: artifacts/reports/pit_sample_valid_zone_top3
+joined_root: artifacts/datasets/pit_sample_valid_zone_top3/joined
+
+ingest:
+  enabled: false
+  full_rth: true
+  idempotent_skip_existing: true
+
+data:
+  root: SPXW
+  strike_range: 60
+  quote_resolution: tick_or_1s
+  index_resolution: tick_or_1s
+
+dates:
+  - date: "2024-01-19"
+    day_type: monthly_opex
+    note: ranking_1_valid_zone_67pct_hourly
+  - date: "2024-10-04"
+    day_type: monthly_opex
+    note: ranking_2_valid_zone_67pct_hourly
+  - date: "2025-05-02"
+    day_type: recent
+    note: ranking_3_valid_zone_hourly
