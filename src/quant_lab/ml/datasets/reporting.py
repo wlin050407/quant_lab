@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from collections import Counter
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -258,6 +258,83 @@ def write_reports(
         (report_root / "stage_a_gate.json").write_text(json.dumps(stage_a_gate, indent=2), encoding="utf-8")
     if p8b_readiness is not None:
         (report_root / "p8b_readiness.json").write_text(json.dumps(p8b_readiness, indent=2), encoding="utf-8")
+
+
+def per_date_report_path(report_root: Path, trade_date: date) -> Path:
+    """Path for per-date checkpoint report (ML-P7.6.3)."""
+    return report_root / "per_date" / f"{trade_date.isoformat()}.json"
+
+
+def load_completed_checkpoint_dates(report_root: Path) -> set[str]:
+    """Return trade dates with completed per-date checkpoint reports."""
+    per_date_dir = report_root / "per_date"
+    if not per_date_dir.is_dir():
+        return set()
+    completed: set[str] = set()
+    for path in per_date_dir.glob("*.json"):
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            continue
+        if payload.get("status") == "completed":
+            completed.add(str(payload.get("trade_date") or path.stem))
+    return completed
+
+
+def build_per_date_coverage_report(
+    *,
+    trade_date: date,
+    day_type: str,
+    joined_rows: list[JoinedRow],
+    replay_per_anchor_sec: float,
+    feature_per_row_sec: float,
+    anchor_count: int,
+    latest_anchor: str | None,
+    leakage_passed: bool,
+    strict_join_passed: bool,
+) -> dict[str, Any]:
+    """Coverage metrics for one trade date (checkpoint artifact)."""
+    rows = [j.to_dict() for j in joined_rows]
+    n = len(rows)
+    included = sum(1 for r in rows if float(r.get("sample_weight") or 0) > 0)
+    zone_labels = [
+        r.get("labels.close_location_vs_current_zone")
+        for r in rows
+        if r.get("labels.close_location_vs_current_zone") is not None
+    ]
+    null_feats = [sum(1 for k, v in r.items() if k.startswith("features.") and v is None) for r in rows]
+    fq = [r.get("features.feature_quality_score") for r in rows if r.get("features.feature_quality_score") is not None]
+    rq = [r.get("features.replay_quality_score") for r in rows if r.get("features.replay_quality_score") is not None]
+    return {
+        "status": "completed",
+        "trade_date": trade_date.isoformat(),
+        "day_type": day_type,
+        "anchor_count": anchor_count,
+        "latest_anchor": latest_anchor,
+        "row_count": n,
+        "included_row_count": included,
+        "excluded_row_count": n - included,
+        "valid_zone_label_count": len(zone_labels),
+        "valid_zone_ratio": len(zone_labels) / n if n else 0.0,
+        "close_location_distribution": dict(Counter(zone_labels)),
+        "null_feature_count_mean": sum(null_feats) / len(null_feats) if null_feats else 0.0,
+        "feature_count": sum(1 for k in (rows[0].keys() if rows else []) if str(k).startswith("features.")),
+        "feature_quality_score_mean": sum(fq) / len(fq) if fq else None,
+        "replay_quality_score_mean": sum(rq) / len(rq) if rq else None,
+        "average_replay_time_per_anchor_sec": replay_per_anchor_sec,
+        "average_feature_build_time_per_row_sec": feature_per_row_sec,
+        "leakage_passed": leakage_passed,
+        "strict_hash_join_passed": strict_join_passed,
+    }
+
+
+def write_per_date_report(report_root: Path, report: dict[str, Any]) -> Path:
+    """Write per-date checkpoint report and flush to disk."""
+    trade_date = str(report["trade_date"])
+    path = per_date_report_path(report_root, date.fromisoformat(trade_date))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(report, indent=2), encoding="utf-8")
+    return path
 
 
 def verify_join_keys_match(rows: list[JoinedRow]) -> bool:

@@ -373,6 +373,9 @@ def build_dataset_rows(
     config: BuildConfig,
     outcome_provider: OutcomeProvider,
     anchors: Iterable[tuple[datetime, AnchorType]] | None = None,
+    *,
+    progress_every: int = 0,
+    on_anchor_progress: Any | None = None,
 ) -> list[DatasetRow]:
     anchor_cfg = config.anchor or AnchorConfig(
         anchor_type="manual",
@@ -381,7 +384,8 @@ def build_dataset_rows(
     anchor_list = list(anchors) if anchors is not None else generate_anchors(config.trade_date, anchor_cfg)
     rows: list[DatasetRow] = []
     exp = config.expiration or config.trade_date
-    for as_of, anchor_type in anchor_list:
+    total = len(anchor_list)
+    for idx, (as_of, anchor_type) in enumerate(anchor_list, start=1):
         ctx, strikes, _bundle = build_as_of_context(
             config.trade_date,
             as_of,
@@ -402,6 +406,12 @@ def build_dataset_rows(
                 session_id=config.trade_date.isoformat(),
             )
         )
+        if (
+            on_anchor_progress is not None
+            and progress_every > 0
+            and (idx % progress_every == 0 or idx == total)
+        ):
+            on_anchor_progress(idx, total, as_of)
     return compute_session_sample_weights(rows)
 
 

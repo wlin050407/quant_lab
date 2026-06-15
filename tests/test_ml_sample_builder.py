@@ -11,6 +11,7 @@ import pytest
 import yaml
 
 from quant_lab.ml.datasets.lake_ingest import DateIngestResult
+from quant_lab.ml.datasets.reporting import load_completed_checkpoint_dates, write_per_date_report
 from quant_lab.ml.datasets.sample_builder import (
     DateEntry,
     SampleBuildConfig,
@@ -217,3 +218,68 @@ def test_early_close_anchors_respect_session_close() -> None:
     anchors = generate_anchors(trade, cfg)
     assert len(anchors) == 41
     assert max(ts for ts, _ in anchors) <= session_datetime(trade, "12:55:00")
+
+
+def test_parse_dates_filter(tmp_path: Path) -> None:
+    from quant_lab.ml.datasets.sample_builder import parse_dates_filter, select_date_entries
+
+    parsed = parse_dates_filter("2024-01-19,2024-05-03")
+    assert parsed == (date(2024, 1, 19), date(2024, 5, 3))
+    cfg = _minimal_config(
+        tmp_path,
+        [
+            DateEntry(trade_date=date(2024, 1, 19), day_type="monthly_opex"),
+            DateEntry(trade_date=date(2024, 5, 3), day_type="trend_up"),
+        ],
+    )
+    selected = select_date_entries(cfg, dates_filter=(date(2024, 1, 19),))
+    assert len(selected) == 1
+    assert selected[0].trade_date == date(2024, 1, 19)
+
+
+def test_checkpoint_per_date_report_written(tmp_path: Path) -> None:
+    report = {
+        "status": "completed",
+        "trade_date": "2024-01-19",
+        "row_count": 77,
+        "valid_zone_ratio": 0.5,
+    }
+    write_per_date_report(tmp_path / "reports", report)
+    assert load_completed_checkpoint_dates(tmp_path / "reports") == {"2024-01-19"}
+
+
+@patch("quant_lab.ml.datasets.sample_builder.build_dataset_rows")
+@patch("quant_lab.ml.datasets.sample_builder.build_feature_dataset")
+def test_resume_skips_completed_checkpoint_date(
+    mock_features: MagicMock,
+    mock_rows: MagicMock,
+    tmp_path: Path,
+) -> None:
+    from quant_lab.ml.datasets.reporting import write_per_date_report
+    from quant_lab.ml.datasets.sample_builder import SampleBuildOptions
+
+    trade = date(2024, 1, 19)
+    cfg = _minimal_config(tmp_path, [DateEntry(trade_date=trade, day_type="monthly_opex")])
+    cfg = replace(
+        cfg,
+        lake_root=tmp_path / "lake",
+        report_root=tmp_path / "reports",
+        joined_root=tmp_path / "joined",
+    )
+    write_per_date_report(
+        cfg.report_root,
+        {"status": "completed", "trade_date": trade.isoformat(), "row_count": 1},
+    )
+    result = build_sample_dataset(
+        cfg,
+        max_dates=1,
+        dry_run=False,
+        options=SampleBuildOptions(
+            dates_filter=(trade,),
+            checkpoint_per_date=True,
+            resume=True,
+        ),
+    )
+    mock_rows.assert_not_called()
+    mock_features.assert_not_called()
+    assert result.joined_rows == []

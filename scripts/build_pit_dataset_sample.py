@@ -14,10 +14,12 @@ if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
 from quant_lab.ml.datasets.sample_builder import (  # noqa: E402
+    SampleBuildOptions,
     SampleBuildResult,
     build_dry_run_plan,
     build_sample_dataset,
     load_sample_config,
+    parse_dates_filter,
 )
 
 log = logging.getLogger(__name__)
@@ -35,6 +37,28 @@ def main() -> int:
     parser.add_argument("--config", type=Path, default=Path("config/ml/pit_sample_v1.yaml"))
     parser.add_argument("--dry-run", action="store_true", help="Plan only, no writes")
     parser.add_argument("--max-dates", type=int, default=20, help="Max trade dates to process")
+    parser.add_argument(
+        "--dates",
+        type=str,
+        default=None,
+        help="Comma-separated trade dates (YYYY-MM-DD) to build",
+    )
+    parser.add_argument(
+        "--checkpoint-per-date",
+        action="store_true",
+        help="Write per-date checkpoint reports and incremental artifacts",
+    )
+    parser.add_argument(
+        "--progress-every",
+        type=int,
+        default=10,
+        help="Log progress every N anchors when checkpoint mode enabled",
+    )
+    parser.add_argument(
+        "--no-resume",
+        action="store_true",
+        help="Do not skip dates with completed per-date checkpoints",
+    )
     parser.add_argument(
         "--stage",
         choices=("a", "b"),
@@ -64,6 +88,17 @@ def main() -> int:
     config = load_sample_config(args.config)
     log.info("loaded config %s with %d dates", config.version, len(config.dates))
 
+    dates_filter = parse_dates_filter(args.dates)
+    if dates_filter:
+        log.info("date filter: %s", ", ".join(d.isoformat() for d in dates_filter))
+
+    build_options = SampleBuildOptions(
+        dates_filter=dates_filter,
+        checkpoint_per_date=args.checkpoint_per_date,
+        progress_every=args.progress_every,
+        resume=not args.no_resume,
+    )
+
     if args.dry_run:
         plan = build_dry_run_plan(config, max_dates=max_dates)
         print(json.dumps(plan.to_dict(), indent=2))
@@ -86,7 +121,12 @@ def main() -> int:
                 print(json.dumps(gate, indent=2))
             return 3
 
-    result = build_sample_dataset(config, max_dates=max_dates, dry_run=False)
+    result = build_sample_dataset(
+        config,
+        max_dates=max_dates,
+        dry_run=False,
+        options=build_options,
+    )
     assert isinstance(result, SampleBuildResult)
     summary = {
         "row_count": len(result.joined_rows),

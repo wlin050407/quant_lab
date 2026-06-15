@@ -8,7 +8,7 @@ import shutil
 import time
 from collections.abc import Iterable
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -36,10 +36,14 @@ from quant_lab.ml.datasets.point_in_time import (
 from quant_lab.ml.datasets.reporting import (
     LeakageValidationResult,
     build_coverage_report,
+    build_per_date_coverage_report,
     build_split_readiness_report,
     evaluate_p8b_readiness,
     evaluate_stage_a_gate,
+    load_completed_checkpoint_dates,
     validate_joined_dataset_leakage,
+    verify_join_keys_match,
+    write_per_date_report,
     write_reports,
 )
 from quant_lab.ml.features.builder import build_feature_dataset, write_feature_dataset
@@ -120,6 +124,16 @@ class SampleBuildConfig:
                 for d in self.dates
             ],
         }
+
+
+@dataclass(frozen=True)
+class SampleBuildOptions:
+    """Runtime options for checkpointed multi-date builds (ML-P7.6.3)."""
+
+    dates_filter: tuple[date, ...] = ()
+    checkpoint_per_date: bool = False
+    progress_every: int = 10
+    resume: bool = True
 
 
 @dataclass
@@ -226,6 +240,82 @@ def validate_dates_not_future(dates: Iterable[date], *, today: date | None = Non
     for d in dates:
         if d >= ref:
             raise ValueError(f"future or same-day date not allowed: {d} (reference={ref})")
+
+
+def parse_dates_filter(dates_csv: str | None) -> tuple[date, ...]:
+    """Parse comma-separated ISO dates for --dates CLI filter."""
+    if not dates_csv:
+        return ()
+    return tuple(date.fromisoformat(part.strip()) for part in dates_csv.split(",") if part.strip())
+
+
+def select_date_entries(
+    config: SampleBuildConfig,
+    *,
+    max_dates: int | None = None,
+    dates_filter: tuple[date, ...] = (),
+) -> list[DateEntry]:
+    """Select config date entries respecting --max-dates and --dates filters."""
+    entries = list(config.dates)
+    if dates_filter:
+        allowed = set(dates_filter)
+        entries = [entry for entry in entries if entry.trade_date in allowed]
+    if max_dates is not None:
+        entries = entries[:max_dates]
+    return entries
+
+
+def _per_date_shard_path(root: Path, trade_date: date, suffix: str) -> Path:
+    return root / "per_date" / f"{trade_date.isoformat()}{suffix}"
+
+
+def _load_checkpoint_joined_rows(joined_root: Path) -> list[JoinedRow]:
+    """Load joined rows from per-date checkpoint shards."""
+    shard_dir = joined_root / "per_date"
+    if not shard_dir.is_dir():
+        return []
+    rows: list[JoinedRow] = []
+    for path in sorted(shard_dir.glob("*.parquet")):
+        frame = pd.read_parquet(path)
+        for record in frame.to_dict(orient="records"):
+            rows.append(JoinedRow(row=record))
+    return rows
+
+
+def _flush_date_checkpoint(
+    config: SampleBuildConfig,
+    *,
+    trade_date: date,
+    label_rows: list[DatasetRow],
+    feature_rows: list[Any],
+    joined_rows: list[JoinedRow],
+) -> None:
+    """Write per-date dataset/feature/joined shards and refresh aggregate joined parquet."""
+    config.dataset_root.mkdir(parents=True, exist_ok=True)
+    config.feature_root.mkdir(parents=True, exist_ok=True)
+    config.joined_root.mkdir(parents=True, exist_ok=True)
+    shard_dir = config.joined_root / "per_date"
+    shard_dir.mkdir(parents=True, exist_ok=True)
+
+    label_dicts = [r.row_dict() for r in label_rows]
+    feature_dicts = [r.row_dict() for r in feature_rows]
+    if label_dicts:
+        label_path = _per_date_shard_path(config.dataset_root, trade_date, ".parquet")
+        label_path.parent.mkdir(parents=True, exist_ok=True)
+        pd.DataFrame(label_dicts).to_parquet(label_path)
+    if feature_dicts:
+        feat_path = _per_date_shard_path(config.feature_root, trade_date, ".parquet")
+        feat_path.parent.mkdir(parents=True, exist_ok=True)
+        pd.DataFrame(feature_dicts).to_parquet(feat_path)
+    joined_records = [j.to_dict() for j in joined_rows]
+    if joined_records:
+        pd.DataFrame(joined_records).to_parquet(shard_dir / f"{trade_date.isoformat()}.parquet")
+
+    all_joined = _load_checkpoint_joined_rows(config.joined_root)
+    if all_joined:
+        pd.DataFrame([j.to_dict() for j in all_joined]).to_parquet(
+            config.joined_root / "joined.parquet", index=False
+        )
 
 
 def _anchor_config_for_date(config: SampleBuildConfig, entry: DateEntry) -> AnchorConfig:
@@ -431,22 +521,43 @@ def build_sample_dataset(
     *,
     max_dates: int | None = None,
     dry_run: bool = False,
+    options: SampleBuildOptions | None = None,
 ) -> SampleBuildResult | DryRunPlan:
     if dry_run:
         return build_dry_run_plan(config, max_dates=max_dates)
 
-    selected = list(config.dates[: max_dates or len(config.dates)])
-    validate_dates_not_future(d.trade_date for d in selected)
+    opts = options or SampleBuildOptions()
+    selected = select_date_entries(
+        config,
+        max_dates=max_dates,
+        dates_filter=opts.dates_filter,
+    )
+    validate_dates_not_future(entry.trade_date for entry in selected)
+
+    completed_dates: set[str] = set()
+    if opts.resume and opts.checkpoint_per_date:
+        completed_dates = load_completed_checkpoint_dates(config.report_root)
 
     all_label_rows: list[DatasetRow] = []
-    all_feature_result_rows: list = []
+    all_feature_result_rows: list[Any] = []
     failures: list[DateBuildFailure] = []
     replay_times: list[float] = []
     feature_times: list[float] = []
     ingest_results: list[DateIngestResult] = []
     successful_dates: list[str] = []
 
+    if opts.resume and opts.checkpoint_per_date:
+        for row in _load_checkpoint_joined_rows(config.joined_root):
+            td = str(row.to_dict().get("trade_date"))
+            if td in completed_dates:
+                successful_dates.append(td)
+
     for entry in selected:
+        date_key = entry.trade_date.isoformat()
+        if opts.checkpoint_per_date and opts.resume and date_key in completed_dates:
+            log.info("[resume skip] %s checkpoint already completed", date_key)
+            continue
+
         ok, reason, ingest_result = try_ingest_date(config, entry, dry_run=False)
         if ingest_result is not None:
             ingest_results.append(ingest_result)
@@ -455,13 +566,14 @@ def build_sample_dataset(
             log.warning("skip %s: %s", entry.trade_date, reason)
             continue
 
-        successful_dates.append(entry.trade_date.isoformat())
-
         anchor_cfg = _anchor_config_for_date(config, entry)
         anchors = generate_anchors(entry.trade_date, anchor_cfg)
         if not anchors:
             failures.append(DateBuildFailure(entry.trade_date, "no_anchors_generated"))
             continue
+
+        log.info("[date start] %s anchors=%d", date_key, len(anchors))
+        progress_started = time.perf_counter()
 
         provider = PilotIndexOutcomeProvider(data_root=config.lake_root, symbol=config.index_symbol)
         build_cfg = BuildConfig(
@@ -470,20 +582,91 @@ def build_sample_dataset(
             data_root=config.lake_root,
             anchor=anchor_cfg,
         )
+
+        def _on_anchor_progress(
+            idx: int,
+            total: int,
+            as_of: datetime,
+            *,
+            _date_key: str = date_key,
+            _started: float = progress_started,
+        ) -> None:
+            elapsed = time.perf_counter() - _started
+            log.info(
+                "[progress] %s anchor %d/%d as_of=%s elapsed=%.1fs",
+                _date_key,
+                idx,
+                total,
+                as_of.isoformat(),
+                elapsed,
+            )
+
         t0 = time.perf_counter()
-        label_rows = build_dataset_rows(build_cfg, provider, anchors=anchors)
-        replay_times.append((time.perf_counter() - t0) / max(len(label_rows), 1))
+        label_rows = build_dataset_rows(
+            build_cfg,
+            provider,
+            anchors=anchors,
+            progress_every=opts.progress_every if opts.checkpoint_per_date else 0,
+            on_anchor_progress=_on_anchor_progress if opts.checkpoint_per_date else None,
+        )
+        replay_sec = (time.perf_counter() - t0) / max(len(label_rows), 1)
+        replay_times.append(replay_sec)
 
         t1 = time.perf_counter()
         feature_result = build_feature_dataset(label_rows, config.lake_root, config=FeatureConfig())
-        feature_times.append((time.perf_counter() - t1) / max(len(feature_result.rows), 1))
+        feature_sec = (time.perf_counter() - t1) / max(len(feature_result.rows), 1)
+        feature_times.append(feature_sec)
 
         all_label_rows.extend(label_rows)
         all_feature_result_rows.extend(feature_result.rows)
+        successful_dates.append(date_key)
+
+        if opts.checkpoint_per_date:
+            label_dicts = [r.row_dict() for r in all_label_rows]
+            feature_dicts = [r.row_dict() for r in all_feature_result_rows]
+            joined_all = strict_join_batches(label_dicts, feature_dicts)
+            date_joined = [j for j in joined_all if str(j.to_dict().get("trade_date")) == date_key]
+            date_leakage = validate_joined_dataset_leakage(date_joined)
+            strict_ok = verify_join_keys_match(date_joined)
+            latest_anchor = anchors[-1][0].isoformat() if anchors else None
+            per_date_report = build_per_date_coverage_report(
+                trade_date=entry.trade_date,
+                day_type=entry.day_type,
+                joined_rows=date_joined,
+                replay_per_anchor_sec=replay_sec,
+                feature_per_row_sec=feature_sec,
+                anchor_count=len(anchors),
+                latest_anchor=latest_anchor,
+                leakage_passed=date_leakage.passed,
+                strict_join_passed=strict_ok,
+            )
+            per_date_report["sizes_bytes"] = {
+                "raw_lake_reused": _dir_size_bytes(config.lake_root),
+            }
+            write_per_date_report(config.report_root, per_date_report)
+            _flush_date_checkpoint(
+                config,
+                trade_date=entry.trade_date,
+                label_rows=label_rows,
+                feature_rows=feature_result.rows,
+                joined_rows=date_joined,
+            )
+            log.info(
+                "[date complete] %s rows=%d included=%d valid_zone_ratio=%.3f",
+                date_key,
+                per_date_report["row_count"],
+                per_date_report["included_row_count"],
+                per_date_report["valid_zone_ratio"],
+            )
 
     label_dicts = [r.row_dict() for r in all_label_rows]
     feature_dicts = [r.row_dict() for r in all_feature_result_rows]
-    joined = strict_join_batches(label_dicts, feature_dicts)
+    if opts.checkpoint_per_date:
+        joined = _load_checkpoint_joined_rows(config.joined_root)
+        if not joined and label_dicts:
+            joined = strict_join_batches(label_dicts, feature_dicts)
+    else:
+        joined = strict_join_batches(label_dicts, feature_dicts)
 
     sessions = [str(r.to_dict().get("session_id") or r.to_dict().get("trade_date")) for r in joined]
     split = session_grouped_split(sorted(set(sessions)))
