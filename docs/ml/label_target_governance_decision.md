@@ -1,7 +1,7 @@
 # ML-P7.7 Label Target Governance Decision
 
-**Phase:** ML-P7.7 / ML-P7.7.1 / ML-P7.8 / ML-P7.8.1 / ML-P7.8.2 / ML-P7.8.3 / ML-P7.8.4 / **ML-P8A**  
-**Status:** **P8A harness plan complete** — **ML-P8B blocked**  
+**Phase:** ML-P7.7 / … / ML-P8A / **ML-P8A.1**  
+**Status:** **Staged P8B preparation approved (P8B.0–P8B.2)** — **P8B.3 learned fitting blocked**  
 **Full analysis:** [`label_target_governance_report.md`](label_target_governance_report.md)  
 **Addendum draft:** [`label_spec_addendum_v1_1_proposal.md`](label_spec_addendum_v1_1_proposal.md)  
 **Owner packet:** [`label_target_owner_review_packet.md`](label_target_owner_review_packet.md)  
@@ -12,6 +12,8 @@
 **P8A entry:** [`p8a_entry_approval_record.md`](p8a_entry_approval_record.md)  
 **P8A harness:** [`p8a_baseline_modeling_harness_plan.md`](p8a_baseline_modeling_harness_plan.md)  
 **P8B gate:** [`p8b_training_gate_proposal.md`](p8b_training_gate_proposal.md)  
+**P8B staged approval:** [`p8b_execution_approval_record.md`](p8b_execution_approval_record.md)  
+**P8B staged plan:** [`p8b_staged_execution_plan.md`](p8b_staged_execution_plan.md)  
 **Implementation plan:** [`baseline_label_builder_implementation_plan.md`](baseline_label_builder_implementation_plan.md)  
 **Migration plan:** [`label_schema_v1_1_migration_plan.md`](label_schema_v1_1_migration_plan.md)
 
@@ -29,7 +31,9 @@
 | ML-P7.8.2 label builder implementation? | **Done — PASS** |
 | ML-P7.8.3 dataset rebuild validation? | **Done — PASS** |
 | ML-P8A modeling harness plan? | **Done — PASS** (plan only) |
-| ML-P8B now? | **Forbidden** |
+| ML-P8A.1 staged P8B execution approval? | **Done — PASS** (P8B.0–P8B.2) |
+| P8B.3 learned model fitting? | **Forbidden** |
+| ML-P8B now (full training)? | **Forbidden** |
 
 ---
 
@@ -96,8 +100,12 @@ Zone inclusion rule **unchanged**.
 5. ~~ML-P7.8.3 dataset rebuild + coverage validation~~ → **Done — PASS**  
 6. ~~ML-P7.8.4 owner gate review~~ → **Done — PASS**  
 7. ~~ML-P8A baseline modeling harness plan~~ → **Done — PASS**  
-8. Formal `label_spec.md` v1.1.0 merge → **Separate owner approval**  
-9. **ML-P8A.1 / ML-P8B** → P8B **blocked** until training explicitly approved per [`p8b_training_gate_proposal.md`](p8b_training_gate_proposal.md)  
+8. ~~ML-P8A.1 staged P8B execution approval~~ → **Done — PASS**  
+9. **ML-P8B.0** harness implementation → **Next — authorized**  
+10. **ML-P8B.1** feature build + join → **Authorized after P8B.0 PASS**  
+11. **ML-P8B.2** model-free baselines → **Authorized after P8B.1 PASS**  
+12. Formal `label_spec.md` v1.1.0 merge → **Separate owner approval**  
+13. **ML-P8B.3+** learned fitting / search / production → **Blocked**  
 
 ### R4 — Data expansion
 
@@ -128,8 +136,13 @@ Continue raw lake + screening for **zone enrichment only**. Not sole P8B prerequ
 - [x] ML-P7.8.4 owner gate review — **PASS**
 - [x] ML-P8A entry approved (planning/harness only)
 - [x] ML-P8A harness plan written — **PASS**
-- [ ] ML-P8B owner approval for training (see p8b_training_gate_proposal.md)
-- [ ] ML-P8B remains blocked until training explicitly approved
+- [x] ML-P8A.1 staged P8B execution approval — **PASS**
+- [x] P8B.0–P8B.2 preparation authorized (see p8b_execution_approval_record.md)
+- [ ] P8B.0 harness implementation
+- [ ] P8B.1 feature build + leakage validation
+- [ ] P8B.2 model-free baseline evaluation
+- [ ] P8B.3 learned model fitting approval (not approved)
+- [ ] P8B.3+ remains blocked until separate owner approval
 
 ---
 
@@ -147,7 +160,8 @@ Frozen contract gates (`short_gamma_regime` ~50%, `pin_distance_too_wide` ~37%) 
 | 1.0 | 2026-06-20 | Updated post-P7.8 PASS + P7.8.1 implementation approval |
 | 1.1 | 2026-06-20 | Updated post-P7.8.3 PASS + P7.8.4 gate review; ML-P8A authorized |
 | 1.2 | 2026-06-20 | Updated post-P8A harness plan PASS; P8B gate proposal linked |
+| 1.3 | 2026-06-20 | Updated post-P8A.1 staged P8B approval (P8B.0–P8B.2) |
 
 ---
 
-**Status: ML-P8A harness plan PASS — ML-P8B blocked — owner may review P8B gate**
+**Status: ML-P8A.1 PASS — P8B.0–P8B.2 authorized — P8B.3 learned fitting blocked**

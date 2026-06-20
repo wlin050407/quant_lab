@@ -11,9 +11,10 @@
 ## Status
 
 ```text
-PROPOSAL ONLY — P8B is NOT authorized
-P8A PASS does not authorize P8B training
-P8B requires separate owner approval
+UPDATED post-P8A.1 — Staged P8B preparation approved (P8B.0–P8B.2 only)
+P8B.3 learned model fitting: NOT authorized
+P8A PASS does not authorize full P8B training
+See: p8b_execution_approval_record.md, p8b_staged_execution_plan.md
 ```
 
 ---
@@ -27,9 +28,10 @@ This document defines the **entry conditions** for a future ML-P8B phase that wo
 ## 2. Explicit Non-Authorization
 
 ```text
-P8A PASS does not authorize P8B training.
-P8B requires separate owner approval recorded in a new approval document.
-No model fitting, sklearn/xgboost/lightgbm/torch training, or prediction artifacts until P8B approved.
+P8A PASS does not authorize P8B.3 learned model fitting.
+P8A.1 approves staged preparation only: P8B.0, P8B.1, P8B.2.
+P8B.3+ requires separate owner approval (p8b_model_fitting_approval_record.md).
+No sklearn/xgboost/lightgbm/torch model fitting until P8B.3 approved.
 ```
 
 ---
@@ -95,9 +97,34 @@ No model fitting, sklearn/xgboost/lightgbm/torch training, or prediction artifac
 
 ---
 
-## 4. P8B Approved Scope (Proposal — Pending Owner)
+## 4. P8B Approved Scope (Staged — P8A.1)
 
-If owner approves P8B, proposed **allowed** scope:
+Per [`p8b_execution_approval_record.md`](p8b_execution_approval_record.md):
+
+### Approved now (P8B.0–P8B.2)
+
+```text
+P8B.0: Harness code (metrics, split validators, forbidden-input checks, manifest)
+P8B.1: Feature dataset build + strict hash join + leakage validation
+P8B.2: Model-free baseline evaluation (zero, train median, majority, train prior)
+```
+
+### Not approved (P8B.3+)
+
+```text
+P8B.3: Simple model fitting (linear, logistic, multinomial logistic)
+P8B.4: Hyperparameter search
+P8B.5: Production backtest
+P8B.6: Trading signals
+```
+
+Full staged gates: [`p8b_staged_execution_plan.md`](p8b_staged_execution_plan.md).
+
+---
+
+## 4.1 Original Full-P8B Scope (Proposal — P8B.3+ Only)
+
+If owner approves P8B.3 after P8B.0–P8B.2 PASS, proposed **additional** scope:
 
 ```text
 Implement harness code (split, baselines, metrics, run manifest)
@@ -164,9 +191,16 @@ No new ML framework without explicit owner sign-off.
 
 ---
 
-## 8. Owner Approval Template (Future)
+## 8. Owner Approval Records
 
-When owner is ready to authorize P8B, record in new document `p8b_training_approval_record.md`:
+| Document | Scope | Status |
+|----------|-------|--------|
+| [`p8b_execution_approval_record.md`](p8b_execution_approval_record.md) | P8B.0–P8B.2 staged preparation | **Approved (P8A.1)** |
+| `p8b_model_fitting_approval_record.md` | P8B.3+ learned fitting | **Not created — BLOCKED** |
+
+Legacy template (superseded for P8B.0–P8B.2 by execution approval record):
+
+When owner is ready to authorize **P8B.3 learned fitting**, record in `p8b_model_fitting_approval_record.md`:
 
 ```text
 Owner:     [name]
@@ -179,7 +213,7 @@ Split manifest hash: [hash]
 Git commit: [commit at approval time]
 ```
 
-Until this record exists, **ML-P8B remains BLOCKED**.
+Until P8B.3 approval record exists, **learned model fitting remains BLOCKED** (P8B.0–P8B.2 may proceed).
 
 ---
 
@@ -189,10 +223,13 @@ Until this record exists, **ML-P8B remains BLOCKED**.
 |-------|--------|
 | ML-P7.8.3 | Dataset rebuild PASS |
 | ML-P7.8.4 | Owner gate + P8A entry PASS |
-| **ML-P8A** | Harness plan (this proposal set) |
-| ML-P8A.1 (optional) | Owner review of P8A deliverables |
-| **ML-P8B** | **BLOCKED — requires §8 approval** |
-| ML-P8C+ | Deep models / expansion — not defined |
+| **ML-P8A** | Harness plan | **PASS** |
+| **ML-P8A.1** | Staged P8B execution approval | **PASS** |
+| **ML-P8B.0** | Harness implementation | **Authorized** |
+| **ML-P8B.1** | Feature build + join | **Authorized after P8B.0** |
+| **ML-P8B.2** | Model-free baselines | **Authorized after P8B.1** |
+| ML-P8B.3 | Simple model fitting | **BLOCKED** |
+| ML-P8B.4+ | Search / production / signals | **BLOCKED** |
 
 ---
 
@@ -201,6 +238,7 @@ Until this record exists, **ML-P8B remains BLOCKED**.
 | Version | Date | Change |
 |---------|------|--------|
 | 1.0 | 2026-06-20 | Initial P8B gate proposal |
+| 1.1 | 2026-06-20 | Updated post-P8A.1 staged approval (P8B.0–P8B.2) |
 
 ---
 
