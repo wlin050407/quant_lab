@@ -9,6 +9,7 @@ from typing import Any, Literal
 DATASET_MANIFEST_VERSION = "pit-dataset-v1"
 DATASET_SCHEMA_VERSION = "1.0.0"
 LABEL_SCHEMA_VERSION = "1.0.0"
+BASELINE_LABEL_SCHEMA_VERSION = "1.1.0-draft"
 FEATURE_SCHEMA_VERSION = "1.0.0"
 DETERMINISTIC_CONTRACT_VERSION = "ml-p5-v1"
 
@@ -85,6 +86,13 @@ LABEL_FIELD_NAMES: tuple[str, ...] = (
     "label_source_timestamp",
     "official_close_source",
     "label_horizon_minutes",
+    "close_near_primary_pin_025",
+    "close_near_primary_pin_050",
+    "close_above_below_primary_pin_025",
+    "close_above_below_primary_pin_050",
+    "baseline_target_eligible",
+    "baseline_target_exclusion_reasons",
+    "baseline_label_schema_version",
 )
 
 
@@ -171,6 +179,13 @@ class LabelRow:
     label_source_timestamp: datetime | None = None
     official_close_source: str | None = None
     label_horizon_minutes: float | None = None
+    close_near_primary_pin_025: bool | None = None
+    close_near_primary_pin_050: bool | None = None
+    close_above_below_primary_pin_025: str | None = None
+    close_above_below_primary_pin_050: str | None = None
+    baseline_target_eligible: bool = False
+    baseline_target_exclusion_reasons: list[str] = field(default_factory=list)
+    baseline_label_schema_version: str | None = None
     exclusion_reasons: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:

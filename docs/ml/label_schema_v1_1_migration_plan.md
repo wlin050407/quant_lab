@@ -1,7 +1,8 @@
 # Label Schema v1.1 Migration Plan
 
-**Phase:** ML-P7.8.1 — Migration plan only; **execution in ML-P7.8.2 / P7.8.3**  
-**Status:** Draft migration plan — **formal `label_spec.md` remains v1.0.0**  
+**Phase:** ML-P7.8.1 — Migration plan; **P7.8.2 label builder implemented**  
+**Status:** v1.1 draft fields implemented in code — **formal `label_spec.md` remains v1.0.0**  
+**P7.8.2 report:** [`baseline_label_builder_implementation_report.md`](baseline_label_builder_implementation_report.md)  
 **Approval:** [`baseline_target_implementation_approval.md`](baseline_target_implementation_approval.md)  
 **Implementation:** [`baseline_label_builder_implementation_plan.md`](baseline_label_builder_implementation_plan.md)
 
@@ -194,7 +195,18 @@ full pytest pass
 ruff pass
 ```
 
-**Exit artifact:** P7.8.2 completion note + commit hash referenced in manifest template.
+**Status: PASS** — see [`baseline_label_builder_implementation_report.md`](baseline_label_builder_implementation_report.md).
+
+Exclusion reason codes in builder (canonical):
+
+```text
+missing_primary_pin
+remaining_em_invalid
+missing_official_close
+label_source_not_after_as_of
+```
+
+**Exit artifact:** P7.8.2 completion report + implementation commit.
 
 ---
 

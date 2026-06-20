@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import logging
-import math
 import time
 from collections import Counter
 from dataclasses import dataclass
@@ -29,7 +28,20 @@ from quant_lab.ml.datasets.sample_builder import (
 from quant_lab.ml.datasets.valid_zone_screening import (
     inventory_raw_lake,
 )
-from quant_lab.ml.labels import compute_all_labels, remaining_expected_move
+from quant_lab.ml.labels import (
+    compute_all_labels,
+    compute_close_distance_to_primary_pin_em,
+    remaining_expected_move,
+)
+from quant_lab.ml.labels import (
+    compute_baseline_p1_near as compute_p1_near,
+)
+from quant_lab.ml.labels import (
+    compute_baseline_p2_directional as compute_p2_directional,
+)
+from quant_lab.ml.labels import (
+    evaluate_baseline_target_eligibility as evaluate_p0_eligibility,
+)
 from quant_lab.ml.leakage import check_label_timestamp_after_as_of
 
 log = logging.getLogger(__name__)
@@ -98,54 +110,6 @@ class DateBaselineMetrics:
             "runtime_seconds": self.runtime_seconds,
             "scan_error": self.scan_error,
         }
-
-
-def compute_close_distance_to_primary_pin_em(
-    official_close: float,
-    primary_pin_t: float,
-    remaining_expected_move_t: float,
-) -> float:
-    """P0 regression target (EM-normalized signed distance to primary pin)."""
-    return (official_close - primary_pin_t) / remaining_expected_move_t
-
-
-def evaluate_p0_eligibility(
-    *,
-    primary_pin_t: float | None,
-    remaining_expected_move_t: float | None,
-    official_close: float | None,
-    label_source_timestamp: datetime | None,
-    as_of_timestamp: datetime,
-) -> tuple[bool, list[str]]:
-    """Return (eligible, exclusion_reasons) for baseline P0 track."""
-    reasons: list[str] = []
-    if primary_pin_t is None or (isinstance(primary_pin_t, float) and math.isnan(primary_pin_t)):
-        reasons.append("primary_pin_missing_at_as_of")
-    if remaining_expected_move_t is None or not math.isfinite(remaining_expected_move_t):
-        reasons.append("remaining_em_invalid")
-    elif remaining_expected_move_t <= 0:
-        reasons.append("remaining_em_non_positive")
-    if official_close is None or (isinstance(official_close, float) and math.isnan(official_close)):
-        reasons.append("official_close_missing")
-    if label_source_timestamp is None:
-        reasons.append("label_source_timestamp_missing")
-    elif label_source_timestamp <= as_of_timestamp:
-        reasons.append("label_timestamp_not_after_as_of")
-    return len(reasons) == 0, reasons
-
-
-def compute_p1_near(d_em: float, threshold_em: float) -> bool:
-    """P1 binary: close near primary pin within threshold EM."""
-    return abs(d_em) <= threshold_em
-
-
-def compute_p2_directional(d_em: float, threshold_em: float) -> DirectionClass:
-    """P2 ternary classification relative to primary pin."""
-    if d_em < -threshold_em:
-        return "below"
-    if abs(d_em) <= threshold_em:
-        return "near"
-    return "above"
 
 
 def _percentiles(values: list[float], ps: tuple[float, ...]) -> dict[str, float]:

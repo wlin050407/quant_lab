@@ -9,10 +9,18 @@ from typing import Any, Literal
 
 import pandas as pd
 
-from quant_lab.ml.schemas import AsOfContext, LabelRow, OutcomeContext
+from quant_lab.ml.schemas import (
+    BASELINE_LABEL_SCHEMA_VERSION,
+    AsOfContext,
+    LabelRow,
+    OutcomeContext,
+)
 
 CloseLocation = Literal["below", "inside", "above"]
 ExitDirection = Literal["up", "down"]
+BaselineDirection = Literal["below", "near", "above"]
+
+BASELINE_NEAR_THRESHOLDS_EM: tuple[float, ...] = (0.25, 0.50)
 
 
 @dataclass(frozen=True)
@@ -117,6 +125,138 @@ def compute_close_distance_labels(
         if remaining_em and remaining_em > 0:
             out["close_distance_to_secondary_pin_em"] = (official_close - ctx.secondary_pin_t) / remaining_em
     return out
+
+
+def compute_close_distance_to_primary_pin_em(
+    official_close: float,
+    primary_pin_t: float,
+    remaining_expected_move_t: float,
+) -> float:
+    """P0 baseline regression target (EM-normalized signed distance to primary pin)."""
+    return (official_close - primary_pin_t) / remaining_expected_move_t
+
+
+def evaluate_baseline_target_eligibility(
+    *,
+    primary_pin_t: float | None,
+    remaining_expected_move_t: float | None,
+    official_close: float | None,
+    label_source_timestamp: datetime | None,
+    as_of_timestamp: datetime,
+) -> tuple[bool, list[str]]:
+    """Return (eligible, exclusion_reasons) for baseline primary-pin track."""
+    reasons: list[str] = []
+    if primary_pin_t is None or (isinstance(primary_pin_t, float) and math.isnan(primary_pin_t)):
+        reasons.append("missing_primary_pin")
+    if (
+        remaining_expected_move_t is None
+        or not math.isfinite(remaining_expected_move_t)
+        or remaining_expected_move_t <= 0
+    ):
+        reasons.append("remaining_em_invalid")
+    if official_close is None or (isinstance(official_close, float) and math.isnan(official_close)):
+        reasons.append("missing_official_close")
+    if label_source_timestamp is None or not isinstance(label_source_timestamp, datetime):
+        reasons.append("label_source_not_after_as_of")
+    elif label_source_timestamp <= as_of_timestamp:
+        reasons.append("label_source_not_after_as_of")
+    return len(reasons) == 0, reasons
+
+
+def compute_baseline_p1_near(d_em: float, threshold_em: float) -> bool:
+    """P1 binary: close near primary pin within threshold EM."""
+    return abs(d_em) <= threshold_em
+
+
+def compute_baseline_p2_directional(d_em: float, threshold_em: float) -> BaselineDirection:
+    """P2 ternary classification relative to primary pin."""
+    if d_em < -threshold_em:
+        return "below"
+    if abs(d_em) <= threshold_em:
+        return "near"
+    return "above"
+
+
+@dataclass(frozen=True)
+class BaselinePrimaryPinLabels:
+    """Additive v1.1 draft baseline primary-pin labels for one anchor."""
+
+    close_distance_to_primary_pin_points: float | None
+    close_distance_to_primary_pin_em: float | None
+    close_near_primary_pin_025: bool | None
+    close_near_primary_pin_050: bool | None
+    close_above_below_primary_pin_025: BaselineDirection | None
+    close_above_below_primary_pin_050: BaselineDirection | None
+    baseline_target_eligible: bool
+    baseline_target_exclusion_reasons: tuple[str, ...]
+    baseline_label_schema_version: str
+
+
+def compute_baseline_primary_pin_labels(
+    *,
+    official_close: float | None,
+    primary_pin_t: float | None,
+    remaining_expected_move_t: float | None,
+    as_of_timestamp: datetime,
+    label_source_timestamp: datetime | None,
+) -> BaselinePrimaryPinLabels:
+    """Compute additive baseline primary-pin labels (v1.1 draft)."""
+    eligible, reasons = evaluate_baseline_target_eligibility(
+        primary_pin_t=primary_pin_t,
+        remaining_expected_move_t=remaining_expected_move_t,
+        official_close=official_close,
+        label_source_timestamp=label_source_timestamp,
+        as_of_timestamp=as_of_timestamp,
+    )
+    null_block = BaselinePrimaryPinLabels(
+        close_distance_to_primary_pin_points=None,
+        close_distance_to_primary_pin_em=None,
+        close_near_primary_pin_025=None,
+        close_near_primary_pin_050=None,
+        close_above_below_primary_pin_025=None,
+        close_above_below_primary_pin_050=None,
+        baseline_target_eligible=False,
+        baseline_target_exclusion_reasons=tuple(reasons),
+        baseline_label_schema_version=BASELINE_LABEL_SCHEMA_VERSION,
+    )
+    if not eligible:
+        return null_block
+
+    assert primary_pin_t is not None
+    assert remaining_expected_move_t is not None
+    assert official_close is not None
+
+    d_points = official_close - primary_pin_t
+    d_em = compute_close_distance_to_primary_pin_em(
+        official_close, primary_pin_t, remaining_expected_move_t
+    )
+    return BaselinePrimaryPinLabels(
+        close_distance_to_primary_pin_points=d_points,
+        close_distance_to_primary_pin_em=d_em,
+        close_near_primary_pin_025=compute_baseline_p1_near(d_em, BASELINE_NEAR_THRESHOLDS_EM[0]),
+        close_near_primary_pin_050=compute_baseline_p1_near(d_em, BASELINE_NEAR_THRESHOLDS_EM[1]),
+        close_above_below_primary_pin_025=compute_baseline_p2_directional(
+            d_em, BASELINE_NEAR_THRESHOLDS_EM[0]
+        ),
+        close_above_below_primary_pin_050=compute_baseline_p2_directional(
+            d_em, BASELINE_NEAR_THRESHOLDS_EM[1]
+        ),
+        baseline_target_eligible=True,
+        baseline_target_exclusion_reasons=(),
+        baseline_label_schema_version=BASELINE_LABEL_SCHEMA_VERSION,
+    )
+
+
+def _apply_baseline_primary_pin_labels(row: LabelRow, baseline: BaselinePrimaryPinLabels) -> None:
+    row.baseline_target_eligible = baseline.baseline_target_eligible
+    row.baseline_target_exclusion_reasons = list(baseline.baseline_target_exclusion_reasons)
+    row.baseline_label_schema_version = baseline.baseline_label_schema_version
+    row.close_distance_to_primary_pin_points = baseline.close_distance_to_primary_pin_points
+    row.close_distance_to_primary_pin_em = baseline.close_distance_to_primary_pin_em
+    row.close_near_primary_pin_025 = baseline.close_near_primary_pin_025
+    row.close_near_primary_pin_050 = baseline.close_near_primary_pin_050
+    row.close_above_below_primary_pin_025 = baseline.close_above_below_primary_pin_025
+    row.close_above_below_primary_pin_050 = baseline.close_above_below_primary_pin_050
 
 
 def compute_near_pin(
@@ -355,7 +495,20 @@ def compute_all_labels(
 
     dist = compute_close_distance_labels(official_close, ctx, rem_em)
     for k, v in dist.items():
-        setattr(row, k, v)
+        if k not in (
+            "close_distance_to_primary_pin_points",
+            "close_distance_to_primary_pin_em",
+        ):
+            setattr(row, k, v)
+
+    baseline = compute_baseline_primary_pin_labels(
+        official_close=official_close,
+        primary_pin_t=ctx.primary_pin_t,
+        remaining_expected_move_t=rem_em,
+        as_of_timestamp=ctx.as_of_timestamp,
+        label_source_timestamp=row.label_source_timestamp,
+    )
+    _apply_baseline_primary_pin_labels(row, baseline)
 
     row.close_near_primary_pin = compute_near_pin(
         official_close, ctx.primary_pin_t, ctx.spot_t, rem_em, tol

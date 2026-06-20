@@ -96,7 +96,7 @@ def test_remaining_em_non_positive_exclusion() -> None:
         as_of_timestamp=as_of,
     )
     assert ok is False
-    assert "remaining_em_non_positive" in reasons
+    assert "remaining_em_invalid" in reasons
 
 
 def test_missing_primary_pin_exclusion() -> None:
@@ -110,7 +110,7 @@ def test_missing_primary_pin_exclusion() -> None:
         as_of_timestamp=as_of,
     )
     assert ok is False
-    assert "primary_pin_missing_at_as_of" in reasons
+    assert "missing_primary_pin" in reasons
 
 
 def test_label_timestamp_not_after_as_of_exclusion() -> None:
@@ -123,7 +123,7 @@ def test_label_timestamp_not_after_as_of_exclusion() -> None:
         as_of_timestamp=ts,
     )
     assert ok is False
-    assert "label_timestamp_not_after_as_of" in reasons
+    assert "label_source_not_after_as_of" in reasons
 
 
 def test_p1_threshold_025_and_050() -> None:
