@@ -35,14 +35,20 @@ from quant_lab.ml.datasets.point_in_time import (
 )
 from quant_lab.ml.datasets.reporting import (
     LeakageValidationResult,
+    build_baseline_dataset_manifest,
+    build_baseline_dataset_validation_report,
     build_coverage_report,
+    build_per_date_baseline_report,
     build_per_date_coverage_report,
     build_split_readiness_report,
     evaluate_p8b_readiness,
+    evaluate_p783_gates,
     evaluate_stage_a_gate,
     load_completed_checkpoint_dates,
     validate_joined_dataset_leakage,
+    validate_label_dataset_leakage,
     verify_join_keys_match,
+    write_baseline_validation_report,
     write_per_date_report,
     write_reports,
 )
@@ -102,6 +108,10 @@ class SampleBuildConfig:
     stage_a_dates: tuple[date, ...]
     seed_from_pilot_lake: Path | None
     dates: tuple[DateEntry, ...]
+    label_schema_version: str = "1.0.0"
+    baseline_label_schema_version: str | None = None
+    dataset_only: bool = False
+    skip_dates: frozenset[str] = frozenset()
 
     def to_manifest_dict(self) -> dict[str, Any]:
         return {
@@ -134,6 +144,7 @@ class SampleBuildOptions:
     checkpoint_per_date: bool = False
     progress_every: int = 10
     resume: bool = True
+    dataset_only: bool = False
 
 
 @dataclass
@@ -205,6 +216,9 @@ def load_sample_config(path: Path) -> SampleBuildConfig:
     data = raw.get("data") or {}
     stage_a_raw = raw.get("stage_a_dates") or []
     stage_a_dates = tuple(date.fromisoformat(str(d)) for d in stage_a_raw)
+    build = raw.get("build") or {}
+    skip_raw = raw.get("skip_dates") or []
+    skip_dates = frozenset(str(d) for d in skip_raw)
     return SampleBuildConfig(
         version=str(raw["version"]),
         root=str(raw.get("root", data.get("root", "SPXW"))),
@@ -232,6 +246,10 @@ def load_sample_config(path: Path) -> SampleBuildConfig:
         stage_a_dates=stage_a_dates,
         seed_from_pilot_lake=Path(seed) if seed else None,
         dates=tuple(dates),
+        label_schema_version=str(raw.get("label_schema_version", "1.0.0")),
+        baseline_label_schema_version=raw.get("baseline_label_schema_version"),
+        dataset_only=bool(build.get("dataset_only") or build.get("skip_features", False)),
+        skip_dates=skip_dates,
     )
 
 
@@ -282,6 +300,18 @@ def _load_checkpoint_joined_rows(joined_root: Path) -> list[JoinedRow]:
     return rows
 
 
+def _load_checkpoint_label_dicts(dataset_root: Path) -> list[dict[str, Any]]:
+    """Load label row dicts from per-date dataset checkpoint shards."""
+    shard_dir = dataset_root / "per_date"
+    if not shard_dir.is_dir():
+        return []
+    rows: list[dict[str, Any]] = []
+    for path in sorted(shard_dir.glob("*.parquet")):
+        frame = pd.read_parquet(path)
+        rows.extend(frame.to_dict(orient="records"))
+    return rows
+
+
 def _flush_date_checkpoint(
     config: SampleBuildConfig,
     *,
@@ -289,20 +319,24 @@ def _flush_date_checkpoint(
     label_rows: list[DatasetRow],
     feature_rows: list[Any],
     joined_rows: list[JoinedRow],
+    dataset_only: bool = False,
 ) -> None:
     """Write per-date dataset/feature/joined shards and refresh aggregate joined parquet."""
     config.dataset_root.mkdir(parents=True, exist_ok=True)
+    label_dicts = [r.row_dict() for r in label_rows]
+    if label_dicts:
+        label_path = _per_date_shard_path(config.dataset_root, trade_date, ".parquet")
+        label_path.parent.mkdir(parents=True, exist_ok=True)
+        pd.DataFrame(label_dicts).to_parquet(label_path)
+    if dataset_only:
+        return
+
     config.feature_root.mkdir(parents=True, exist_ok=True)
     config.joined_root.mkdir(parents=True, exist_ok=True)
     shard_dir = config.joined_root / "per_date"
     shard_dir.mkdir(parents=True, exist_ok=True)
 
-    label_dicts = [r.row_dict() for r in label_rows]
     feature_dicts = [r.row_dict() for r in feature_rows]
-    if label_dicts:
-        label_path = _per_date_shard_path(config.dataset_root, trade_date, ".parquet")
-        label_path.parent.mkdir(parents=True, exist_ok=True)
-        pd.DataFrame(label_dicts).to_parquet(label_path)
     if feature_dicts:
         feat_path = _per_date_shard_path(config.feature_root, trade_date, ".parquet")
         feat_path.parent.mkdir(parents=True, exist_ok=True)
@@ -369,8 +403,14 @@ def missing_partitions_for_date(config: SampleBuildConfig, trade_date: date) -> 
     return missing
 
 
-def build_dry_run_plan(config: SampleBuildConfig, *, max_dates: int | None = None) -> DryRunPlan:
-    selected = list(config.dates[: max_dates or len(config.dates)])
+def build_dry_run_plan(
+    config: SampleBuildConfig,
+    *,
+    max_dates: int | None = None,
+    dates_filter: tuple[date, ...] = (),
+) -> DryRunPlan:
+    selected = select_date_entries(config, max_dates=max_dates, dates_filter=dates_filter)
+    selected = [e for e in selected if e.trade_date.isoformat() not in config.skip_dates]
     validate_dates_not_future(d.trade_date for d in selected)
     anchors_map: dict[str, int] = {}
     missing: dict[str, list[str]] = {}
@@ -523,20 +563,30 @@ def build_sample_dataset(
     dry_run: bool = False,
     options: SampleBuildOptions | None = None,
 ) -> SampleBuildResult | DryRunPlan:
-    if dry_run:
-        return build_dry_run_plan(config, max_dates=max_dates)
-
     opts = options or SampleBuildOptions()
+    dataset_only = opts.dataset_only or config.dataset_only
+
+    if dry_run:
+        return build_dry_run_plan(
+            config,
+            max_dates=max_dates,
+            dates_filter=opts.dates_filter,
+        )
+
     selected = select_date_entries(
         config,
         max_dates=max_dates,
         dates_filter=opts.dates_filter,
     )
+    selected = [e for e in selected if e.trade_date.isoformat() not in config.skip_dates]
     validate_dates_not_future(entry.trade_date for entry in selected)
 
     completed_dates: set[str] = set()
+    successful_dates: list[str] = []
     if opts.resume and opts.checkpoint_per_date:
         completed_dates = load_completed_checkpoint_dates(config.report_root)
+        if completed_dates:
+            successful_dates = sorted(completed_dates)
 
     all_label_rows: list[DatasetRow] = []
     all_feature_result_rows: list[Any] = []
@@ -544,9 +594,8 @@ def build_sample_dataset(
     replay_times: list[float] = []
     feature_times: list[float] = []
     ingest_results: list[DateIngestResult] = []
-    successful_dates: list[str] = []
 
-    if opts.resume and opts.checkpoint_per_date:
+    if opts.resume and opts.checkpoint_per_date and not dataset_only:
         for row in _load_checkpoint_joined_rows(config.joined_root):
             td = str(row.to_dict().get("trade_date"))
             if td in completed_dates:
@@ -612,34 +661,56 @@ def build_sample_dataset(
         replay_sec = (time.perf_counter() - t0) / max(len(label_rows), 1)
         replay_times.append(replay_sec)
 
-        t1 = time.perf_counter()
-        feature_result = build_feature_dataset(label_rows, config.lake_root, config=FeatureConfig())
-        feature_sec = (time.perf_counter() - t1) / max(len(feature_result.rows), 1)
-        feature_times.append(feature_sec)
+        feature_sec = 0.0
+        feature_result_rows: list[Any] = []
+        if dataset_only:
+            label_dicts_date = [r.row_dict() for r in label_rows]
+            date_joined = [JoinedRow(row=d) for d in label_dicts_date]
+        else:
+            t1 = time.perf_counter()
+            feature_result = build_feature_dataset(label_rows, config.lake_root, config=FeatureConfig())
+            feature_sec = (time.perf_counter() - t1) / max(len(feature_result.rows), 1)
+            feature_times.append(feature_sec)
+            feature_result_rows = feature_result.rows
+            label_dicts_date = [r.row_dict() for r in label_rows]
+            feature_dicts_date = [r.row_dict() for r in feature_result_rows]
+            date_joined = strict_join_batches(label_dicts_date, feature_dicts_date)
 
         all_label_rows.extend(label_rows)
-        all_feature_result_rows.extend(feature_result.rows)
+        if not dataset_only:
+            all_feature_result_rows.extend(feature_result_rows)
         successful_dates.append(date_key)
 
         if opts.checkpoint_per_date:
-            label_dicts = [r.row_dict() for r in all_label_rows]
-            feature_dicts = [r.row_dict() for r in all_feature_result_rows]
-            joined_all = strict_join_batches(label_dicts, feature_dicts)
-            date_joined = [j for j in joined_all if str(j.to_dict().get("trade_date")) == date_key]
-            date_leakage = validate_joined_dataset_leakage(date_joined)
-            strict_ok = verify_join_keys_match(date_joined)
+            if dataset_only:
+                date_leakage = validate_label_dataset_leakage(label_dicts_date)
+                strict_ok = True
+            else:
+                date_leakage = validate_joined_dataset_leakage(date_joined)
+                strict_ok = verify_join_keys_match(date_joined)
             latest_anchor = anchors[-1][0].isoformat() if anchors else None
-            per_date_report = build_per_date_coverage_report(
-                trade_date=entry.trade_date,
-                day_type=entry.day_type,
-                joined_rows=date_joined,
-                replay_per_anchor_sec=replay_sec,
-                feature_per_row_sec=feature_sec,
-                anchor_count=len(anchors),
-                latest_anchor=latest_anchor,
-                leakage_passed=date_leakage.passed,
-                strict_join_passed=strict_ok,
-            )
+            if dataset_only:
+                per_date_report = build_per_date_baseline_report(
+                    trade_date=entry.trade_date,
+                    day_type=entry.day_type,
+                    label_rows=label_dicts_date,
+                    replay_per_anchor_sec=replay_sec,
+                    anchor_count=len(anchors),
+                    latest_anchor=latest_anchor,
+                    leakage_passed=date_leakage.passed,
+                )
+            else:
+                per_date_report = build_per_date_coverage_report(
+                    trade_date=entry.trade_date,
+                    day_type=entry.day_type,
+                    joined_rows=date_joined,
+                    replay_per_anchor_sec=replay_sec,
+                    feature_per_row_sec=feature_sec,
+                    anchor_count=len(anchors),
+                    latest_anchor=latest_anchor,
+                    leakage_passed=date_leakage.passed,
+                    strict_join_passed=strict_ok,
+                )
             per_date_report["sizes_bytes"] = {
                 "raw_lake_reused": _dir_size_bytes(config.lake_root),
             }
@@ -648,24 +719,42 @@ def build_sample_dataset(
                 config,
                 trade_date=entry.trade_date,
                 label_rows=label_rows,
-                feature_rows=feature_result.rows,
+                feature_rows=feature_result_rows,
                 joined_rows=date_joined,
+                dataset_only=dataset_only,
             )
-            log.info(
-                "[date complete] %s rows=%d included=%d valid_zone_ratio=%.3f",
-                date_key,
-                per_date_report["row_count"],
-                per_date_report["included_row_count"],
-                per_date_report["valid_zone_ratio"],
-            )
+            if dataset_only:
+                log.info(
+                    "[date complete] %s rows=%d baseline_eligible=%d zone_included=%d",
+                    date_key,
+                    per_date_report["row_count"],
+                    per_date_report.get("baseline_eligible_count", 0),
+                    per_date_report.get("zone_included_count", 0),
+                )
+            else:
+                log.info(
+                    "[date complete] %s rows=%d included=%d valid_zone_ratio=%.3f",
+                    date_key,
+                    per_date_report["row_count"],
+                    per_date_report["included_row_count"],
+                    per_date_report["valid_zone_ratio"],
+                )
 
-    label_dicts = [r.row_dict() for r in all_label_rows]
-    feature_dicts = [r.row_dict() for r in all_feature_result_rows]
-    if opts.checkpoint_per_date:
+    if dataset_only:
+        if opts.checkpoint_per_date:
+            label_dicts = _load_checkpoint_label_dicts(config.dataset_root)
+        else:
+            label_dicts = [r.row_dict() for r in all_label_rows]
+        joined = [JoinedRow(row=d) for d in label_dicts]
+    elif opts.checkpoint_per_date:
         joined = _load_checkpoint_joined_rows(config.joined_root)
-        if not joined and label_dicts:
+        if not joined and all_label_rows:
+            label_dicts = [r.row_dict() for r in all_label_rows]
+            feature_dicts = [r.row_dict() for r in all_feature_result_rows]
             joined = strict_join_batches(label_dicts, feature_dicts)
     else:
+        label_dicts = [r.row_dict() for r in all_label_rows]
+        feature_dicts = [r.row_dict() for r in all_feature_result_rows]
         joined = strict_join_batches(label_dicts, feature_dicts)
 
     sessions = [str(r.to_dict().get("session_id") or r.to_dict().get("trade_date")) for r in joined]
@@ -675,46 +764,95 @@ def build_sample_dataset(
         j.row["split_group"] = sid
         j.row["split"] = "train" if sid in split.train_sessions else "unassigned"
 
-    leakage = validate_joined_dataset_leakage(joined)
-    coverage = build_coverage_report(
-        joined_rows=joined,
-        failed_dates=[{"date": f.trade_date.isoformat(), "reason": f.reason} for f in failures],
-        timings={
-            "replay_per_anchor_sec": sum(replay_times) / len(replay_times) if replay_times else 0.0,
-            "feature_per_row_sec": sum(feature_times) / len(feature_times) if feature_times else 0.0,
-        },
-        sizes_bytes={
-            "raw_lake": _dir_size_bytes(config.lake_root),
-            "dataset": 0,
-            "features": 0,
-            "joined": 0,
-        },
-        date_entries=[{"date": d.trade_date.isoformat(), "day_type": d.day_type} for d in selected],
-        ingest_results=ingest_results,
-        successful_dates=successful_dates,
+    leakage = (
+        validate_label_dataset_leakage([j.to_dict() for j in joined])
+        if dataset_only
+        else validate_joined_dataset_leakage(joined)
     )
-    split_readiness = build_split_readiness_report(sessions)
-    stage_a_gate = evaluate_stage_a_gate(coverage, leakage_passed=leakage.passed)
-    p8b_readiness = evaluate_p8b_readiness(coverage, leakage_passed=leakage.passed)
+    if dataset_only:
+        baseline_validation = build_baseline_dataset_validation_report(
+            label_rows=[j.to_dict() for j in joined],
+            failed_dates=[{"date": f.trade_date.isoformat(), "reason": f.reason} for f in failures],
+            successful_dates=successful_dates,
+            skipped_dates=sorted(config.skip_dates),
+        )
+        write_baseline_validation_report(config.report_root, baseline_validation)
+        coverage = baseline_validation.get("coverage_summary", {})
+        split_readiness = baseline_validation.get("session_split_readiness", {})
+        stage_a_gate = None
+        p8b_readiness = evaluate_p783_gates(baseline_validation)
+    else:
+        coverage = build_coverage_report(
+            joined_rows=joined,
+            failed_dates=[{"date": f.trade_date.isoformat(), "reason": f.reason} for f in failures],
+            timings={
+                "replay_per_anchor_sec": sum(replay_times) / len(replay_times) if replay_times else 0.0,
+                "feature_per_row_sec": sum(feature_times) / len(feature_times) if feature_times else 0.0,
+            },
+            sizes_bytes={
+                "raw_lake": _dir_size_bytes(config.lake_root),
+                "dataset": 0,
+                "features": 0,
+                "joined": 0,
+            },
+            date_entries=[{"date": d.trade_date.isoformat(), "day_type": d.day_type} for d in selected],
+            ingest_results=ingest_results,
+            successful_dates=successful_dates,
+        )
+        split_readiness = build_split_readiness_report(sessions)
+        stage_a_gate = evaluate_stage_a_gate(coverage, leakage_passed=leakage.passed)
+        p8b_readiness = evaluate_p8b_readiness(coverage, leakage_passed=leakage.passed)
 
     config.dataset_root.mkdir(parents=True, exist_ok=True)
-    config.feature_root.mkdir(parents=True, exist_ok=True)
-    config.joined_root.mkdir(parents=True, exist_ok=True)
+    if not dataset_only:
+        config.feature_root.mkdir(parents=True, exist_ok=True)
+        config.joined_root.mkdir(parents=True, exist_ok=True)
 
-    if all_label_rows:
+    label_dicts_final = [j.to_dict() for j in joined]
+    if label_dicts_final:
         provider = PilotIndexOutcomeProvider(data_root=config.lake_root, symbol=config.index_symbol)
-        ds_manifest = build_dataset_manifest(
-            all_label_rows,
-            outcome_provider=provider,
-            anchor_config={"anchor_type": config.anchor_type},
-            split_config=split.to_dict(),
-        )
-        write_pilot_dataset(all_label_rows, ds_manifest, output_root=config.dataset_root)
-        coverage["sizes_bytes"]["dataset"] = _dir_size_bytes(config.dataset_root)
+        if dataset_only:
+            ds_manifest = build_baseline_dataset_manifest(
+                label_dicts_final,
+                outcome_provider=provider,
+                anchor_config={"anchor_type": config.anchor_type},
+                split_config=split.to_dict(),
+                label_schema_version=config.label_schema_version,
+                baseline_label_schema_version=config.baseline_label_schema_version,
+            )
+        elif all_label_rows:
+            ds_manifest = build_dataset_manifest(
+                all_label_rows,
+                outcome_provider=provider,
+                anchor_config={"anchor_type": config.anchor_type},
+                split_config=split.to_dict(),
+            )
+        else:
+            ds_manifest = build_baseline_dataset_manifest(
+                label_dicts_final,
+                outcome_provider=provider,
+                anchor_config={"anchor_type": config.anchor_type},
+                split_config=split.to_dict(),
+                label_schema_version=config.label_schema_version,
+                baseline_label_schema_version=config.baseline_label_schema_version,
+            )
+        if dataset_only or label_dicts_final:
+            pd.DataFrame(label_dicts_final).to_parquet(
+                config.dataset_root / "dataset.parquet", index=False
+            )
+            (config.dataset_root / "manifest.json").write_text(
+                json.dumps(ds_manifest, indent=2), encoding="utf-8"
+            )
+            if not dataset_only:
+                coverage["sizes_bytes"]["dataset"] = _dir_size_bytes(config.dataset_root)
+        else:
+            write_pilot_dataset(all_label_rows, ds_manifest, output_root=config.dataset_root)
+            coverage["sizes_bytes"]["dataset"] = _dir_size_bytes(config.dataset_root)
     else:
         ds_manifest = {}
 
-    if all_feature_result_rows:
+    feat_manifest: dict[str, Any] = {}
+    if not dataset_only and all_feature_result_rows:
         from quant_lab.ml.features.manifest import build_feature_manifest
 
         feat_manifest = build_feature_manifest(
@@ -729,13 +867,12 @@ def build_sample_dataset(
             config.feature_root,
         )
         coverage["sizes_bytes"]["features"] = _dir_size_bytes(config.feature_root)
-    else:
-        feat_manifest: dict[str, Any] = {}
 
-    joined_records = [j.to_dict() for j in joined]
-    if joined_records:
-        pd.DataFrame(joined_records).to_parquet(config.joined_root / "joined.parquet", index=False)
-        coverage["sizes_bytes"]["joined"] = _dir_size_bytes(config.joined_root)
+    if not dataset_only:
+        joined_records = [j.to_dict() for j in joined]
+        if joined_records:
+            pd.DataFrame(joined_records).to_parquet(config.joined_root / "joined.parquet", index=False)
+            coverage["sizes_bytes"]["joined"] = _dir_size_bytes(config.joined_root)
 
     sample_manifest = {
         "sample_manifest_version": "pit-sample-v1",
@@ -743,6 +880,9 @@ def build_sample_dataset(
         "row_count": len(joined),
         "failed_dates": [{"date": f.trade_date.isoformat(), "reason": f.reason} for f in failures],
         "leakage_passed": leakage.passed,
+        "dataset_only": dataset_only,
+        "label_schema_version": config.label_schema_version,
+        "baseline_label_schema_version": config.baseline_label_schema_version,
     }
     (config.dataset_root / "sample_manifest.json").write_text(json.dumps(sample_manifest, indent=2), encoding="utf-8")
 
@@ -757,11 +897,11 @@ def build_sample_dataset(
 
     return SampleBuildResult(
         joined_rows=joined,
-        coverage_report=coverage,
+        coverage_report=coverage if not dataset_only else baseline_validation.get("coverage_summary", coverage),
         split_readiness=split_readiness,
         leakage=leakage,
         failed_dates=failures,
         dataset_manifest=ds_manifest,
-        feature_manifest=feat_manifest if all_feature_result_rows else {},
+        feature_manifest=feat_manifest,
         sample_manifest=sample_manifest,
     )

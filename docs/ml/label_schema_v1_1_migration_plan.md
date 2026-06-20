@@ -226,16 +226,21 @@ no training
 no artifacts committed
 ```
 
-Expected reference values (from P7.8 screening):
+**Status: PASS** — see [`baseline_dataset_rebuild_validation_report.md`](baseline_dataset_rebuild_validation_report.md).
+
+Observed rebuild metrics (2026-06-20):
 
 ```text
+row_count = 1391
 baseline_eligible_rows = 1390
-eligible_sessions = 19
-P1 0.50 near_ratio ≈ 22.8%
+P1 0.50 near = 319 (screening ref 317, tolerance ±3)
 zone_included_total = 89
+screening_consistency_pass = true
+leakage_pass = true
+p783_pass = true
 ```
 
-Failure → remain blocked on ML-P8B; revisit builder or governance.
+Dataset-only rebuild path: `build.dataset_only: true` in config + `--dataset-only` CLI flag.
 
 ---
 

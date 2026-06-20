@@ -60,6 +60,16 @@ def main() -> int:
         help="Do not skip dates with completed per-date checkpoints",
     )
     parser.add_argument(
+        "--dataset-only",
+        action="store_true",
+        help="Build label dataset only; skip feature builder and joined build",
+    )
+    parser.add_argument(
+        "--skip-features",
+        action="store_true",
+        help="Alias for --dataset-only",
+    )
+    parser.add_argument(
         "--stage",
         choices=("a", "b"),
         default=None,
@@ -97,10 +107,15 @@ def main() -> int:
         checkpoint_per_date=args.checkpoint_per_date,
         progress_every=args.progress_every,
         resume=not args.no_resume,
+        dataset_only=args.dataset_only or args.skip_features or config.dataset_only,
     )
 
     if args.dry_run:
-        plan = build_dry_run_plan(config, max_dates=max_dates)
+        plan = build_dry_run_plan(
+            config,
+            max_dates=max_dates,
+            dates_filter=dates_filter,
+        )
         print(json.dumps(plan.to_dict(), indent=2))
         missing_total = sum(len(v) for v in plan.missing_partitions.values())
         if missing_total and not plan.ingest_enabled:
