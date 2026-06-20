@@ -248,10 +248,29 @@ Dataset-only rebuild path: `build.dataset_only: true` in config + `--dataset-onl
 
 After P7.8.3 PASS:
 
-1. Owner review of rebuild coverage report
+1. ~~Owner review of rebuild coverage report~~ → **Done (P7.8.4)** — see [`baseline_dataset_gate_review.md`](baseline_dataset_gate_review.md)
 2. Separate phase: merge addendum into `docs/ml/label_spec.md` as **1.1.0-approved**
 3. Update manifest stamp from `1.1.0-draft` → `1.1.0-approved`
 4. ML-P8B discussion **still requires separate training approval** — not automatic
+
+---
+
+## 11.1 Acceptance Gate — P7.8.4
+
+Owner gate review phase passes when:
+
+```text
+baseline dataset gate review documented
+P8A entry approval recorded (planning/harness only)
+P7.8.3 dataset gate confirmed PASS
+ML-P8B remains blocked
+formal label_spec.md unchanged
+no training performed
+```
+
+**Status: PASS** — see [`baseline_dataset_gate_review.md`](baseline_dataset_gate_review.md) and [`p8a_entry_approval_record.md`](p8a_entry_approval_record.md).
+
+**Next authorized phase:** ML-P8A — Baseline Modeling Harness Plan（planning only, no training）
 
 ---
 

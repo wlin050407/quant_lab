@@ -1,12 +1,15 @@
 # ML-P7.7 Label Target Governance Decision
 
-**Phase:** ML-P7.7 / ML-P7.7.1 / ML-P7.8 / **ML-P7.8.1**  
-**Status:** **Partially approved** — baseline implementation authorized for **ML-P7.8.2 only**  
+**Phase:** ML-P7.7 / ML-P7.7.1 / ML-P7.8 / ML-P7.8.1 / ML-P7.8.2 / ML-P7.8.3 / **ML-P7.8.4**  
+**Status:** **Partially approved** — baseline dataset gate **PASS**; **ML-P8A planning authorized**; **ML-P8B blocked**  
 **Full analysis:** [`label_target_governance_report.md`](label_target_governance_report.md)  
 **Addendum draft:** [`label_spec_addendum_v1_1_proposal.md`](label_spec_addendum_v1_1_proposal.md)  
 **Owner packet:** [`label_target_owner_review_packet.md`](label_target_owner_review_packet.md)  
 **P7.8 screening:** [`baseline_target_coverage_screening_report.md`](baseline_target_coverage_screening_report.md)  
 **P7.8.1 approval:** [`baseline_target_implementation_approval.md`](baseline_target_implementation_approval.md)  
+**P7.8.3 validation:** [`baseline_dataset_rebuild_validation_report.md`](baseline_dataset_rebuild_validation_report.md)  
+**P7.8.4 gate review:** [`baseline_dataset_gate_review.md`](baseline_dataset_gate_review.md)  
+**P8A entry:** [`p8a_entry_approval_record.md`](p8a_entry_approval_record.md)  
 **Implementation plan:** [`baseline_label_builder_implementation_plan.md`](baseline_label_builder_implementation_plan.md)  
 **Migration plan:** [`label_schema_v1_1_migration_plan.md`](label_schema_v1_1_migration_plan.md)
 
@@ -21,7 +24,9 @@
 | Modify formal `label_spec.md` now? | **No** — remains v1.0.0; v1.1 draft fields in builder only |
 | Modify Pin Zone contract? | **No** (Option D forbidden) |
 | Pin-centered fallback zone? | **No** (Option C deferred) |
-| ML-P7.8.2 label builder implementation? | **Approved** (additive only) |
+| ML-P7.8.2 label builder implementation? | **Done — PASS** |
+| ML-P7.8.3 dataset rebuild validation? | **Done — PASS** |
+| ML-P8A modeling harness plan? | **Approved (planning only)** |
 | ML-P8B now? | **Forbidden** |
 
 ---
@@ -85,10 +90,12 @@ Zone inclusion rule **unchanged**.
 1. ~~Label spec addendum draft~~ → **Done (P7.7.1)**  
 2. ~~ML-P7.8 baseline coverage screening~~ → **Done — PASS**  
 3. ~~ML-P7.8.1 approval + implementation plan~~ → **Done**  
-4. **ML-P7.8.2** additive label builder + unit tests → **Next**  
-5. **ML-P7.8.3** dataset rebuild + coverage validation  
-6. Formal `label_spec.md` v1.1.0 merge → **Separate owner approval**  
-7. **ML-P8B** → **Blocked** until training explicitly approved  
+4. ~~ML-P7.8.2 additive label builder + unit tests~~ → **Done — PASS**  
+5. ~~ML-P7.8.3 dataset rebuild + coverage validation~~ → **Done — PASS**  
+6. ~~ML-P7.8.4 owner gate review~~ → **Done — PASS**  
+7. **ML-P8A** baseline modeling harness plan → **Next — authorized (planning only)**  
+8. Formal `label_spec.md` v1.1.0 merge → **Separate owner approval**  
+9. **ML-P8B** → **Blocked** until training explicitly approved  
 
 ### R4 — Data expansion
 
@@ -114,8 +121,11 @@ Continue raw lake + screening for **zone enrichment only**. Not sole P8B prerequ
 - [x] `label_spec` addendum v1.1 **drafted** (proposal — not merged into formal spec)
 - [x] ML-P7.8 scope completed — **PASS**
 - [x] ML-P7.8.1 implementation plan approved
-- [ ] ML-P7.8.2 label builder implemented
-- [ ] ML-P7.8.3 dataset rebuild validated
+- [x] ML-P7.8.2 label builder implemented — **PASS**
+- [x] ML-P7.8.3 dataset rebuild validated — **PASS**
+- [x] ML-P7.8.4 owner gate review — **PASS**
+- [x] ML-P8A entry approved (planning/harness only)
+- [ ] ML-P8A harness plan written
 - [ ] ML-P8B remains blocked until training explicitly approved
 
 ---
@@ -132,7 +142,8 @@ Frozen contract gates (`short_gamma_regime` ~50%, `pin_distance_too_wide` ~37%) 
 |---------|------|--------|
 | 0.1 | 2026-06-20 | Initial proposal (P7.7.1) |
 | 1.0 | 2026-06-20 | Updated post-P7.8 PASS + P7.8.1 implementation approval |
+| 1.1 | 2026-06-20 | Updated post-P7.8.3 PASS + P7.8.4 gate review; ML-P8A authorized |
 
 ---
 
-**Status: Approved for ML-P7.8.2 implementation only — ML-P8B blocked**
+**Status: P7.8.3 dataset gate PASS — ML-P8A planning authorized — ML-P8B blocked**
