@@ -113,6 +113,10 @@ tests/test_ml_harness_*.py
 ✓ no artifacts committed
 ```
 
+**Status: PASS** — see [`p8b0_modeling_harness_implementation_report.md`](p8b0_modeling_harness_implementation_report.md).
+
+**Next authorized stage:** ML-P8B.1 — Feature Dataset Build and Leakage Validation
+
 ---
 
 ## P8B.1 — Feature Dataset Build + Leakage Validation
