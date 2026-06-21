@@ -1,0 +1,42 @@
+# ML-P8B.2 model-free baseline evaluation (no learned model fitting)
+
+version: p8b2-model-free-baselines
+
+input_dataset: artifacts/datasets/pit_sample_baseline_v1_1_validation
+input_features: artifacts/features/pit_features_baseline_v1_1_validation
+input_reports: artifacts/reports/pit_features_baseline_v1_1_validation
+output_reports: artifacts/reports/p8b2_model_free_baselines
+
+baseline_label_schema_version: "1.1.0-draft"
+split_protocol: session_grouped
+
+split:
+  train_sessions: 11
+  validation_sessions: 3
+  test_sessions: 5
+  configured_train_sessions:
+    - "2024-01-05"
+    - "2024-01-19"
+    - "2024-02-13"
+    - "2024-03-08"
+    - "2024-04-05"
+    - "2024-05-03"
+    - "2024-06-07"
+    - "2024-07-03"
+    - "2024-08-02"
+    - "2024-09-06"
+    - "2024-10-04"
+  configured_validation_sessions:
+    - "2024-11-01"
+    - "2024-11-29"
+    - "2024-12-06"
+  configured_test_sessions:
+    - "2025-01-03"
+    - "2025-02-07"
+    - "2025-03-07"
+    - "2025-04-04"
+    - "2025-05-02"
+
+preferred_binary_target: close_near_primary_pin_050
+sensitivity_binary_target: close_near_primary_pin_025
+model_fitting_allowed: false

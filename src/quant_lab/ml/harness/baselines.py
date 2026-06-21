@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections import Counter
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -60,6 +61,68 @@ class TrainMedianBaseline(ModelFreeBaseline):
 
     def reset(self) -> None:
         self._median = 0.0
+        self._fitted = False
+
+
+@dataclass
+class TrainMeanBaseline(ModelFreeBaseline):
+    """P0 baseline: predict train-set mean d_em."""
+
+    name: str = "train_mean_em"
+    _mean: float = 0.0
+    _fitted: bool = field(default=False, repr=False)
+
+    def fit_from_train(self, y_train: Any) -> None:
+        arr = np.asarray(y_train, dtype=float)
+        valid = arr[np.isfinite(arr)]
+        self._mean = float(np.mean(valid)) if valid.size else 0.0
+        self._fitted = True
+
+    def predict(self, n: int) -> np.ndarray:
+        if not self._fitted:
+            raise RuntimeError("call fit_from_train before predict")
+        return np.full(n, self._mean, dtype=float)
+
+    def reset(self) -> None:
+        self._mean = 0.0
+        self._fitted = False
+
+
+@dataclass
+class ClassPriorBaseline(ModelFreeBaseline):
+    """P2 baseline: predict train majority class (class prior mode)."""
+
+    name: str = "class_prior"
+    _majority: Any = "near"
+    _class_priors: dict[str, float] = field(default_factory=dict)
+    _fitted: bool = field(default=False, repr=False)
+
+    def fit_from_train(self, y_train: Any) -> None:
+        arr = np.asarray(y_train, dtype=object)
+        valid = [str(v) for v in arr if v is not None]
+        if not valid:
+            self._majority = "near"
+            self._class_priors = {}
+        else:
+            counts = Counter(valid)
+            total = sum(counts.values())
+            self._class_priors = {k: v / total for k, v in counts.items()}
+            self._majority = max(counts, key=lambda k: counts[k])
+        self._fitted = True
+
+    def compute_train_priors(self) -> dict[str, float]:
+        if not self._fitted:
+            raise RuntimeError("call fit_from_train before compute_train_priors")
+        return dict(self._class_priors)
+
+    def predict(self, n: int) -> np.ndarray:
+        if not self._fitted:
+            raise RuntimeError("call fit_from_train before predict")
+        return np.full(n, self._majority, dtype=object)
+
+    def reset(self) -> None:
+        self._majority = "near"
+        self._class_priors = {}
         self._fitted = False
 
 

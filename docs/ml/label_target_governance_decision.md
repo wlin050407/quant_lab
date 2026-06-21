@@ -1,7 +1,7 @@
 # ML-P7.7 Label Target Governance Decision
 
 **Phase:** ML-P7.7 / … / ML-P8B.0 / **ML-P8B.1**  
-**Status:** **P8B.1 feature dataset validation PASS** — **P8B.2 authorized** — **P8B.3 blocked**  
+**Status:** **P8B.2 model-free baseline evaluation PASS** — **P8B.3 blocked**  
 **Full analysis:** [`label_target_governance_report.md`](label_target_governance_report.md)  
 **Addendum draft:** [`label_spec_addendum_v1_1_proposal.md`](label_spec_addendum_v1_1_proposal.md)  
 **Owner packet:** [`label_target_owner_review_packet.md`](label_target_owner_review_packet.md)  
@@ -143,7 +143,7 @@ Continue raw lake + screening for **zone enrichment only**. Not sole P8B prerequ
 - [x] P8B.0–P8B.2 preparation authorized (see p8b_execution_approval_record.md)
 - [x] P8B.0 harness implementation — **PASS**
 - [x] P8B.1 feature build + leakage validation — **PASS**
-- [ ] P8B.2 model-free baseline evaluation
+- [x] P8B.2 model-free baseline evaluation — **PASS**
 - [ ] P8B.3 learned model fitting approval (not approved)
 - [ ] P8B.3+ remains blocked until separate owner approval
 
@@ -166,7 +166,8 @@ Frozen contract gates (`short_gamma_regime` ~50%, `pin_distance_too_wide` ~37%) 
 | 1.3 | 2026-06-20 | Updated post-P8A.1 staged P8B approval (P8B.0–P8B.2) |
 | 1.4 | 2026-06-20 | Updated post-P8B.0 harness implementation PASS |
 | 1.5 | 2026-06-21 | Updated post-P8B.1 feature dataset validation PASS |
+| 1.6 | 2026-06-21 | Updated post-P8B.2 model-free baseline evaluation PASS |
 
 ---
 
-**Status: ML-P8B.1 PASS — P8B.2 authorized — P8B.3 learned fitting blocked**
+**Status: ML-P8B.2 PASS — P8B.3 learned fitting blocked**

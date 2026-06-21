@@ -181,13 +181,35 @@ committing parquet/csv/jsonl to git
 
 **Status: PASS** — see [`p8b1_feature_dataset_validation_report.md`](p8b1_feature_dataset_validation_report.md).
 
-**Next authorized stage:** ML-P8B.2 — Model-Free Baseline Evaluation
+**Status: PASS** — see [`p8b2_model_free_baseline_report.md`](p8b2_model_free_baseline_report.md).
+
+**Next authorized stage:** ML-P8B.3 Approval Review — Learned Model Fitting Gate (blocked until owner approval)
 
 ---
 
 ## P8B.2 — Model-Free Baseline Evaluation
 
 ### Purpose
+
+Run model-free baselines on session-grouped splits and produce the first harness evaluation report.
+
+### Status
+
+```text
+PASS (2026-06-21)
+Joined rows: 1391 | Baseline-eligible: 1390 | Feature columns: 198
+Split: chronological 11/3/5 sessions
+Split validation: PASS | Forbidden input: PASS
+model_fitting_allowed: false | sklearn .fit(): not called
+```
+
+See [`p8b2_model_free_baseline_report.md`](p8b2_model_free_baseline_report.md) and `artifacts/reports/p8b2_model_free_baselines/` (gitignored).
+
+---
+
+## P8B.2 (Historical Spec) — Model-Free Baseline Evaluation
+
+### Purpose (original)
 
 Run model-free baselines on session-grouped splits and produce the first harness evaluation report.
 
@@ -255,6 +277,8 @@ committing prediction parquet/csv to git
 ✓ artifacts not committed
 ✓ owner can review report before P8B.3 discussion
 ```
+
+**Result: PASS** (2026-06-21)
 
 ---
 

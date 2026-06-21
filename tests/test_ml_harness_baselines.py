@@ -6,8 +6,10 @@ import numpy as np
 import pytest
 
 from quant_lab.ml.harness.baselines import (
+    ClassPriorBaseline,
     ConstantNotNearBaseline,
     MajorityClassBaseline,
+    TrainMeanBaseline,
     TrainMedianBaseline,
     TrainPriorProbabilityBaseline,
     ZeroEmBaseline,
@@ -50,3 +52,17 @@ def test_train_prior_probability_baseline() -> None:
     assert b.predict_proba_near(2).tolist() == [0.5, 0.5]
     labels = b.predict_constant_from_train_prior(3, threshold=0.5)
     assert labels.tolist() == [True, True, True]
+
+
+def test_train_mean_baseline() -> None:
+    b = TrainMeanBaseline()
+    b.fit_from_train([1.0, 3.0, 5.0])
+    assert b.predict(2)[0] == pytest.approx(3.0)
+
+
+def test_class_prior_baseline() -> None:
+    b = ClassPriorBaseline()
+    b.fit_from_train(["below", "near", "near"])
+    assert b._majority == "near"
+    assert b.compute_train_priors()["near"] == pytest.approx(2 / 3)
+    assert b.predict(1)[0] == "near"
