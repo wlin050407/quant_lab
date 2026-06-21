@@ -11,6 +11,7 @@ from quant_lab.ml.harness.baselines import (
 )
 from quant_lab.ml.harness.manifests import (
     HARNESS_STAGE_P8B2,
+    HARNESS_STAGE_P8B3_1,
     RunManifest,
     validate_run_manifest,
 )
@@ -27,6 +28,7 @@ __all__ = [
     "ConstantNotNearBaseline",
     "ForbiddenInputResult",
     "HARNESS_STAGE_P8B2",
+    "HARNESS_STAGE_P8B3_1",
     "MajorityClassBaseline",
     "RunManifest",
     "SplitValidationResult",
