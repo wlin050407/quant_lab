@@ -13,6 +13,8 @@ from quant_lab.ml.schemas import BASELINE_LABEL_SCHEMA_VERSION, LABEL_SCHEMA_VER
 
 RUN_MANIFEST_VERSION = "p8b-run-v1"
 HARNESS_STAGE_P8B0 = "P8B.0"
+HARNESS_STAGE_P8B1 = "ML-P8B.1"
+NO_FITTING_STAGES: frozenset[str] = frozenset({HARNESS_STAGE_P8B0, HARNESS_STAGE_P8B1})
 
 REQUIRED_MANIFEST_FIELDS: tuple[str, ...] = (
     "run_id",
@@ -114,7 +116,7 @@ def validate_run_manifest(manifest: RunManifest | dict[str, Any]) -> None:
     for field_name in REQUIRED_MANIFEST_FIELDS:
         if data[field_name] is None:
             raise RunManifestError(f"required field is null: {field_name}")
-    if data.get("stage") == HARNESS_STAGE_P8B0 and data.get("model_fitting_allowed") is True:
-        raise RunManifestError("P8B.0 manifests must have model_fitting_allowed=false")
+    if data.get("stage") in NO_FITTING_STAGES and data.get("model_fitting_allowed") is True:
+        raise RunManifestError(f"{data.get('stage')} manifests must have model_fitting_allowed=false")
     if data.get("model_type") == "model_free_or_harness_only" and data.get("model_fitting_allowed"):
         raise RunManifestError("model_free_or_harness_only cannot have model_fitting_allowed=true")

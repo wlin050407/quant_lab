@@ -179,6 +179,10 @@ committing parquet/csv/jsonl to git
 ✓ no model fitting performed
 ```
 
+**Status: PASS** — see [`p8b1_feature_dataset_validation_report.md`](p8b1_feature_dataset_validation_report.md).
+
+**Next authorized stage:** ML-P8B.2 — Model-Free Baseline Evaluation
+
 ---
 
 ## P8B.2 — Model-Free Baseline Evaluation

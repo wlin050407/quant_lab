@@ -1,0 +1,53 @@
+# ML-P8B.1 feature dataset build from P7.8.3 v1.1 draft label dataset
+
+version: pit-features-baseline-v1-1-validation
+root: SPXW
+index_symbol: SPX
+
+baseline_label_schema_version: "1.1.0-draft"
+label_schema_version: "1.0.0"
+
+input_dataset: artifacts/datasets/pit_sample_baseline_v1_1_validation
+input_raw_lake: artifacts/raw_lake_sample
+output_features: artifacts/features/pit_features_baseline_v1_1_validation
+output_reports: artifacts/reports/pit_features_baseline_v1_1_validation
+
+lake_root: artifacts/raw_lake_sample
+dataset_root: artifacts/datasets/pit_sample_baseline_v1_1_validation
+feature_root: artifacts/features/pit_features_baseline_v1_1_validation
+report_root: artifacts/reports/pit_features_baseline_v1_1_validation
+
+build:
+  checkpoint_per_date: true
+  progress_every: 10
+  strict_hash_join: true
+  validate_feature_timestamps: true
+  validate_forbidden_inputs: true
+
+skip_dates:
+  - "2026-06-10"
+
+expected:
+  row_count: 1391
+  sessions: 19
+
+dates:
+  - "2024-01-05"
+  - "2024-01-19"
+  - "2024-02-13"
+  - "2024-03-08"
+  - "2024-04-05"
+  - "2024-05-03"
+  - "2024-06-07"
+  - "2024-07-03"
+  - "2024-08-02"
+  - "2024-09-06"
+  - "2024-10-04"
+  - "2024-11-01"
+  - "2024-11-29"
+  - "2024-12-06"
+  - "2025-01-03"
+  - "2025-02-07"
+  - "2025-03-07"
+  - "2025-04-04"
+  - "2025-05-02"

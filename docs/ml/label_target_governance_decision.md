@@ -1,7 +1,7 @@
 # ML-P7.7 Label Target Governance Decision
 
-**Phase:** ML-P7.7 / … / ML-P8A / ML-P8A.1 / **ML-P8B.0**  
-**Status:** **P8B.0 harness implementation PASS** — **P8B.1 authorized** — **P8B.3 blocked**  
+**Phase:** ML-P7.7 / … / ML-P8B.0 / **ML-P8B.1**  
+**Status:** **P8B.1 feature dataset validation PASS** — **P8B.2 authorized** — **P8B.3 blocked**  
 **Full analysis:** [`label_target_governance_report.md`](label_target_governance_report.md)  
 **Addendum draft:** [`label_spec_addendum_v1_1_proposal.md`](label_spec_addendum_v1_1_proposal.md)  
 **Owner packet:** [`label_target_owner_review_packet.md`](label_target_owner_review_packet.md)  
@@ -15,6 +15,7 @@
 **P8B staged approval:** [`p8b_execution_approval_record.md`](p8b_execution_approval_record.md)  
 **P8B staged plan:** [`p8b_staged_execution_plan.md`](p8b_staged_execution_plan.md)  
 **P8B.0 report:** [`p8b0_modeling_harness_implementation_report.md`](p8b0_modeling_harness_implementation_report.md)  
+**P8B.1 report:** [`p8b1_feature_dataset_validation_report.md`](p8b1_feature_dataset_validation_report.md)  
 **Implementation plan:** [`baseline_label_builder_implementation_plan.md`](baseline_label_builder_implementation_plan.md)  
 **Migration plan:** [`label_schema_v1_1_migration_plan.md`](label_schema_v1_1_migration_plan.md)
 
@@ -34,6 +35,7 @@
 | ML-P8A modeling harness plan? | **Done — PASS** (plan only) |
 | ML-P8A.1 staged P8B execution approval? | **Done — PASS** (P8B.0–P8B.2) |
 | ML-P8B.0 harness implementation? | **Done — PASS** |
+| ML-P8B.1 feature dataset validation? | **Done — PASS** |
 | P8B.3 learned model fitting? | **Forbidden** |
 
 ---
@@ -103,8 +105,8 @@ Zone inclusion rule **unchanged**.
 7. ~~ML-P8A baseline modeling harness plan~~ → **Done — PASS**  
 8. ~~ML-P8A.1 staged P8B execution approval~~ → **Done — PASS**  
 9. ~~ML-P8B.0 harness implementation~~ → **Done — PASS**  
-10. **ML-P8B.1** feature build + join → **Next — authorized**  
-11. **ML-P8B.2** model-free baselines → **Authorized after P8B.1 PASS**  
+10. ~~ML-P8B.1 feature build + join~~ → **Done — PASS**  
+11. **ML-P8B.2** model-free baselines → **Next — authorized**  
 12. Formal `label_spec.md` v1.1.0 merge → **Separate owner approval**  
 13. **ML-P8B.3+** learned fitting / search / production → **Blocked**  
 
@@ -140,7 +142,7 @@ Continue raw lake + screening for **zone enrichment only**. Not sole P8B prerequ
 - [x] ML-P8A.1 staged P8B execution approval — **PASS**
 - [x] P8B.0–P8B.2 preparation authorized (see p8b_execution_approval_record.md)
 - [x] P8B.0 harness implementation — **PASS**
-- [ ] P8B.1 feature build + leakage validation
+- [x] P8B.1 feature build + leakage validation — **PASS**
 - [ ] P8B.2 model-free baseline evaluation
 - [ ] P8B.3 learned model fitting approval (not approved)
 - [ ] P8B.3+ remains blocked until separate owner approval
@@ -163,7 +165,8 @@ Frozen contract gates (`short_gamma_regime` ~50%, `pin_distance_too_wide` ~37%) 
 | 1.2 | 2026-06-20 | Updated post-P8A harness plan PASS; P8B gate proposal linked |
 | 1.3 | 2026-06-20 | Updated post-P8A.1 staged P8B approval (P8B.0–P8B.2) |
 | 1.4 | 2026-06-20 | Updated post-P8B.0 harness implementation PASS |
+| 1.5 | 2026-06-21 | Updated post-P8B.1 feature dataset validation PASS |
 
 ---
 
-**Status: ML-P8B.0 PASS — P8B.1 authorized — P8B.3 learned fitting blocked**
+**Status: ML-P8B.1 PASS — P8B.2 authorized — P8B.3 learned fitting blocked**
