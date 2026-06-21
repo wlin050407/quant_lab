@@ -18,9 +18,17 @@
 | Forbidden input validation | PASS |
 | Model fitting | **None** |
 | sklearn `.fit()` | **Not called** |
-| P8B.3 | **BLOCKED** |
+| P8B.3 | **Approved (limited scope)** — see [`p8b3_model_fitting_approval_record.md`](p8b3_model_fitting_approval_record.md) |
 
-**Test-set P0 (train_median_em):** MAE 2.17 EM, within_0.50_EM 19.5%  
+**P0 test-set note:** On test MAE, `zero_em` (2.01 EM) **outperforms** `train_median_em` (2.17 EM). Train and validation MAE should be reported separately; do not claim train_median is better on test.
+
+**Test-set P0 comparison (test split):**
+
+| Baseline | Test MAE | Test within_0.50_EM |
+|---|---|---|
+| zero_em | **2.01** | **20.5%** |
+| train_median_em | 2.17 | 19.5% |
+
 **Test-set P1 @ 0.50 (train_prior):** balanced_accuracy 0.50, Brier 0.166, ROC-AUC 0.24  
 **Train prior P(near):** 25.7% (train only)
 
@@ -59,6 +67,24 @@ Full metrics below. Artifacts under `artifacts/reports/p8b2_model_free_baselines
 - PASS: **True**
 - Feature columns checked: 198
 - Forbidden columns found: none
+
+## P0 Baseline Interpretation (Documentation Correction)
+
+P8B.2 model-free metrics must be read **per split**. Do not collapse train and test into a single "winner" claim.
+
+| Split | zero_em MAE | train_median_em MAE | Better on MAE |
+|---|---|---|---|
+| train | 2.16 | **2.04** | train_median |
+| validation | **3.04** | 3.19 | zero_em |
+| test | **2.01** | 2.17 | zero_em |
+
+```text
+On test MAE, zero_em outperformed train_median_em.
+Validation stability and test MAE should be reported separately.
+No claim should imply train_median is better on test when its test MAE is higher.
+```
+
+Train_median shows better sign_accuracy and within_0.50_EM on **train** only; generalization to validation/test is mixed.
 
 ## P0 Regression (`close_distance_to_primary_pin_em`)
 

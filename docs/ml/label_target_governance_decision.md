@@ -1,7 +1,7 @@
 # ML-P7.7 Label Target Governance Decision
 
 **Phase:** ML-P7.7 / … / ML-P8B.0 / **ML-P8B.1**  
-**Status:** **P8B.2 model-free baseline evaluation PASS** — **P8B.3 blocked**  
+**Status:** **P8B.2 PASS** — **P8B.3 approved (limited simple learned fitting)** — **P8B.4+ blocked**  
 **Full analysis:** [`label_target_governance_report.md`](label_target_governance_report.md)  
 **Addendum draft:** [`label_spec_addendum_v1_1_proposal.md`](label_spec_addendum_v1_1_proposal.md)  
 **Owner packet:** [`label_target_owner_review_packet.md`](label_target_owner_review_packet.md)  
@@ -13,6 +13,7 @@
 **P8A harness:** [`p8a_baseline_modeling_harness_plan.md`](p8a_baseline_modeling_harness_plan.md)  
 **P8B gate:** [`p8b_training_gate_proposal.md`](p8b_training_gate_proposal.md)  
 **P8B staged approval:** [`p8b_execution_approval_record.md`](p8b_execution_approval_record.md)  
+**P8B.3 approval:** [`p8b3_model_fitting_approval_record.md`](p8b3_model_fitting_approval_record.md)  
 **P8B staged plan:** [`p8b_staged_execution_plan.md`](p8b_staged_execution_plan.md)  
 **P8B.0 report:** [`p8b0_modeling_harness_implementation_report.md`](p8b0_modeling_harness_implementation_report.md)  
 **P8B.1 report:** [`p8b1_feature_dataset_validation_report.md`](p8b1_feature_dataset_validation_report.md)  
@@ -36,7 +37,7 @@
 | ML-P8A.1 staged P8B execution approval? | **Done — PASS** (P8B.0–P8B.2) |
 | ML-P8B.0 harness implementation? | **Done — PASS** |
 | ML-P8B.1 feature dataset validation? | **Done — PASS** |
-| P8B.3 learned model fitting? | **Forbidden** |
+| P8B.3 learned model fitting? | **Approved (limited scope)** — see [`p8b3_model_fitting_approval_record.md`](p8b3_model_fitting_approval_record.md) |
 
 ---
 
@@ -144,8 +145,9 @@ Continue raw lake + screening for **zone enrichment only**. Not sole P8B prerequ
 - [x] P8B.0 harness implementation — **PASS**
 - [x] P8B.1 feature build + leakage validation — **PASS**
 - [x] P8B.2 model-free baseline evaluation — **PASS**
-- [ ] P8B.3 learned model fitting approval (not approved)
-- [ ] P8B.3+ remains blocked until separate owner approval
+- [x] P8B.3 learned model fitting approval — **Approved (limited scope)**
+- [ ] P8B.3.0 dependency audit — **Pending**
+- [ ] P8B.4+ hyperparameter search / backtest / signals — **Not approved**
 
 ---
 
@@ -167,7 +169,8 @@ Frozen contract gates (`short_gamma_regime` ~50%, `pin_distance_too_wide` ~37%) 
 | 1.4 | 2026-06-20 | Updated post-P8B.0 harness implementation PASS |
 | 1.5 | 2026-06-21 | Updated post-P8B.1 feature dataset validation PASS |
 | 1.6 | 2026-06-21 | Updated post-P8B.2 model-free baseline evaluation PASS |
+| 1.7 | 2026-06-21 | P8B.3 limited learned fitting approval |
 
 ---
 
-**Status: ML-P8B.2 PASS — P8B.3 learned fitting blocked**
+**Status: ML-P8B.3 approved (limited scope) — P8B.3.0 dependency audit next — P8B.4+ blocked**

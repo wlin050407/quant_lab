@@ -183,15 +183,50 @@ committing parquet/csv/jsonl to git
 
 **Status: PASS** — see [`p8b2_model_free_baseline_report.md`](p8b2_model_free_baseline_report.md).
 
-**Next authorized stage:** ML-P8B.3 Approval Review — Learned Model Fitting Gate (blocked until owner approval)
+**Next authorized stage:** ML-P8B.3.0 — Dependency / Environment Audit (see [`p8b3_model_fitting_approval_record.md`](p8b3_model_fitting_approval_record.md))
+
+---
+
+## P8B.3 — Simple Learned Model Fitting
+
+### Status
+
+```text
+APPROVED for limited simple learned baseline fitting only (2026-06-21)
+Implementation: NOT started — blocked until P8B.3.0 dependency audit PASS
+Approval record: p8b3_model_fitting_approval_record.md
+Implementation plan: p8b3_simple_model_fitting_plan.md
+```
+
+### Approved Sub-Stages
+
+```text
+P8B.3.0 — dependency / environment audit
+P8B.3.1 — simple learned baseline implementation
+P8B.3.2 — train-only fitting on approved split
+P8B.3.3 — validation/test evaluation with locked protocol
+```
+
+### Approved Models
+
+```text
+P0: LinearRegression or Ridge → close_distance_to_primary_pin_em
+P1: LogisticRegression → close_near_primary_pin_050 (primary), _025 (sensitivity)
+P2: Multinomial LogisticRegression (optional, not gate-required)
+```
+
+### Not Approved
+
+```text
+xgboost, lightgbm, torch, hyperparameter search
+production backtest, trading signal generation
+threshold tuning on validation/test
+test metrics for model selection
+```
 
 ---
 
 ## P8B.2 — Model-Free Baseline Evaluation
-
-### Purpose
-
-Run model-free baselines on session-grouped splits and produce the first harness evaluation report.
 
 ### Status
 
@@ -204,6 +239,8 @@ model_fitting_allowed: false | sklearn .fit(): not called
 ```
 
 See [`p8b2_model_free_baseline_report.md`](p8b2_model_free_baseline_report.md) and `artifacts/reports/p8b2_model_free_baselines/` (gitignored).
+
+**P0 documentation note:** On test MAE, `zero_em` outperforms `train_median_em`; report splits separately.
 
 ---
 
@@ -282,33 +319,13 @@ committing prediction parquet/csv to git
 
 ---
 
-## P8B.3 — Simple Model Fitting
+## P8B.3 (Historical Spec — Pre-Approval)
 
-### Status
-
-```text
-Not approved in ML-P8A.1.
-Requires future owner approval (p8b_model_fitting_approval_record.md).
-```
-
-### Would Include (If Approved Later)
+Superseded by approved scope above. Original P8A.1 text retained for audit trail:
 
 ```text
-linear / ridge regression (P0)
-logistic regression (P1)
-multinomial logistic regression (P2 optional)
-fixed default hyperparameters only (no search in first wave)
-beat model-free baselines on validation before test eval
-model cards + run manifests
-```
-
-### Would Require (If Approved Later)
-
-```text
-P8B.0–P8B.2 all PASS
-explicit owner sign-off for learned fitting
-sklearn dependency verified in requirements.txt
-no test tuning
+Previously: Not approved in ML-P8A.1.
+Now: Approved for limited simple learned fitting — see p8b3_model_fitting_approval_record.md
 ```
 
 ---
@@ -332,7 +349,7 @@ no test tuning
 | P8B.0 implementation approval | Yes | **Approved** |
 | P8B.1 feature build approval | Yes | **Approved** (after P8B.0) |
 | P8B.2 model-free baseline approval | Yes | **Approved** (after P8B.1) |
-| P8B.3 learned model fitting approval | For fitting | **Not approved** |
+| P8B.3 learned model fitting approval | For fitting | **Approved (limited scope)** |
 | Feature leakage validation | P8B.1 | Required |
 | Session-grouped split | All stages | Required |
 | No row-level random split | All stages | Enforced |
@@ -341,13 +358,13 @@ no test tuning
 
 ---
 
-## Next Stage After P8A.1
+## Next Stage
 
 ```text
-ML-P8B.0 — Modeling Harness Implementation
+ML-P8B.3.0 — Dependency / Environment Audit
 ```
 
-Stop conditions: any gate FAIL halts progression; P8B.3 requires new owner approval.
+Stop conditions: any gate FAIL halts progression; P8B.4+ requires new owner approval.
 
 ---
 
@@ -356,6 +373,8 @@ Stop conditions: any gate FAIL halts progression; P8B.3 requires new owner appro
 | Version | Date | Change |
 |---------|------|--------|
 | 1.0 | 2026-06-20 | Initial staged execution plan (P8B.0–P8B.2) |
+| 1.1 | 2026-06-21 | P8B.2 PASS recorded |
+| 1.2 | 2026-06-21 | P8B.3 limited learned fitting approval |
 
 ---
 
