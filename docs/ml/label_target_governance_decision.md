@@ -14,6 +14,7 @@
 **P8B gate:** [`p8b_training_gate_proposal.md`](p8b_training_gate_proposal.md)  
 **P8B staged approval:** [`p8b_execution_approval_record.md`](p8b_execution_approval_record.md)  
 **P8B.3 approval:** [`p8b3_model_fitting_approval_record.md`](p8b3_model_fitting_approval_record.md)  
+**P8B.3.0 audit:** [`p8b3_dependency_audit_report.md`](p8b3_dependency_audit_report.md)  
 **P8B staged plan:** [`p8b_staged_execution_plan.md`](p8b_staged_execution_plan.md)  
 **P8B.0 report:** [`p8b0_modeling_harness_implementation_report.md`](p8b0_modeling_harness_implementation_report.md)  
 **P8B.1 report:** [`p8b1_feature_dataset_validation_report.md`](p8b1_feature_dataset_validation_report.md)  
@@ -146,7 +147,8 @@ Continue raw lake + screening for **zone enrichment only**. Not sole P8B prerequ
 - [x] P8B.1 feature build + leakage validation — **PASS**
 - [x] P8B.2 model-free baseline evaluation — **PASS**
 - [x] P8B.3 learned model fitting approval — **Approved (limited scope)**
-- [ ] P8B.3.0 dependency audit — **Pending**
+- [x] P8B.3.0 dependency audit — **PASS** (`importable_but_not_declared`)
+- [ ] P8B.3.1 implementation — **Blocked** (owner dependency decision A/B/C)
 - [ ] P8B.4+ hyperparameter search / backtest / signals — **Not approved**
 
 ---
@@ -170,7 +172,8 @@ Frozen contract gates (`short_gamma_regime` ~50%, `pin_distance_too_wide` ~37%) 
 | 1.5 | 2026-06-21 | Updated post-P8B.1 feature dataset validation PASS |
 | 1.6 | 2026-06-21 | Updated post-P8B.2 model-free baseline evaluation PASS |
 | 1.7 | 2026-06-21 | P8B.3 limited learned fitting approval |
+| 1.8 | 2026-06-21 | P8B.3.0 dependency audit PASS |
 
 ---
 
-**Status: ML-P8B.3 approved (limited scope) — P8B.3.0 dependency audit next — P8B.4+ blocked**
+**Status: ML-P8B.3.0 PASS — P8B.3.1 blocked pending owner dependency decision — P8B.4+ blocked**

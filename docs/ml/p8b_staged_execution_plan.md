@@ -193,7 +193,9 @@ committing parquet/csv/jsonl to git
 
 ```text
 APPROVED for limited simple learned baseline fitting only (2026-06-21)
-Implementation: NOT started — blocked until P8B.3.0 dependency audit PASS
+P8B.3.0 dependency audit: PASS (2026-06-21) — see p8b3_dependency_audit_report.md
+dependency_status: importable_but_not_declared
+P8B.3.1: BLOCKED pending owner dependency decision (A/B/C)
 Approval record: p8b3_model_fitting_approval_record.md
 Implementation plan: p8b3_simple_model_fitting_plan.md
 ```
@@ -201,10 +203,10 @@ Implementation plan: p8b3_simple_model_fitting_plan.md
 ### Approved Sub-Stages
 
 ```text
-P8B.3.0 — dependency / environment audit
-P8B.3.1 — simple learned baseline implementation
-P8B.3.2 — train-only fitting on approved split
-P8B.3.3 — validation/test evaluation with locked protocol
+P8B.3.0 — dependency / environment audit          PASS (2026-06-21)
+P8B.3.1 — simple learned baseline implementation  BLOCKED (owner dependency decision)
+P8B.3.2 — train-only fitting on approved split    BLOCKED
+P8B.3.3 — validation/test evaluation              BLOCKED
 ```
 
 ### Approved Models
@@ -361,7 +363,7 @@ Now: Approved for limited simple learned fitting — see p8b3_model_fitting_appr
 ## Next Stage
 
 ```text
-ML-P8B.3.0 — Dependency / Environment Audit
+Owner dependency decision (A/B/C) — then ML-P8B.3.1 if declared_and_importable or approved alternative
 ```
 
 Stop conditions: any gate FAIL halts progression; P8B.4+ requires new owner approval.
@@ -375,6 +377,7 @@ Stop conditions: any gate FAIL halts progression; P8B.4+ requires new owner appr
 | 1.0 | 2026-06-20 | Initial staged execution plan (P8B.0–P8B.2) |
 | 1.1 | 2026-06-21 | P8B.2 PASS recorded |
 | 1.2 | 2026-06-21 | P8B.3 limited learned fitting approval |
+| 1.3 | 2026-06-21 | P8B.3.0 dependency audit PASS |
 
 ---
 
