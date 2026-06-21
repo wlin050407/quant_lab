@@ -1,9 +1,11 @@
 # ML-P8B.3.0 Dependency / Environment Audit Report
 
-**Date:** 2026-06-21  
+**Date:** 2026-06-21 (updated post P8B.3.0.1)  
 **Branch:** `research/zdte-fusion-model`  
-**Stage:** ML-P8B.3.0  
-**Gate:** **PASS** (audit complete — dependency owner decision required before P8B.3.1)
+**Stage:** ML-P8B.3.0 / ML-P8B.3.0.1  
+**Gate:** **PASS** — `declared_and_importable`; P8B.3.1 may proceed
+
+**Owner decision:** [`p8b3_dependency_owner_decision.md`](p8b3_dependency_owner_decision.md) (Decision A)
 
 ---
 
@@ -11,15 +13,16 @@
 
 ```text
 Phase: ML-P8B.3.0 — Dependency / Environment Audit
+Follow-up: ML-P8B.3.0.1 — Owner Decision and Declaration
 Purpose: Verify scikit-learn declaration and local importability before any learned fitting
-Forbidden: model fitting, .fit(), dependency file modifications, artifact commits
+Forbidden: model fitting, .fit(), artifact commits
 ```
 
-**Attestation:**
+**Attestation (P8B.3.0.1):**
 
 - **No model fitting was performed.**
 - **No sklearn `.fit()` was called.**
-- **No dependency files were modified.**
+- **`requirements.txt` updated per owner Decision A only.**
 - **No artifacts were committed.**
 
 ---
@@ -28,9 +31,9 @@ Forbidden: model fitting, .fit(), dependency file modifications, artifact commit
 
 | File | Exists | scikit-learn declared | numpy | pandas | scipy |
 |------|--------|----------------------|-------|--------|-------|
-| `requirements.txt` | Yes | **No** | Yes | Yes | Yes |
+| `requirements.txt` | Yes | **Yes** (`scikit-learn>=1.4`) | Yes | Yes | Yes |
 | `requirements-dev.txt` | No | — | — | — | — |
-| `pyproject.toml` | Yes | **No** (dynamic deps → `requirements.txt`) | No | No | No |
+| `pyproject.toml` | Yes | via dynamic → `requirements.txt` | No | No | No |
 | `setup.py` | No | — | — | — | — |
 | `setup.cfg` | No | — | — | — | — |
 | `environment.yml` | No | — | — | — | — |
@@ -42,21 +45,21 @@ Forbidden: model fitting, .fit(), dependency file modifications, artifact commit
 
 | File | Exists | mentions sklearn |
 |------|--------|------------------|
-| `Dockerfile` | Yes | No |
+| `Dockerfile` | Yes | No (inherits via `pip install .` → requirements.txt) |
 | `.github/workflows/*` | No workflows found | — |
 
 ```text
 dependency_file_found: true
-scikit_learn_declared: false
-declared_version_spec: null
-dependency_source_files: []
+scikit_learn_declared: true
+declared_version_spec: scikit-learn>=1.4
+dependency_source_files: [requirements.txt]
 lockfile_present: false
 ci_environment_mentions_sklearn: false
 ```
 
 ---
 
-## Local Import Results
+## Local Import Results (Rerun 2026-06-21)
 
 | Component | Importable | Version |
 |-----------|------------|---------|
@@ -75,47 +78,37 @@ sklearn_version: 1.9.0
 
 ## Declared Dependency Results
 
-Project declares scientific stack partially via `requirements.txt`:
-
 ```text
 numpy>=1.26
 pandas>=2.2
 scipy>=1.13
+scikit-learn>=1.4    # ML-P8B.3 simple learned baselines
 ```
 
-**scikit-learn is NOT declared** in any scanned dependency file.  
-`pyproject.toml` pulls runtime dependencies dynamically from `requirements.txt` only.
+`pyproject.toml` pulls runtime dependencies dynamically from `requirements.txt`.
 
 ---
 
 ## dependency_status
 
 ```text
-dependency_status: importable_but_not_declared
+dependency_status: declared_and_importable
 ```
 
 | Status | Meaning |
 |--------|---------|
-| `declared_and_importable` | Declared in project files AND importable locally |
+| **`declared_and_importable`** | **Current — declared in requirements.txt AND importable locally** |
 | `declared_but_not_importable` | Declared but import fails |
-| **`importable_but_not_declared`** | **Local env has sklearn; project files do not declare it** |
+| `importable_but_not_declared` | Previous state (pre P8B.3.0.1) |
 | `not_declared_not_importable` | Neither declared nor importable |
 
 ---
 
 ## Dependency Approval Required
 
-**Yes — owner dependency decision required before reproducible P8B.3.1.**
+**No — owner Decision A applied.**
 
-```text
-P8B.3.1 cannot rely on sklearn in reproducible/CI environments until owner explicitly approves one of:
-
-A) add scikit-learn to dependency declaration (requirements.txt);
-B) treat sklearn as externally provided runtime dependency and document CI limitation;
-C) implement only dependency-gated optional code that skips learned fitting when sklearn is unavailable.
-```
-
-Fresh `pip install .` from current `requirements.txt` + `Dockerfile` build path **will not install scikit-learn**.
+Previous P8B.3.0 finding (`importable_but_not_declared`) resolved by adding `scikit-learn>=1.4` to `requirements.txt`.
 
 ---
 
@@ -123,25 +116,26 @@ Fresh `pip install .` from current `requirements.txt` + `Dockerfile` build path 
 
 | Condition | P8B.3.1 may proceed? |
 |-----------|----------------------|
-| `declared_and_importable` | **Yes** |
-| **`importable_but_not_declared` (current)** | **No** (as reproducible project code) |
-| `declared_but_not_importable` | **No** — fix environment first |
-| `not_declared_not_importable` | **No** — request dependency approval |
+| **`declared_and_importable` (current)** | **Yes** |
+| `importable_but_not_declared` | No |
+| `declared_but_not_importable` | No — fix environment first |
+| `not_declared_not_importable` | No — request dependency approval |
 
-**Current result:** `p8b3_1_may_proceed = false`
+**Current result:** `p8b3_1_may_proceed = true`
 
 ---
 
 ## What Remains Blocked
 
 ```text
-P8B.3.1 simple learned baseline implementation (until dependency decision)
-P8B.3.2 train-only fitting
-P8B.3.3 validation/test evaluation with learned models
+P8B.3.2 train-only fitting          (until P8B.3.1 PASS)
+P8B.3.3 validation/test eval        (until P8B.3.2 PASS)
 P8B.4 hyperparameter search
 P8B.5 production backtest
 P8B.6 trading signal generation
 ```
+
+**Unblocked:** P8B.3.1 simple learned baseline implementation (code only; fitting in P8B.3.2).
 
 ---
 
@@ -151,43 +145,34 @@ P8B.6 trading signal generation
 artifacts/reports/p8b3_dependency_audit/p8b3_dependency_audit.json
 ```
 
-Generated by:
+Regenerate:
 
 ```bash
 python scripts/audit_p8b3_environment.py
+python scripts/audit_p8b3_environment.py --dry-run
 ```
 
 ---
 
-## P8B.3.0 Acceptance Gate
+## Acceptance Gate Summary
 
-| Gate | Result |
-|------|--------|
-| Dependency files scanned | **PASS** |
-| Local environment versions recorded | **PASS** |
-| sklearn import/declaration status recorded | **PASS** |
-| dependency_status assigned | **PASS** |
-| Owner-dependency decision requirement stated | **PASS** |
-| No dependency files modified | **PASS** |
-| No model fitting | **PASS** |
-| No `.fit()` | **PASS** |
-| No learned model code | **PASS** |
-| No artifacts committed | **PASS** |
-| `label_spec.md` unchanged | **PASS** |
-
-**ML-P8B.3.0: PASS** (audit complete; P8B.3.1 blocked pending owner dependency decision)
+| Gate | P8B.3.0 | P8B.3.0.1 |
+|------|---------|-----------|
+| Dependency files scanned | PASS | PASS |
+| sklearn declared | FAIL → | **PASS** |
+| sklearn importable | PASS | PASS |
+| dependency_status | importable_but_not_declared → | **declared_and_importable** |
+| p8b3_1_may_proceed | false → | **true** |
+| No model fitting | PASS | PASS |
+| No lock files added | PASS | PASS |
 
 ---
 
 ## Next Stage
 
-Owner must choose dependency path **A / B / C** above, then:
-
 ```text
 ML-P8B.3.1 — Simple Learned Baseline Implementation
 ```
-
-Only proceeds when `dependency_status` becomes `declared_and_importable`, or owner explicitly approves option B/C with documented constraints.
 
 ---
 
@@ -195,4 +180,5 @@ Only proceeds when `dependency_status` becomes `declared_and_importable`, or own
 
 | Version | Date | Change |
 |---------|------|--------|
-| 1.0 | 2026-06-21 | Initial P8B.3.0 dependency audit report |
+| 1.0 | 2026-06-21 | Initial P8B.3.0 audit (importable_but_not_declared) |
+| 1.1 | 2026-06-21 | Post P8B.3.0.1 — owner Decision A; declared_and_importable |

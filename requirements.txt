@@ -1,6 +1,7 @@
 pandas>=2.2
 numpy>=1.26
 scipy>=1.13              # norm.pdf for BS gamma in factors/gex.py
+scikit-learn>=1.4          # ML-P8B.3 simple learned baselines (Ridge / LogisticRegression)
 pillow>=10.0                 # rounded terminal favicon generation (scripts/generate_terminal_favicon.py)
 pyarrow>=15.0
 yfinance>=0.2.40
