@@ -198,6 +198,7 @@ P8B.3.0.1 owner decision: Decision A — scikit-learn declared in requirements.t
 dependency_status: declared_and_importable
 P8B.3.1: PASS (2026-06-21) — see p8b3_1_simple_learned_baseline_implementation_report.md
 P8B.3.2: PASS (2026-06-21) — see p8b3_2_train_only_fitting_report.md
+P8B.3.3: PASS (2026-06-21) — see p8b3_3_learned_baseline_result_review.md, p8b3_next_gate_decision.md
 Approval record: p8b3_model_fitting_approval_record.md
 Implementation plan: p8b3_simple_model_fitting_plan.md
 ```
@@ -209,7 +210,11 @@ P8B.3.0 — dependency / environment audit          PASS (2026-06-21)
 P8B.3.0.1 — owner dependency declaration           PASS (2026-06-21, Decision A)
 P8B.3.1 — simple learned baseline implementation  PASS (2026-06-21)
 P8B.3.2 — train-only fitting on approved split    PASS (2026-06-21)
-P8B.3.3 — learned baseline result review          AUTHORIZED (until P8B.3.3 PASS)
+P8B.3.3 — learned baseline result review          PASS (2026-06-21)
+P8B.3.4 — feature reduction diagnostic plan       AUTHORIZED (no fitting unless separately approved)
+P8B.4  — hyperparameter search                    BLOCKED
+P8B.5  — production backtest                      BLOCKED
+P8B.6  — trading signal generation                BLOCKED
 ```
 
 ### Approved Models
@@ -366,10 +371,13 @@ Now: Approved for limited simple learned fitting — see p8b3_model_fitting_appr
 ## Next Stage
 
 ```text
-ML-P8B.3.3 — Learned Baseline Result Review and Next-Gate Decision
+ML-P8B.3.4 — Feature Reduction and Stability Diagnostic Plan (recommended primary)
+ML-P8C — Controlled Dataset Expansion (recommended after P8B.3.4)
 ```
 
-Stop conditions: any gate FAIL halts progression; P8B.4+ requires new owner approval.
+P8B.4+ remains blocked. See [`p8b3_next_gate_decision.md`](p8b3_next_gate_decision.md).
+
+Stop conditions: any gate FAIL halts progression; P8B.4+ requires new owner approval and satisfied learned-fitting preconditions.
 
 ---
 
@@ -384,6 +392,7 @@ Stop conditions: any gate FAIL halts progression; P8B.4+ requires new owner appr
 | 1.4 | 2026-06-21 | P8B.3.0.1 owner Decision A; declared_and_importable |
 | 1.5 | 2026-06-21 | P8B.3.1 learned model harness PASS |
 | 1.6 | 2026-06-21 | P8B.3.2 train-only learned fitting PASS |
+| 1.7 | 2026-06-21 | P8B.3.3 result review PASS; P8B.4–P8B.6 blocked; P8B.3.4 authorized |
 
 ---
 

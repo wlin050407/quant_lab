@@ -158,7 +158,9 @@ Sensitivity only — not a primary gate.
 | validation | 0.745 | 0.798 | 89 / 32 / 74 |
 | test | 0.335 | 0.307 | 171 / 79 / 135 |
 
-### p2_multinomial_025
+### p2_multinomial_025 (@ 0.25 EM)
+
+> **Naming note:** Spec suffix `_025` and label `close_above_below_primary_pin_025` denote the **0.25 EM** ternary band, not 0.025 EM.
 
 | Split | Macro F1 | Balanced acc | Class dist (below/near/above) |
 |-------|----------|--------------|-------------------------------|
