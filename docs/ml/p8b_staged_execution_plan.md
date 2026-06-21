@@ -197,7 +197,7 @@ P8B.3.0 dependency audit: PASS (2026-06-21) — see p8b3_dependency_audit_report
 P8B.3.0.1 owner decision: Decision A — scikit-learn declared in requirements.txt
 dependency_status: declared_and_importable
 P8B.3.1: PASS (2026-06-21) — see p8b3_1_simple_learned_baseline_implementation_report.md
-P8B.3.2: BLOCKED (train-only fitting)
+P8B.3.2: PASS (2026-06-21) — see p8b3_2_train_only_fitting_report.md
 Approval record: p8b3_model_fitting_approval_record.md
 Implementation plan: p8b3_simple_model_fitting_plan.md
 ```
@@ -208,8 +208,8 @@ Implementation plan: p8b3_simple_model_fitting_plan.md
 P8B.3.0 — dependency / environment audit          PASS (2026-06-21)
 P8B.3.0.1 — owner dependency declaration           PASS (2026-06-21, Decision A)
 P8B.3.1 — simple learned baseline implementation  PASS (2026-06-21)
-P8B.3.2 — train-only fitting on approved split    AUTHORIZED (no fitting in P8B.3.1)
-P8B.3.3 — validation/test evaluation              BLOCKED (until P8B.3.2 PASS)
+P8B.3.2 — train-only fitting on approved split    PASS (2026-06-21)
+P8B.3.3 — learned baseline result review          AUTHORIZED (until P8B.3.3 PASS)
 ```
 
 ### Approved Models
@@ -366,7 +366,7 @@ Now: Approved for limited simple learned fitting — see p8b3_model_fitting_appr
 ## Next Stage
 
 ```text
-ML-P8B.3.2 — Train-Only Simple Learned Fitting
+ML-P8B.3.3 — Learned Baseline Result Review and Next-Gate Decision
 ```
 
 Stop conditions: any gate FAIL halts progression; P8B.4+ requires new owner approval.
@@ -383,6 +383,7 @@ Stop conditions: any gate FAIL halts progression; P8B.4+ requires new owner appr
 | 1.3 | 2026-06-21 | P8B.3.0 dependency audit PASS |
 | 1.4 | 2026-06-21 | P8B.3.0.1 owner Decision A; declared_and_importable |
 | 1.5 | 2026-06-21 | P8B.3.1 learned model harness PASS |
+| 1.6 | 2026-06-21 | P8B.3.2 train-only learned fitting PASS |
 
 ---
 

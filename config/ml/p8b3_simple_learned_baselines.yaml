@@ -1,4 +1,4 @@
-# ML-P8B.3.1 simple learned baseline harness (plan only — no fitting in P8B.3.1)
+# ML-P8B.3.2 train-only simple learned baseline fitting
 
 version: p8b3-simple-learned-baselines
 
@@ -12,6 +12,7 @@ baseline_label_schema_version: "1.1.0-draft"
 split_protocol: session_grouped
 preprocessing: standard_scaler
 include_p2_specs: true
+# P8B.3.1 harness keeps model_fitting_allowed=false; P8B.3.2 --execute enables .fit()
 model_fitting_allowed: false
 
 split:
