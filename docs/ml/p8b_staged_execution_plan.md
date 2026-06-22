@@ -218,7 +218,8 @@ P8B.3.4 — feature reduction diagnostic plan       PASS (2026-06-21)
 P8B.3.5 — feature stability diagnostics impl.       PASS (2026-06-21)
 P8B.3.6 — reduced feature set owner review        PASS (2026-06-21)
 P8B.3.7 — reduced-feature train-only refit         PASS (A + B sensitivity)
-P8B.3.8 — reduced feature refit result review      AUTHORIZED
+P8B.3.8 — reduced feature refit result review      PASS (2026-06-22)
+P8C    — controlled dataset expansion              AUTHORIZED (planning)
 P8B.4  — hyperparameter search                    BLOCKED
 P8B.5  — production backtest                      BLOCKED
 P8B.6  — trading signal generation                BLOCKED
@@ -378,10 +379,10 @@ Now: Approved for limited simple learned fitting — see p8b3_model_fitting_appr
 ## Next Stage
 
 ```text
-ML-P8B.3.8 — Reduced Feature Refit Result Review
+ML-P8C — Controlled Dataset Expansion for Reduced-Feature Validation
 ```
 
-See [`p8b3_7_reduced_feature_refit_report.md`](p8b3_7_reduced_feature_refit_report.md). P8B.4 remains blocked.
+See [`p8c_dataset_expansion_entry_gate.md`](p8c_dataset_expansion_entry_gate.md). P8B.4 remains blocked.
 
 ---
 
@@ -401,6 +402,7 @@ See [`p8b3_7_reduced_feature_refit_report.md`](p8b3_7_reduced_feature_refit_repo
 | 1.9 | 2026-06-21 | P8B.3.5 feature stability diagnostics PASS; P8B.3.6 authorized |
 | 2.0 | 2026-06-21 | P8B.3.6 owner review PASS; FeatureSet A/B approved; P8B.3.7 authorized |
 | 2.1 | 2026-06-22 | P8B.3.7 reduced-feature refit PASS; P8B.3.8 authorized |
+| 2.2 | 2026-06-22 | P8B.3.8 result review PASS; FeatureSet_A provisional; P8C planning authorized |
 
 ---
 
