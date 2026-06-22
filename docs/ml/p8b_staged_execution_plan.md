@@ -220,7 +220,7 @@ P8B.3.6 — reduced feature set owner review        PASS (2026-06-21)
 P8B.3.7 — reduced-feature train-only refit         PASS (A + B sensitivity)
 P8B.3.8 — reduced feature refit result review      PASS (2026-06-22)
 P8C.0  — controlled expansion plan                  PASS (2026-06-22)
-P8C.1  — candidate date selection / ingest plan     AUTHORIZED
+P8C.1  — candidate date selection / ingest plan     PASS (2026-06-22)
 P8C.2  — actual controlled ingest                   BLOCKED (owner approval required)
 P8C.3  — dataset + feature build validation         BLOCKED
 P8C.4  — FeatureSet_A locked refit (expanded)       BLOCKED (fixed hyperparams only)
@@ -384,10 +384,10 @@ Now: Approved for limited simple learned fitting — see p8b3_model_fitting_appr
 ## Next Stage
 
 ```text
-ML-P8C.1 — Expansion Candidate Selection and Ingest Plan
+ML-P8C.2 — Actual Controlled Ingest / Raw Lake Expansion (owner approval required)
 ```
 
-See [`p8c1_expansion_implementation_gate.md`](p8c1_expansion_implementation_gate.md). P8B.4 remains blocked. No ingest until P8C.2 owner approval.
+See [`p8c2_ingest_owner_approval_gate.md`](p8c2_ingest_owner_approval_gate.md). P8B.4 remains blocked.
 
 ---
 
@@ -409,6 +409,7 @@ See [`p8c1_expansion_implementation_gate.md`](p8c1_expansion_implementation_gate
 | 2.1 | 2026-06-22 | P8B.3.7 reduced-feature refit PASS; P8B.3.8 authorized |
 | 2.2 | 2026-06-22 | P8B.3.8 result review PASS; FeatureSet_A provisional; P8C planning authorized |
 | 2.3 | 2026-06-22 | P8C.0 controlled expansion plan PASS; P8C.1 authorized |
+| 2.4 | 2026-06-22 | P8C.1 candidate selection PASS; P8C.2 gate written |
 
 ---
 

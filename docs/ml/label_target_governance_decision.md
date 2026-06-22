@@ -169,8 +169,8 @@ Continue raw lake + screening for **zone enrichment only**. Not sole P8B prerequ
 - [x] P8B.3.7 reduced-feature train-only refit — **PASS**
 - [x] P8B.3.8 reduced feature refit result review — **PASS**
 - [x] ML-P8C.0 controlled expansion plan — **PASS**
-- [ ] ML-P8C.1 candidate date selection / ingest plan — **Authorized**
-- [ ] ML-P8C.2+ ingest / build / refit — **Not approved**
+- [x] ML-P8C.1 candidate date selection / ingest plan — **PASS**
+- [ ] ML-P8C.2 actual controlled ingest — **Blocked (owner approval required)**
 - [ ] P8B.4+ hyperparameter search / backtest / signals — **Not approved**
 
 ---
@@ -205,7 +205,8 @@ Frozen contract gates (`short_gamma_regime` ~50%, `pin_distance_too_wide` ~37%) 
 | 1.16 | 2026-06-22 | P8B.3.7 reduced-feature refit PASS; P8B.3.8 authorized |
 | 1.17 | 2026-06-22 | P8B.3.8 result review PASS; FeatureSet_A provisional; P8C planning authorized |
 | 1.18 | 2026-06-22 | P8C.0 expansion plan PASS; date rules committed; P8C.1 authorized |
+| 1.19 | 2026-06-22 | P8C.1 candidate selection PASS; P8C.2 gate written |
 
 ---
 
-**Status: ML-P8C.0 PASS — P8C.1 authorized — P8B.4–P8B.6 blocked — no ingest/build/fit**
+**Status: ML-P8C.1 PASS — P8C.2 blocked (owner ingest approval) — P8B.4–P8B.6 blocked**

@@ -1,0 +1,80 @@
+# ML-P8C.1 Stage 1 candidate date selection (no ingest / build / fit)
+
+stage: ML-P8C.1
+selection_seed: 20260621
+selection_rules_version: p8c_date_rules_v1
+
+current_sample_config:
+  existing_sample_configs:
+    - config/ml/pit_sample_v1.yaml
+    - config/ml/pit_sample_ingest_v1.yaml
+    - config/ml/pit_sample_baseline_v1_1_validation.yaml
+  baseline_config_primary: config/ml/pit_sample_baseline_v1_1_validation.yaml
+  current_session_count: 19
+
+stage1_target:
+  target_total_sessions: 40
+  new_sessions_required: 21
+
+bucket_quotas:
+  normal_range: 8
+  high_vol: 5
+  trend: 4
+  monthly_opex: 2
+  early_close: 1
+  recent: 1
+
+selection_rules:
+  no_model_performance_selection: true
+  no_target_based_selection: true
+  no_pnl_selection: true
+  no_manual_cherry_pick: true
+  deterministic_with_seed: true
+
+candidate_pool:
+  start_date: "2023-01-01"
+  end_date: "2025-06-30"
+  candidate_years:
+    - 2023
+    - 2024
+    - 2025
+  exclude_existing_sessions: true
+  exclude_known_problem_dates: true
+
+temporal_constraints:
+  min_new_sessions_2023: 6
+  min_new_sessions_2024: 8
+  min_new_sessions_2025: 5
+  min_post_baseline_test_window: 1  # after 2025-05-02
+
+trend_thresholds:
+  trend_up_pct: 0.30
+  trend_down_pct: -0.30
+  range_bound_abs_pct: 0.15
+
+paths:
+  lake_root: artifacts/raw_lake_sample
+  dataset_root: artifacts/datasets/pit_sample_baseline_v1_1_validation
+  feature_root: artifacts/features/pit_features_baseline_v1_1_validation
+  root: SPXW
+  index_symbol: SPX
+
+known_problem_dates:
+  - "2026-06-10"
+
+output_reports:
+  output_dir: artifacts/reports/p8c_candidate_selection/
+
+cost_estimate_assumptions:
+  ingest_minutes_per_date_low: 12
+  ingest_minutes_per_date_base: 18
+  ingest_minutes_per_date_high: 28
+  dataset_build_minutes_per_date_low: 4
+  dataset_build_minutes_per_date_base: 7
+  dataset_build_minutes_per_date_high: 12
+  feature_build_minutes_per_date_low: 8
+  feature_build_minutes_per_date_base: 14
+  feature_build_minutes_per_date_high: 22
+  storage_gb_per_date_low: 0.4
+  storage_gb_per_date_base: 0.8
+  storage_gb_per_date_high: 1.5
