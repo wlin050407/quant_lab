@@ -20,6 +20,8 @@
 **P8B.3.2 report:** [`p8b3_2_train_only_fitting_report.md`](p8b3_2_train_only_fitting_report.md)  
 **P8B.3.3 review:** [`p8b3_3_learned_baseline_result_review.md`](p8b3_3_learned_baseline_result_review.md)  
 **Next-gate decision:** [`p8b3_next_gate_decision.md`](p8b3_next_gate_decision.md)  
+**P8B.3.4 plan:** [`p8b3_4_feature_reduction_stability_diagnostic_plan.md`](p8b3_4_feature_reduction_stability_diagnostic_plan.md)  
+**P8B.3.5 gate:** [`p8b3_5_diagnostic_implementation_gate.md`](p8b3_5_diagnostic_implementation_gate.md)  
 **P8B staged plan:** [`p8b_staged_execution_plan.md`](p8b_staged_execution_plan.md)  
 **P8B.0 report:** [`p8b0_modeling_harness_implementation_report.md`](p8b0_modeling_harness_implementation_report.md)  
 **P8B.1 report:** [`p8b1_feature_dataset_validation_report.md`](p8b1_feature_dataset_validation_report.md)  
@@ -157,7 +159,8 @@ Continue raw lake + screening for **zone enrichment only**. Not sole P8B prerequ
 - [x] P8B.3.1 implementation — **PASS** (harness only; no fitting)
 - [x] P8B.3.2 train-only fitting — **PASS**
 - [x] P8B.3.3 result review — **PASS** (P8B.4–P8B.6 remain blocked)
-- [ ] P8B.3.4 feature reduction diagnostics — **Authorized** (no fitting unless separately approved)
+- [x] P8B.3.4 feature reduction diagnostic plan — **PASS**
+- [ ] P8B.3.5 feature stability diagnostics implementation — **Authorized** (no fitting)
 - [ ] P8B.4+ hyperparameter search / backtest / signals — **Not approved**
 
 ---
@@ -186,7 +189,8 @@ Frozen contract gates (`short_gamma_regime` ~50%, `pin_distance_too_wide` ~37%) 
 | 1.10 | 2026-06-21 | P8B.3.1 learned model harness PASS |
 | 1.11 | 2026-06-21 | P8B.3.2 train-only learned fitting PASS |
 | 1.12 | 2026-06-21 | P8B.3.3 result review PASS; P8B.4–P8B.6 blocked; P8B.3.4 authorized |
+| 1.13 | 2026-06-21 | P8B.3.4 feature reduction diagnostic plan PASS; P8B.3.5 authorized |
 
 ---
 
-**Status: ML-P8B.3.3 PASS — P8B.3.4 authorized (diagnostics only) — P8B.4–P8B.6 blocked**
+**Status: ML-P8B.3.4 PASS — P8B.3.5 authorized (diagnostics impl.) — P8B.4–P8B.6 blocked**

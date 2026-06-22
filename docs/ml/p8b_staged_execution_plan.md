@@ -199,6 +199,7 @@ dependency_status: declared_and_importable
 P8B.3.1: PASS (2026-06-21) — see p8b3_1_simple_learned_baseline_implementation_report.md
 P8B.3.2: PASS (2026-06-21) — see p8b3_2_train_only_fitting_report.md
 P8B.3.3: PASS (2026-06-21) — see p8b3_3_learned_baseline_result_review.md, p8b3_next_gate_decision.md
+P8B.3.4: PASS (2026-06-21) — see p8b3_4_feature_reduction_stability_diagnostic_plan.md
 Approval record: p8b3_model_fitting_approval_record.md
 Implementation plan: p8b3_simple_model_fitting_plan.md
 ```
@@ -211,8 +212,9 @@ P8B.3.0.1 — owner dependency declaration           PASS (2026-06-21, Decision 
 P8B.3.1 — simple learned baseline implementation  PASS (2026-06-21)
 P8B.3.2 — train-only fitting on approved split    PASS (2026-06-21)
 P8B.3.3 — learned baseline result review          PASS (2026-06-21)
-P8B.3.4 — feature reduction diagnostic plan       AUTHORIZED (no fitting unless separately approved)
-P8B.4  — hyperparameter search                    BLOCKED
+P8B.3.4 — feature reduction diagnostic plan       PASS (2026-06-21)
+P8B.3.5 — feature stability diagnostics impl.     AUTHORIZED (after P8B.3.4 PASS; no fitting)
+P8B.4  — hyperparameter search                    BLOCKED (until feature diagnostics + owner approval)
 P8B.5  — production backtest                      BLOCKED
 P8B.6  — trading signal generation                BLOCKED
 ```
@@ -371,11 +373,12 @@ Now: Approved for limited simple learned fitting — see p8b3_model_fitting_appr
 ## Next Stage
 
 ```text
-ML-P8B.3.4 — Feature Reduction and Stability Diagnostic Plan (recommended primary)
-ML-P8C — Controlled Dataset Expansion (recommended after P8B.3.4)
+ML-P8B.3.5 — Feature Stability Diagnostics Implementation
 ```
 
-P8B.4+ remains blocked. See [`p8b3_next_gate_decision.md`](p8b3_next_gate_decision.md).
+P8B.4 remains blocked until P8B.3.5 PASS, reduced-feature owner review, and separate owner approval. See [`p8b3_5_diagnostic_implementation_gate.md`](p8b3_5_diagnostic_implementation_gate.md).
+
+Optional parallel planning (not implementation in P8B.3.5): **ML-P8C — Controlled Dataset Expansion** after diagnostics.
 
 Stop conditions: any gate FAIL halts progression; P8B.4+ requires new owner approval and satisfied learned-fitting preconditions.
 
@@ -393,6 +396,7 @@ Stop conditions: any gate FAIL halts progression; P8B.4+ requires new owner appr
 | 1.5 | 2026-06-21 | P8B.3.1 learned model harness PASS |
 | 1.6 | 2026-06-21 | P8B.3.2 train-only learned fitting PASS |
 | 1.7 | 2026-06-21 | P8B.3.3 result review PASS; P8B.4–P8B.6 blocked; P8B.3.4 authorized |
+| 1.8 | 2026-06-21 | P8B.3.4 feature reduction diagnostic plan PASS; P8B.3.5 authorized |
 
 ---
 
