@@ -201,6 +201,7 @@ P8B.3.2: PASS (2026-06-21) — see p8b3_2_train_only_fitting_report.md
 P8B.3.3: PASS (2026-06-21) — see p8b3_3_learned_baseline_result_review.md, p8b3_next_gate_decision.md
 P8B.3.4: PASS (2026-06-21) — see p8b3_4_feature_reduction_stability_diagnostic_plan.md
 P8B.3.5: PASS (2026-06-21) — see p8b3_5_feature_stability_diagnostics_report.md
+P8B.3.6: PASS (2026-06-21) — see p8b3_6_reduced_feature_owner_review.md, p8b3_6_reduced_feature_approval_record.md
 Approval record: p8b3_model_fitting_approval_record.md
 Implementation plan: p8b3_simple_model_fitting_plan.md
 ```
@@ -215,8 +216,9 @@ P8B.3.2 — train-only fitting on approved split    PASS (2026-06-21)
 P8B.3.3 — learned baseline result review          PASS (2026-06-21)
 P8B.3.4 — feature reduction diagnostic plan       PASS (2026-06-21)
 P8B.3.5 — feature stability diagnostics impl.       PASS (2026-06-21)
-P8B.3.6 — reduced feature set owner review        AUTHORIZED
-P8B.4  — hyperparameter search                    BLOCKED (until feature diagnostics + owner approval)
+P8B.3.6 — reduced feature set owner review        PASS (2026-06-21)
+P8B.3.7 — reduced-feature train-only refit         AUTHORIZED (A primary, B sensitivity)
+P8B.4  — hyperparameter search                    BLOCKED
 P8B.5  — production backtest                      BLOCKED
 P8B.6  — trading signal generation                BLOCKED
 ```
@@ -375,10 +377,10 @@ Now: Approved for limited simple learned fitting — see p8b3_model_fitting_appr
 ## Next Stage
 
 ```text
-ML-P8B.3.6 — Reduced Feature Set Owner Review
+ML-P8B.3.7 — Train-Only Reduced-Feature Learned Refit
 ```
 
-P8B.4 remains blocked until owner review of reduced feature proposals and separate approval.
+See [`p8b3_7_reduced_feature_refit_gate.md`](p8b3_7_reduced_feature_refit_gate.md). P8B.4 remains blocked.
 
 ---
 
@@ -396,6 +398,7 @@ P8B.4 remains blocked until owner review of reduced feature proposals and separa
 | 1.7 | 2026-06-21 | P8B.3.3 result review PASS; P8B.4–P8B.6 blocked; P8B.3.4 authorized |
 | 1.8 | 2026-06-21 | P8B.3.4 feature reduction diagnostic plan PASS; P8B.3.5 authorized |
 | 1.9 | 2026-06-21 | P8B.3.5 feature stability diagnostics PASS; P8B.3.6 authorized |
+| 2.0 | 2026-06-21 | P8B.3.6 owner review PASS; FeatureSet A/B approved; P8B.3.7 authorized |
 
 ---
 
