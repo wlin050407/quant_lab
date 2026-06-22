@@ -219,12 +219,13 @@ P8B.3.5 — feature stability diagnostics impl.       PASS (2026-06-21)
 P8B.3.6 — reduced feature set owner review        PASS (2026-06-21)
 P8B.3.7 — reduced-feature train-only refit         PASS (A + B sensitivity)
 P8B.3.8 — reduced feature refit result review      PASS (2026-06-22)
-P8C.0  — controlled expansion plan                  PASS (2026-06-22)
-P8C.1  — candidate date selection / ingest plan     PASS (2026-06-22)
-P8C.2  — actual controlled ingest                   BLOCKED (owner approval required)
-P8C.3  — dataset + feature build validation         BLOCKED
-P8C.4  — FeatureSet_A locked refit (expanded)       BLOCKED (fixed hyperparams only)
-P8C.5  — expanded result review                     BLOCKED
+P8C.0   — controlled expansion plan                  PASS (2026-06-22)
+P8C.1   — candidate date selection                   PASS (2026-06-22)
+P8C.1.1 — candidate list owner review                PASS (2026-06-22)
+P8C.2   — raw lake ingest only                       AUTHORIZED (not started)
+P8C.3   — dataset + feature build validation         BLOCKED
+P8C.4   — FeatureSet_A locked refit (expanded)       BLOCKED (fixed hyperparams only)
+P8C.5   — expanded result review                     BLOCKED
 P8B.4  — hyperparameter search                    BLOCKED
 P8B.5  — production backtest                      BLOCKED
 P8B.6  — trading signal generation                BLOCKED
@@ -384,10 +385,10 @@ Now: Approved for limited simple learned fitting — see p8b3_model_fitting_appr
 ## Next Stage
 
 ```text
-ML-P8C.2 — Actual Controlled Ingest / Raw Lake Expansion (owner approval required)
+ML-P8C.2 — Actual Controlled Ingest / Raw Lake Expansion (raw lake only)
 ```
 
-See [`p8c2_ingest_owner_approval_gate.md`](p8c2_ingest_owner_approval_gate.md). P8B.4 remains blocked.
+See [`p8c2_ingest_owner_approval_gate.md`](p8c2_ingest_owner_approval_gate.md) and [`p8c2_ingest_owner_approval_record.md`](p8c2_ingest_owner_approval_record.md). P8C.3 dataset/feature build remains blocked until P8C.2 PASS. P8B.4 remains blocked.
 
 ---
 
@@ -410,6 +411,7 @@ See [`p8c2_ingest_owner_approval_gate.md`](p8c2_ingest_owner_approval_gate.md). 
 | 2.2 | 2026-06-22 | P8B.3.8 result review PASS; FeatureSet_A provisional; P8C planning authorized |
 | 2.3 | 2026-06-22 | P8C.0 controlled expansion plan PASS; P8C.1 authorized |
 | 2.4 | 2026-06-22 | P8C.1 candidate selection PASS; P8C.2 gate written |
+| 2.5 | 2026-06-22 | P8C.1.1 owner review PASS; P8C.2 authorized (raw lake only) |
 
 ---
 

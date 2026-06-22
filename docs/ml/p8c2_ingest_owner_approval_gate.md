@@ -1,9 +1,15 @@
 # ML-P8C.2 Ingest Owner Approval Gate
 
 **Date:** 2026-06-22  
-**Stage:** ML-P8C.2 (future — **not started**)  
-**Status:** Gate defined — **owner approval required**  
-**Prerequisite:** ML-P8C.1 PASS + [`p8c1_candidate_date_selection_report.md`](p8c1_candidate_date_selection_report.md)
+**Stage:** ML-P8C.2  
+**Status:** **AUTHORIZED** (raw lake ingest only — implementation not started)  
+**Prerequisite:** ML-P8C.1.1 PASS + [`p8c2_ingest_owner_approval_record.md`](p8c2_ingest_owner_approval_record.md)
+
+**Related:**
+
+- [`p8c1_1_candidate_owner_review.md`](p8c1_1_candidate_owner_review.md)
+- [`p8c1_candidate_date_selection_report.md`](p8c1_candidate_date_selection_report.md)
+- [`p8c1_ingest_cost_estimate.md`](p8c1_ingest_cost_estimate.md)
 
 ---
 
@@ -13,28 +19,36 @@
 ML-P8C.2 — Actual Controlled Ingest / Raw Lake Expansion
 ```
 
-对 P8C.1 选定的 **21 个日期**执行 ThetaData ingest，写入 `artifacts/raw_lake_sample`（或 config 指定 lake_root）。**仅** raw lake expansion — dataset/feature build 属于 P8C.3，除非 owner 明确批准合并。
+对 P8C.1 冻结的 **21 个日期**执行 ThetaData ingest，写入 `artifacts/raw_lake_sample`。**仅** raw lake expansion。
 
-**P8C.1 does not implement P8C.2.**
+```text
+P8C.2 is approved only after P8C.1.1 owner approval.
+P8C.2 allowed dates = frozen 21-date list.
+P8C.2 may ingest raw lake partitions only.
+P8C.2 must not build dataset/features.
+P8C.2 must not train models.
+```
+
+**P8C.3 = dataset + feature build validation** (separate gate, not approved in P8C.1.1).
 
 ---
 
 ## Prerequisites
 
-| # | Prerequisite |
-|---|--------------|
-| 1 | P8C.1 PASS — 21 dates selected, manifest generated |
-| 2 | [`p8c1_ingest_cost_estimate.md`](p8c1_ingest_cost_estimate.md) reviewed |
-| 3 | [`p8c_expansion_owner_approval_record.md`](p8c_expansion_owner_approval_record.md) — planning approved |
-| 4 | **Separate P8C.2 owner approval** recorded (this gate) |
-| 5 | Local ThetaData entitlement verified |
-| 6 | P8B.4 / P8B.5 / P8B.6 remain blocked |
+| # | Prerequisite | Status |
+|---|--------------|--------|
+| 1 | P8C.1 PASS — 21 dates selected | Done |
+| 2 | P8C.1.1 owner review PASS | Done |
+| 3 | [`p8c2_ingest_owner_approval_record.md`](p8c2_ingest_owner_approval_record.md) committed | Done |
+| 4 | [`p8c1_ingest_cost_estimate.md`](p8c1_ingest_cost_estimate.md) reviewed | Done |
+| 5 | Local ThetaData entitlement verified | **Required before execute** |
+| 6 | P8B.4 / P8B.5 / P8B.6 remain blocked | Enforced |
 
 ---
 
-## Approved Dates (Frozen from P8C.1)
+## Approved Dates (Frozen — No Substitution)
 
-P8C.2 **may only ingest** these 21 dates (no substitution without new rules commit):
+P8C.2 **may only ingest** these 21 dates:
 
 ```text
 2023-02-23, 2023-03-21, 2023-05-08, 2023-05-30, 2023-06-16,
@@ -44,19 +58,22 @@ P8C.2 **may only ingest** these 21 dates (no substitution without new rules comm
 2025-05-14
 ```
 
-Plus retain existing **19** baseline sessions (no re-ingest unless corrupt).
+Existing **19** baseline sessions: retain; re-ingest only if documented corruption (separate owner note).
 
 ---
 
-## Allowed in P8C.2 (After Owner Approval)
+## Allowed in P8C.2
 
 ```text
-ThetaData ingest for selected dates only
+ThetaData ingest for frozen 21 dates only
 Raw lake partition writes (idempotent_skip_existing)
 Partition manifest validation
+Checksum verification
+Per-date success/failure recording
 Ingest run manifest (local, not committed)
-Retry / resume on failed partitions
+Retry / resume on failed partitions (same dates)
 early_close metadata for 2023-07-03
+Temporal warning carry-forward in run report
 ```
 
 ---
@@ -64,12 +81,12 @@ early_close metadata for 2023-07-03
 ## Forbidden in P8C.2
 
 ```text
-Date changes without owner approval + new rules commit
-Performance-based replacement dates
-Cherry-picking based on P8B.3.7 metrics
-Dataset build (unless explicitly approved as P8C.2b)
-Feature build (P8C.3)
-Model fitting / .fit() (P8C.4)
+Date changes or replacement dates
+Performance-based or cherry-picked substitutions
+Temporal-warning-driven date swaps
+Dataset build
+Feature build
+Model fitting / .fit()
 Hyperparameter search (P8B.4)
 Production backtest (P8B.5)
 Trading signal (P8B.6)
@@ -79,33 +96,34 @@ Modifying label_spec.md or requirements.txt
 
 ---
 
-## P8C.2 PASS Gate Criteria (Draft)
+## P8C.2 PASS Gate Criteria
+
+ML-P8C.2 PASS requires **all**:
 
 ```text
-[ ] Owner P8C.2 approval record committed
-[ ] All 21 selected dates ingested OR failed with documented reason
-[ ] Partition manifests complete per date
-[ ] No date substitution vs P8C.1 manifest
+[ ] Raw ingest attempted for all frozen 21 dates
+[ ] Per-date success/failure recorded
+[ ] Manifest completeness verified per partition
+[ ] Checksums verified where applicable
+[ ] No replacement dates vs P8C.1 manifest
+[ ] No dataset build
+[ ] No feature build
 [ ] No model fitting
+[ ] Temporal warning documented in run report
 [ ] Artifacts not committed to git
 [ ] label_spec.md unchanged
 [ ] requirements.txt unchanged
+[ ] P8C.3 gate referenced for next stage
 ```
 
 ---
 
-## Owner Approval Template (To Be Signed)
+## Carried Warnings (From P8C.1.1)
 
-```text
-Status: Approved / Not approved for P8C.2 actual ingest
-
-Scope:
-  - Ingest 21 dates listed above
-  - Raw lake only (no dataset/feature build unless noted)
-  - No date changes
-  - No model fitting
-  - P8B.4 remains blocked
-```
+| Warning | P8C.2 action |
+|---------|------------|
+| `min_new_sessions_2024` 6 vs 8 | Document in run report; **no** date replacement |
+| Proxy high_vol/trend tags | Note for P8C.3 index-metric recheck; **no** date replacement |
 
 ---
 
@@ -113,9 +131,9 @@ Scope:
 
 | Outcome | Next step |
 |---------|-----------|
-| P8C.2 PASS | **ML-P8C.3** — Dataset + Feature Build Validation |
-| Partial ingest failure | Retry failed dates; **do not** substitute dates |
-| Cost overrun | Pause; owner review before continuing |
+| P8C.2 PASS | **ML-P8C.3** — Dataset + Feature Build Validation (owner gate) |
+| Partial failure | Retry same dates; document failures |
+| P8C.2 FAIL | Halt; owner review |
 
 ---
 
@@ -124,6 +142,7 @@ Scope:
 | Version | Date | Change |
 |---------|------|--------|
 | 1.0 | 2026-06-22 | Initial P8C.2 gate per P8C.1 PASS |
+| 1.1 | 2026-06-22 | P8C.1.1 approval; P8C.2 authorized (raw lake only) |
 
 ---
 
