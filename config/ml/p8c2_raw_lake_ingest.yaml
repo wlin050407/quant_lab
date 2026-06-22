@@ -1,0 +1,63 @@
+# ML-P8C.2 controlled raw lake ingest (frozen 21 dates only; no build / fit)
+
+stage: ML-P8C.2
+scope: raw_lake_ingest_only
+
+frozen_dates:
+  - 2023-02-23
+  - 2023-03-21
+  - 2023-05-08
+  - 2023-05-30
+  - 2023-06-16
+  - 2023-06-22
+  - 2023-06-27
+  - 2023-07-03
+  - 2023-08-09
+  - 2023-10-25
+  - 2024-01-03
+  - 2024-02-20
+  - 2024-05-15
+  - 2024-06-06
+  - 2024-10-16
+  - 2024-11-20
+  - 2025-01-17
+  - 2025-03-05
+  - 2025-03-25
+  - 2025-05-13
+  - 2025-05-14
+
+# Extends P8B pit-sample lake (same root as p8c_stage1_candidate_selection.yaml)
+raw_lake_root: artifacts/raw_lake_sample
+output_reports: artifacts/reports/p8c_raw_lake_ingest/
+
+ingest:
+  root: SPXW
+  index_symbol: SPX
+  strike_range: 60
+  session_rth_start: "09:30:00"
+  session_rth_end: "16:00:00"
+  quote_resolution: tick_or_1s
+  index_resolution: tick_or_1s
+  max_retries: 2
+  request_budget_per_date: 12
+  idempotent_skip_existing: true
+
+safety:
+  allow_dataset_build: false
+  allow_feature_build: false
+  allow_model_fitting: false
+  allow_replacement_dates: false
+  allow_p8b4: false
+  minimum_free_disk_gb: 20
+
+resume:
+  enabled: true
+  skip_complete_dates: true
+  fail_on_incomplete_existing_partition: true
+
+failure_policy:
+  continue_on_date_failure: true
+
+warnings_carried_forward:
+  temporal_warning: "min_new_sessions_2024 got 6 vs target 8 (accepted at P8C.1.1)"
+  proxy_bucket_warning: "high_vol/trend buckets used selection_seed=20260621 proxy without local index"

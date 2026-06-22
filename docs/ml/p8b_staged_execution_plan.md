@@ -222,7 +222,7 @@ P8B.3.8 — reduced feature refit result review      PASS (2026-06-22)
 P8C.0   — controlled expansion plan                  PASS (2026-06-22)
 P8C.1   — candidate date selection                   PASS (2026-06-22)
 P8C.1.1 — candidate list owner review                PASS (2026-06-22)
-P8C.2   — raw lake ingest only                       AUTHORIZED (not started)
+P8C.2   — raw lake ingest only                       IN PROGRESS (implementation + batch execute)
 P8C.3   — dataset + feature build validation         BLOCKED
 P8C.4   — FeatureSet_A locked refit (expanded)       BLOCKED (fixed hyperparams only)
 P8C.5   — expanded result review                     BLOCKED
