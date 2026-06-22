@@ -102,6 +102,7 @@ class ModelFitResult:
     skipped_reason: str | None = None
     metrics: dict[str, dict[str, Any]] = field(default_factory=dict)
     comparison_vs_p8b2: dict[str, Any] = field(default_factory=dict)
+    comparison_vs_p8b3_2: dict[str, Any] = field(default_factory=dict)
     hyperparameters: dict[str, Any] = field(default_factory=dict)
     preprocessing: dict[str, Any] = field(default_factory=dict)
 

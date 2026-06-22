@@ -1,7 +1,8 @@
 # ML-P8B.3.7 Reduced-Feature Train-Only Refit Gate
 
 **Date:** 2026-06-21  
-**Stage:** ML-P8B.3.7 (future — **not started**)  
+**Stage:** ML-P8B.3.7  
+**Status:** PASS (2026-06-22)  
 **Prerequisite:** ML-P8B.3.6 PASS  
 **Approval:** [`p8b3_6_reduced_feature_approval_record.md`](p8b3_6_reduced_feature_approval_record.md)  
 **Review:** [`p8b3_6_reduced_feature_owner_review.md`](p8b3_6_reduced_feature_owner_review.md)
