@@ -96,6 +96,52 @@ def test_max_dates_batches_correctly(p8c2_config: Path) -> None:
     assert batch == sorted(config.frozen_dates)[:5]
 
 
+def test_max_dates_resume_selects_pending_only(
+    p8c2_config: Path, tmp_path: Path
+) -> None:
+    """With resume, max_dates must target pending dates not the frozen list head."""
+    from quant_lab.ml.datasets.lake_ingest import ingest_rth_trade_date
+
+    config = load_p8c2_ingest_config(p8c2_config)
+    lake_root = tmp_path / "lake"
+    lake_root.mkdir()
+    # Mark first frozen date complete via dry-run ingest simulation — use real ingest dry_run
+    first = sorted(config.frozen_dates)[0]
+    ingest_rth_trade_date(
+        trade_date=first,
+        day_type="normal",
+        lake_root=lake_root,
+        strike_range=config.strike_range,
+        session_rth_start=config.session_rth_start,
+        session_rth_end=config.session_rth_end,
+        dry_run=True,
+    )
+    # Without complete partitions, first date is still pending; pick second approach:
+    # complete first date partitions by mocking check — simpler: use dates_filter + resume off
+    config_local = load_p8c2_ingest_config(p8c2_config)
+    ordered = sorted(config_local.frozen_dates)
+    # Simulate first date complete in lake by running check with empty missing — skip, patch instead
+    with patch(
+        "quant_lab.ml.datasets.p8c_controlled_ingest.check_partition_readiness"
+    ) as mock_check:
+        def _readiness(
+            _lake: Path, trade_date: date, **_: object
+        ) -> tuple[list[str], list[str], list[str]]:
+            if trade_date == ordered[0]:
+                return (["option_trade_tick"], [], [])
+            return ([], ["option_trade_tick"], [])
+
+        mock_check.side_effect = _readiness
+        batch = select_dates_to_attempt(
+            config_local,
+            dates_filter=None,
+            max_dates=2,
+            lake_root=lake_root,
+            resume=True,
+        )
+    assert batch == ordered[1:3]
+
+
 def test_early_close_day_type() -> None:
     assert day_type_for_date(date(2023, 7, 3)) == "early_close"
     assert day_type_for_date(date(2024, 1, 3)) == "normal"

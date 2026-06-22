@@ -297,13 +297,39 @@ def select_dates_to_attempt(
     *,
     dates_filter: list[date] | None,
     max_dates: int | None,
+    lake_root: Path | None = None,
+    resume: bool = False,
 ) -> list[date]:
-    """Resolve ordered date batch from frozen list."""
+    """Resolve ordered date batch from frozen list.
+
+    When ``resume`` and ``max_dates`` are set with ``lake_root``, skip dates whose
+    partitions are already complete and return up to ``max_dates`` pending dates.
+    """
     if dates_filter is not None:
         validate_date_subset(dates_filter)
         ordered = sorted(dates_filter)
     else:
         ordered = sorted(config.frozen_dates)
+
+    if resume and max_dates is not None and max_dates > 0 and lake_root is not None:
+        pending: list[date] = []
+        for trade_date in ordered:
+            complete, missing, incomplete = check_partition_readiness(
+                lake_root,
+                trade_date,
+                root=config.root,
+                symbol=config.index_symbol,
+                idempotent_skip_existing=config.idempotent_skip_existing,
+            )
+            if incomplete and config.fail_on_incomplete_existing_partition:
+                continue
+            if not missing and complete:
+                continue
+            pending.append(trade_date)
+            if len(pending) >= max_dates:
+                break
+        return pending
+
     if max_dates is not None and max_dates > 0:
         ordered = ordered[:max_dates]
     return ordered
@@ -674,9 +700,16 @@ def run_p8c2_controlled_ingest(
     if resume and not config.resume_enabled:
         log.warning("resume requested but config.resume.enabled=false")
 
-    dates = select_dates_to_attempt(config, dates_filter=dates_filter, max_dates=max_dates)
     lake_root = project_root / config.raw_lake_root
     lake_root.mkdir(parents=True, exist_ok=True)
+
+    dates = select_dates_to_attempt(
+        config,
+        dates_filter=dates_filter,
+        max_dates=max_dates,
+        lake_root=lake_root if execute else None,
+        resume=resume,
+    )
 
     per_date: list[PerDateIngestStatus] = []
     for trade_date in dates:
@@ -703,7 +736,7 @@ def run_p8c2_controlled_ingest(
     else:
         gate = "PASS"
 
-    return P8C2RunResult(
+    result = P8C2RunResult(
         stage=HARNESS_STAGE_P8C2,
         scope=SCOPE_RAW_LAKE_INGEST_ONLY,
         mode=mode,
@@ -724,6 +757,158 @@ def run_p8c2_controlled_ingest(
         proxy_bucket_warning_carried_forward=True,
         gate_status=gate,
     )
+    if execute:
+        output_dir = project_root / config.output_reports
+        return finalize_cumulative_result(result, config, lake_root, output_dir)
+    return result
+
+
+def load_existing_per_date_map(output_dir: Path) -> dict[str, dict[str, Any]]:
+    """Load prior per-date status records keyed by ISO date."""
+    path = output_dir / "p8c2_per_date_status.json"
+    if not path.is_file():
+        return {}
+    items: list[dict[str, Any]] = json.loads(path.read_text(encoding="utf-8"))
+    return {item["date"]: item for item in items}
+
+
+def _status_from_lake_readiness(
+    trade_date: date,
+    *,
+    config: P8C2IngestConfig,
+    lake_root: Path,
+) -> PerDateIngestStatus | None:
+    """Build terminal status from lake readiness when no prior run record exists."""
+    complete, missing, incomplete = check_partition_readiness(
+        lake_root,
+        trade_date,
+        root=config.root,
+        symbol=config.index_symbol,
+        idempotent_skip_existing=config.idempotent_skip_existing,
+    )
+    now = datetime.now(UTC).isoformat()
+    iso = trade_date.isoformat()
+    if incomplete and config.fail_on_incomplete_existing_partition:
+        return PerDateIngestStatus(
+            date=iso,
+            status="incomplete",
+            started_at=now,
+            finished_at=now,
+            duration_seconds=0.0,
+            rows_by_dataset={},
+            files_written=0,
+            manifest_paths=[],
+            checksum_status="not_checked",
+            completeness_status=f"incomplete_refuse:{incomplete}",
+            fallbacks_used=[],
+            warnings=[],
+            error_message=f"incomplete partitions refuse overwrite: {','.join(incomplete)}",
+        )
+    if not missing and complete:
+        rows, manifest_paths, checksum_status, completeness_status = _partition_audit(
+            lake_root,
+            trade_date,
+            root=config.root,
+            symbol=config.index_symbol,
+        )
+        return PerDateIngestStatus(
+            date=iso,
+            status="skipped_complete",
+            started_at=now,
+            finished_at=now,
+            duration_seconds=0.0,
+            rows_by_dataset=rows,
+            files_written=sum(1 for p in manifest_paths if Path(p).exists()),
+            manifest_paths=manifest_paths,
+            checksum_status=checksum_status,
+            completeness_status=completeness_status,
+            fallbacks_used=[],
+            warnings=[],
+            error_message=None,
+        )
+    return None
+
+
+def finalize_cumulative_result(
+    result: P8C2RunResult,
+    config: P8C2IngestConfig,
+    lake_root: Path,
+    output_dir: Path,
+) -> P8C2RunResult:
+    """Merge batch result with prior artifacts and scan lake for complete frozen dates."""
+    merged: dict[str, PerDateIngestStatus] = {}
+    for raw in load_existing_per_date_map(output_dir).values():
+        merged[str(raw["date"])] = PerDateIngestStatus(**raw)
+    for p in result.per_date:
+        merged[p.date] = p
+
+    frozen_iso = {d.isoformat() for d in config.frozen_dates}
+    for trade_date in sorted(config.frozen_dates):
+        iso = trade_date.isoformat()
+        if iso in merged:
+            continue
+        lake_status = _status_from_lake_readiness(
+            trade_date, config=config, lake_root=lake_root
+        )
+        if lake_status is not None:
+            merged[iso] = lake_status
+
+    all_statuses = [merged[iso] for iso in sorted(merged) if iso in frozen_iso]
+    successful = [p.date for p in all_statuses if p.status == "success"]
+    failed = [p.date for p in all_statuses if p.status == "failed"]
+    skipped = [p.date for p in all_statuses if p.status == "skipped_complete"]
+    incomplete = [p.date for p in all_statuses if p.status == "incomplete"]
+    terminal = {p.date for p in all_statuses}
+    pending = sorted(frozen_iso - terminal)
+
+    if pending:
+        gate: Literal["PASS", "PASS_WITH_FAILURES", "FAIL"] = (
+            "PASS_WITH_FAILURES" if (failed or incomplete) else "PASS"
+        )
+    elif failed or incomplete:
+        gate = "PASS_WITH_FAILURES"
+    else:
+        gate = "PASS"
+
+    return P8C2RunResult(
+        stage=result.stage,
+        scope=result.scope,
+        mode=result.mode,
+        preflight=result.preflight,
+        attempted_dates=result.attempted_dates,
+        successful_dates=successful,
+        failed_dates=failed,
+        skipped_complete_dates=skipped,
+        incomplete_dates=incomplete,
+        per_date=all_statuses,
+        replacement_dates_used=False,
+        actual_ingest_performed=result.actual_ingest_performed,
+        dataset_build_performed=False,
+        feature_build_performed=False,
+        model_fitting_performed=False,
+        p8b4_authorized=False,
+        temporal_warning_carried_forward=True,
+        proxy_bucket_warning_carried_forward=True,
+        gate_status=gate,
+    )
+
+
+def _pending_dates_from_result(result: P8C2RunResult) -> list[str]:
+    frozen_iso = set(FROZEN_STAGE1_DATES)
+    terminal = {p.date for p in result.per_date}
+    return sorted(frozen_iso - terminal)
+
+
+def pending_frozen_dates(
+    config: P8C2IngestConfig,
+    per_date: list[PerDateIngestStatus],
+) -> list[str]:
+    """Return frozen dates without a terminal per-date status record."""
+    frozen_iso = {d.isoformat() for d in config.frozen_dates}
+    terminal = {p.date for p in per_date if p.status in {
+        "success", "failed", "skipped_complete", "incomplete"
+    }}
+    return sorted(frozen_iso - terminal)
 
 
 def write_p8c2_artifacts(result: P8C2RunResult, output_dir: Path) -> dict[str, Path]:
@@ -761,6 +946,7 @@ def write_p8c2_artifacts(result: P8C2RunResult, output_dir: Path) -> dict[str, P
         "failed_dates": result.failed_dates,
         "skipped_complete_dates": result.skipped_complete_dates,
         "incomplete_dates": result.incomplete_dates,
+        "pending_dates": _pending_dates_from_result(result),
         "replacement_dates_used": result.replacement_dates_used,
         "actual_ingest_performed": result.actual_ingest_performed,
         "dataset_build_performed": result.dataset_build_performed,
