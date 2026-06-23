@@ -162,6 +162,10 @@ def check_partition_readiness(
         else:
             missing.append(ds)
 
+    # tick_or_1s policy: one complete quote partition satisfies the quote requirement
+    if any(ds in complete for ds in QUOTE_PARTITIONS):
+        missing = [ds for ds in missing if ds not in QUOTE_PARTITIONS]
+
     if idempotent_skip_existing and complete and not missing and not incomplete_refuse:
         return complete, [], []
 
