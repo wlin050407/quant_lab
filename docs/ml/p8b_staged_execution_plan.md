@@ -222,8 +222,9 @@ P8B.3.8 — reduced feature refit result review      PASS (2026-06-22)
 P8C.0   — controlled expansion plan                  PASS (2026-06-22)
 P8C.1   — candidate date selection                   PASS (2026-06-22)
 P8C.1.1 — candidate list owner review                PASS (2026-06-22)
-P8C.2   — raw lake ingest only                       IN PROGRESS (implementation + batch execute)
-P8C.3   — dataset + feature build validation         BLOCKED
+P8C.2   — raw lake ingest only                       PASS (2026-06-23)
+P8C.2.1 — raw lake ingest owner review              PASS (2026-06-23)
+P8C.3   — dataset + feature build validation         AUTHORIZED (not started)
 P8C.4   — FeatureSet_A locked refit (expanded)       BLOCKED (fixed hyperparams only)
 P8C.5   — expanded result review                     BLOCKED
 P8B.4  — hyperparameter search                    BLOCKED
@@ -388,7 +389,7 @@ Now: Approved for limited simple learned fitting — see p8b3_model_fitting_appr
 ML-P8C.2 — Actual Controlled Ingest / Raw Lake Expansion (raw lake only)
 ```
 
-See [`p8c2_ingest_owner_approval_gate.md`](p8c2_ingest_owner_approval_gate.md) and [`p8c2_ingest_owner_approval_record.md`](p8c2_ingest_owner_approval_record.md). P8C.3 dataset/feature build remains blocked until P8C.2 PASS. P8B.4 remains blocked.
+See [`p8c2_raw_lake_ingest_report.md`](p8c2_raw_lake_ingest_report.md), [`p8c2_1_raw_lake_ingest_owner_review.md`](p8c2_1_raw_lake_ingest_owner_review.md), and [`p8c3_dataset_feature_build_owner_approval_record.md`](p8c3_dataset_feature_build_owner_approval_record.md). P8C.2 PASS; P8C.3 authorized (dataset + feature validation only). P8B.4 remains blocked.
 
 ---
 
@@ -412,6 +413,7 @@ See [`p8c2_ingest_owner_approval_gate.md`](p8c2_ingest_owner_approval_gate.md) a
 | 2.3 | 2026-06-22 | P8C.0 controlled expansion plan PASS; P8C.1 authorized |
 | 2.4 | 2026-06-22 | P8C.1 candidate selection PASS; P8C.2 gate written |
 | 2.5 | 2026-06-22 | P8C.1.1 owner review PASS; P8C.2 authorized (raw lake only) |
+| 2.6 | 2026-06-23 | P8C.2 raw lake ingest PASS (21/21); P8C.2.1 owner review PASS; P8C.3 authorized |
 
 ---
 

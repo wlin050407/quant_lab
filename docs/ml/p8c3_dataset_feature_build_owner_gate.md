@@ -1,51 +1,114 @@
 # ML-P8C.3 Dataset / Feature Build — Owner Gate
 
-**Status: BLOCKED** — 须待 owner 审阅 P8C.2 ingest 报告后方可进入。
+**Status: AUTHORIZED** — ML-P8C.2.1 owner review PASS; implementation **not started**.
 
-## Gate 声明
+**Approval record:** [`p8c3_dataset_feature_build_owner_approval_record.md`](p8c3_dataset_feature_build_owner_approval_record.md)
 
-1. **P8C.3 remains blocked until owner reviews P8C.2 ingest report.**
-2. **P8C.3 may build dataset/features only for successfully ingested frozen dates.**
-3. **P8C.3 must not replace failed dates.**
-4. **P8C.3 must not train models.**
-5. **P8C.3 must not authorize P8B.4.**
+---
 
-## 前置条件
+## Stage Definition
 
-| 条件 | 要求 |
-|------|------|
-| P8C.2 报告 | `docs/ml/p8c2_raw_lake_ingest_report.md` 经 owner 签收 |
-| 可用 session | 仅 `p8c2_run_manifest.json` 中 `successful_dates` + 既有 19 日 baseline |
-| 失败日期 | 记录保留，**不得**用替代日期补齐 |
-| 模型训练 | **禁止** — 含 `.fit()`、hyperparameter search |
-| P8B.4 | **继续 BLOCKED** |
+```text
+ML-P8C.3 — Dataset + Feature Build Validation
+```
 
-## Owner 审阅清单
+---
 
-- [ ] 确认 frozen 21 日 ingest 状态表与 manifest 一致
-- [ ] 确认 `replacement_dates_used = false`
-- [ ] 确认 `dataset_build_performed = false`（P8C.2 阶段）
-- [ ] 确认 temporal / proxy bucket 警告已记录且未用于换日
-- [ ] 批准仅对 **success** 日期执行 dataset + feature build
+## Prerequisites (satisfied)
 
-## 下一阶段授权范围（待批准）
+| Condition | Status |
+|-----------|--------|
+| P8C.2 ingest report | PASS — [`p8c2_raw_lake_ingest_report.md`](p8c2_raw_lake_ingest_report.md) |
+| P8C.2.1 owner review | PASS — [`p8c2_1_raw_lake_ingest_owner_review.md`](p8c2_1_raw_lake_ingest_owner_review.md) |
+| Successful frozen dates | **21 / 21** |
+| `replacement_dates_used` | **false** |
+| P8C.3 approval record | Signed |
 
-P8C.3 若获批准，允许：
+---
 
-- PIT dataset build（仅 successful frozen dates）
-- Feature build（同一日期集合）
-- 质量检查与 manifest 更新
+## P8C.3 Allowed
 
-P8C.3 **不允许**：
+| Activity | Allowed |
+|----------|---------|
+| Build PIT dataset for **21** successful frozen dates | **Yes** |
+| Build features for **21** successful frozen dates | **Yes** |
+| Combine **19** baseline + **21** P8C → **40-session** expanded validation set | **Yes** |
+| Leakage validation | **Yes** |
+| Forbidden feature input validation | **Yes** |
+| Strict hash join validation | **Yes** |
+| Feature coverage diagnostics | **Yes** |
+| Proxy bucket recheck using realized index metrics | **Yes** |
+| Generate manifests and reports (local; not committed) | **Yes** |
+| Carry forward temporal / proxy bucket warnings | **Yes** |
 
-- 新增或替换日期
-- 模型训练 / refit
-- P8B.4 生产回测授权
-- 修改 `docs/ml/label_spec.md`
+---
 
-## 相关文档
+## P8C.3 Forbidden
 
-- `docs/ml/p8c2_raw_lake_ingest_report.md`
-- `docs/ml/p8c2_ingest_owner_approval_record.md`（P8C.2 授权记录）
-- `docs/ml/p8c_controlled_dataset_expansion_plan.md`
+| Activity | Forbidden |
+|----------|-----------|
+| Model fitting | **Yes** |
+| Calling `.fit()` | **Yes** |
+| P8C.4 refit | **Yes** |
+| P8B.4 hyperparameter search | **Yes** |
+| Production backtest | **Yes** |
+| Trading signal | **Yes** |
+| New raw lake ingest | **Yes** |
+| Replacement dates | **Yes** |
+| Modify `docs/ml/label_spec.md` | **Yes** |
+| Modify `requirements.txt` | **Yes** |
+
+---
+
+## P8C.3 PASS Gate
+
+P8C.3 may close **PASS** only when all of the following hold:
+
+```text
+dataset rows built for 21 P8C dates
+feature rows built for 21 P8C dates
+expanded 40-session row count reported
+strict hash join PASS
+leakage validation PASS
+forbidden input validation PASS
+feature coverage report generated
+temporal warning carried forward
+proxy bucket warning rechecked or explicitly carried forward
+no model fitting
+no .fit()
+no P8B.4
+artifacts not committed
+tests pass
+ruff pass
+```
+
+---
+
+## Downstream Gates (unchanged)
+
+| Stage | Status |
+|-------|--------|
+| P8C.4 — FeatureSet_A locked refit (expanded) | **BLOCKED** |
+| P8C.5 — expanded result review | **BLOCKED** |
+| P8B.4 — hyperparameter search | **BLOCKED** |
+| P8B.5 — production backtest | **BLOCKED** |
+| P8B.6 — trading signal | **BLOCKED** |
+
+---
+
+## Owner Review Checklist (P8C.2 — completed)
+
+- [x] Frozen 21-day ingest status matches manifest
+- [x] `replacement_dates_used = false`
+- [x] `dataset_build_performed = false` during P8C.2
+- [x] Temporal / proxy bucket warnings recorded
+- [x] P8C.3 dataset + feature build approved (validation only)
+
+---
+
+## Related Documents
+
+- [`p8c_controlled_dataset_expansion_plan.md`](p8c_controlled_dataset_expansion_plan.md)
+- [`p8c_date_selection_rules.md`](p8c_date_selection_rules.md)
+- [`p8b3_8_next_gate_decision.md`](p8b3_8_next_gate_decision.md)
 - `config/ml/p8c2_raw_lake_ingest.yaml`
