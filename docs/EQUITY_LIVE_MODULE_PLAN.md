@@ -1,7 +1,7 @@
 # Single Equity Live Research Module — Implementation Plan
 
 **Status:** Draft — data inventory verified 2026-05-31 (no OPRA; no LongPort env yet)  
-**Route:** `#/stock?t=AAPL`  
+**Route:** `#/stock?ticker=AAPL` (legacy `#/stock?t=` and `#/stock/AAPL` also supported)  
 **Product stance:** On-demand research terminal — **no per-ticker Parquet archive**.  
 **Scope:** US single names (and ETFs as benchmarks). **Not** an 0DTE product; horizons are **short / mid / long** in parallel.
 

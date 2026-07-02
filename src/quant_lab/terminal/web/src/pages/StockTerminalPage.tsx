@@ -24,12 +24,7 @@ import {
 import { getEquityStrings } from "../lib/i18n/equityStrings";
 import type { Locale } from "../lib/locale";
 import { navigateTo } from "../lib/appRoute";
-
-function tickerFromHash(): string {
-  const q = window.location.hash.split("?")[1] ?? "";
-  const params = new URLSearchParams(q);
-  return (params.get("t") ?? "AAPL").trim().toUpperCase();
-}
+import { buildEquityStockHash, parseEquityTickerFromHash } from "../lib/equityRoute";
 
 function LocaleSwitch({ locale, setLocale }: { locale: Locale; setLocale: (l: Locale) => void }) {
   return (
@@ -55,8 +50,8 @@ function LocaleSwitch({ locale, setLocale }: { locale: Locale; setLocale: (l: Lo
 }
 
 export function StockTerminalPage() {
-  const [input, setInput] = useState(() => tickerFromHash());
-  const [ticker, setTicker] = useState(() => tickerFromHash());
+  const [input, setInput] = useState(() => parseEquityTickerFromHash());
+  const [ticker, setTicker] = useState(() => parseEquityTickerFromHash());
   const [timeframe, setTimeframe] = useState<ChartTimeframe>("1d");
   const { theme, toggleTheme } = useTheme();
   const { locale, setLocale } = useLocale();
@@ -64,7 +59,11 @@ export function StockTerminalPage() {
   const query = useEquityAnalyze(ticker, Boolean(ticker));
 
   useEffect(() => {
-    const onHash = () => setInput(tickerFromHash());
+    const onHash = () => {
+      const sym = parseEquityTickerFromHash();
+      setInput(sym);
+      setTicker(sym);
+    };
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
@@ -73,7 +72,7 @@ export function StockTerminalPage() {
     const sym = input.trim().toUpperCase();
     if (!sym) return;
     setTicker(sym);
-    window.location.hash = `#/stock?t=${encodeURIComponent(sym)}`;
+    window.location.hash = buildEquityStockHash(sym);
   }, [input]);
 
   const data = query.data;

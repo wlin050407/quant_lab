@@ -195,7 +195,7 @@ EoD 回测为 **粗近似**（无前日 intraday 链时，入场与 Greeks 均�
 | 模式 | 路由 | 回答问题 |
 |------|------|----------|
 | **Index 0DTE** | `#/index` | 今日 dealer gamma 分布、regime、磁吸位与 Pin Playbook |
-| **Equity 结构** | `#/stock?t=TICKER` | 单票 short / mid / long 多周期结构（流动性、flow、RS、期权覆盖层 — 非基本面） |
+| **Equity 结构** | `#/stock?ticker=TICKER` | 单票 short / mid / long 多周期结构（流动性、flow、RS、期权覆盖层 — 非基本面） |
 
 ### Index 0DTE 分析管线
 

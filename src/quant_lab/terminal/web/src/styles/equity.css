@@ -45,7 +45,9 @@
   border: 1px solid var(--border);
   background: var(--bg-elevated);
   color: var(--text);
-  width: 5.5rem;
+  width: 7.5ch;
+  min-width: 4.5rem;
+  max-width: 10rem;
 }
 
 .equity-loading {
@@ -141,10 +143,10 @@
   }
 
   .equity-ticker-input {
-    flex: 1 1 4.5rem;
-    min-width: 0;
+    flex: 1 1 5.5rem;
+    min-width: 4.5rem;
     width: auto;
-    max-width: 6rem;
+    max-width: 10rem;
   }
 
   .equity-main-col {
