@@ -3,23 +3,35 @@
 from __future__ import annotations
 
 import logging
-import sys
 
 import uvicorn
 
-from quant_lab.data.thetadata_client import ThetaDataConfigError, resolve_email_password
+from quant_lab.terminal.chain_provider import (
+    TerminalDataConfigError,
+    any_terminal_data_credentials_configured,
+)
 from quant_lab.terminal.deploy import basic_auth_credentials, listen_port
 
 log = logging.getLogger(__name__)
 
 
 def _preflight() -> None:
-    if resolve_email_password() is None:
+    if not any_terminal_data_credentials_configured():
         log.error(
-            "ThetaData credentials missing — set THETADATA_EMAIL + THETADATA_PASSWORD "
-            "(or THETADATA_CREDENTIALS_FILE) before starting the Terminal."
+            "Terminal intraday credentials missing — set GEXBOT_API_KEY (vendor mode) "
+            "or THETADATA_EMAIL + THETADATA_PASSWORD (legacy ThetaData mode). "
+            "See docs/terminal/GEXBOT_MIGRATION_PLAN.md"
         )
         raise SystemExit(1)
+
+    try:
+        from quant_lab.terminal.chain_provider import resolve_terminal_chain_provider
+
+        provider = resolve_terminal_chain_provider()
+        log.info("Terminal intraday provider: %s", provider)
+    except TerminalDataConfigError as exc:
+        log.error("%s", exc)
+        raise SystemExit(1) from exc
 
     auth = basic_auth_credentials()
     if auth is None:

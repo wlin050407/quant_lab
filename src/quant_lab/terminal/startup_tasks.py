@@ -1,0 +1,159 @@
+"""Background startup tasks for vendor Terminal (hist pre-warm, live cache poller)."""
+
+from __future__ import annotations
+
+import logging
+import threading
+from datetime import date, datetime
+
+from quant_lab.config import env_var
+from quant_lab.data.base import MARKET_TZ
+from quant_lab.data.gexbot_client import GexbotClient, GexbotConfigError, get_gexbot_client
+from quant_lab.data.gexbot_history_cache import gexbot_hist_cache_root, load_or_fetch_hist_day
+from quant_lab.terminal.chain_provider import resolve_terminal_chain_provider
+from quant_lab.terminal.deploy import history_retention_days, recent_trading_dates
+from quant_lab.terminal.live_chain import (
+    LIVE_TIME_OF_DAY,
+    fetch_intraday_chain_from_vendors,
+    is_live_session,
+    live_refresh_seconds,
+    market_today,
+)
+
+log = logging.getLogger(__name__)
+
+PREWARM_SYMBOLS = ("^SPX", "SPY", "QQQ")
+_shutdown = threading.Event()
+_threads: list[threading.Thread] = []
+
+
+def _env_enabled(name: str, *, default: str = "1") -> bool:
+    raw = env_var(name, default=default)
+    return raw is not None and raw.strip().lower() not in ("0", "false", "no", "off")
+
+
+def is_us_rth_now() -> bool:
+    """True during regular US cash session (09:30–16:00 ET, Mon–Fri)."""
+    now = datetime.now(MARKET_TZ)
+    if now.weekday() >= 5:
+        return False
+    open_minutes = 9 * 60 + 30
+    close_minutes = 16 * 60
+    now_minutes = now.hour * 60 + now.minute
+    return open_minutes <= now_minutes < close_minutes
+
+
+def prewarm_gexbot_history(
+    *,
+    symbols: tuple[str, ...] = PREWARM_SYMBOLS,
+    client: GexbotClient | None = None,
+    days: int | None = None,
+) -> dict[str, int]:
+    """Download + cache GEXBot hist Parquet for recent session dates.
+
+    Returns counts: ``{"ok": n, "skipped": n, "failed": n}``.
+    """
+    gex = client or get_gexbot_client()
+    window = days if days is not None else history_retention_days()
+    if window is None:
+        window = 14
+    dates = [date.fromisoformat(d) for d in recent_trading_dates(days=window)]
+    stats = {"ok": 0, "skipped": 0, "failed": 0}
+    for sym in symbols:
+        for session_date in dates:
+            try:
+                load_or_fetch_hist_day(gex, sym, session_date)
+                stats["ok"] += 1
+            except FileNotFoundError:
+                stats["skipped"] += 1
+                log.debug("gexbot hist unavailable %s %s", sym, session_date)
+            except OSError as exc:
+                stats["failed"] += 1
+                log.warning("gexbot hist prewarm failed %s %s: %s", sym, session_date, exc)
+    return stats
+
+
+def _run_prewarm() -> None:
+    try:
+        stats = prewarm_gexbot_history()
+        log.info(
+            "gexbot hist prewarm complete ok=%d skipped=%d failed=%d cache=%s",
+            stats["ok"],
+            stats["skipped"],
+            stats["failed"],
+            gexbot_hist_cache_root(),
+        )
+    except GexbotConfigError as exc:
+        log.warning("gexbot hist prewarm skipped: %s", exc)
+    except Exception as exc:
+        log.exception("gexbot hist prewarm error: %s", exc)
+
+
+def _run_vendor_live_poller() -> None:
+    """Keep vendor live cache warm during RTH (REST; complements UI polling)."""
+    log.info("vendor live poller started (interval=%ss)", live_refresh_seconds())
+    while not _shutdown.is_set():
+        if is_live_session(market_today()) and is_us_rth_now():
+            for sym in PREWARM_SYMBOLS:
+                if _shutdown.is_set():
+                    break
+                try:
+                    fetch_intraday_chain_from_vendors(
+                        market_today(),
+                        LIVE_TIME_OF_DAY,
+                        symbol=sym,
+                        chain_mode="gex",
+                    )
+                except Exception as exc:
+                    log.debug("vendor live poller %s: %s", sym, exc)
+        _shutdown.wait(timeout=live_refresh_seconds())
+
+
+def start_background_tasks() -> None:
+    """Start daemon threads when vendor provider is active."""
+    global _threads
+    if _threads:
+        return
+    try:
+        provider = resolve_terminal_chain_provider()
+    except Exception as exc:
+        log.warning("background tasks skipped: %s", exc)
+        return
+    if provider != "vendor":
+        log.info("background tasks skipped (provider=%s)", provider)
+        return
+
+    if _env_enabled("TERMINAL_PREWARM_HIST"):
+        t = threading.Thread(target=_run_prewarm, name="gexbot-prewarm", daemon=True)
+        t.start()
+        _threads.append(t)
+
+    if _env_enabled("TERMINAL_VENDOR_LIVE_POLLER"):
+        t = threading.Thread(target=_run_vendor_live_poller, name="vendor-live-poller", daemon=True)
+        t.start()
+        _threads.append(t)
+
+
+def stop_background_tasks() -> None:
+    """Signal background threads to stop (app shutdown)."""
+    _shutdown.set()
+    for t in _threads:
+        t.join(timeout=2.0)
+    _threads.clear()
+
+
+def cache_status() -> dict[str, str | int | None]:
+    """Lightweight status for ``/api/health``."""
+    root = gexbot_hist_cache_root()
+    try:
+        provider = resolve_terminal_chain_provider()
+    except Exception:
+        provider = None
+    parquet_files = list(root.glob("**/*.parquet")) if root.is_dir() else []
+    return {
+        "chain_provider": provider,
+        "gexbot_hist_cache_dir": str(root),
+        "gexbot_hist_parquet_files": len(parquet_files),
+        "prewarm_enabled": _env_enabled("TERMINAL_PREWARM_HIST"),
+        "live_poller_enabled": _env_enabled("TERMINAL_VENDOR_LIVE_POLLER"),
+    }

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from contextlib import asynccontextmanager
 from datetime import date
 from pathlib import Path
 
@@ -10,18 +11,36 @@ from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from quant_lab.data.thetadata_chain import ChainMode
 from quant_lab.terminal.auth import TerminalBasicAuthMiddleware
 from quant_lab.terminal.equity_live import build_equity_analysis
 from quant_lab.terminal.live_chain import market_today
-from quant_lab.data.thetadata_chain import ChainMode
-from quant_lab.terminal.snapshot import build_dashboard, list_terminal_dates, resolve_default_terminal_date
+from quant_lab.terminal.snapshot import (
+    build_dashboard,
+    list_terminal_dates,
+    resolve_default_terminal_date,
+)
+from quant_lab.terminal.startup_tasks import (
+    cache_status,
+    start_background_tasks,
+    stop_background_tasks,
+)
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 DIST_DIR = STATIC_DIR / "dist"
 
-app = FastAPI(title="quant_lab Terminal", version="0.2.0")
-app.add_middleware(TerminalBasicAuthMiddleware)
 log = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def _lifespan(_app: FastAPI):
+    start_background_tasks()
+    yield
+    stop_background_tasks()
+
+
+app = FastAPI(title="quant_lab Terminal", version="0.2.0", lifespan=_lifespan)
+app.add_middleware(TerminalBasicAuthMiddleware)
 
 
 def _ui_index() -> Path:
@@ -35,11 +54,13 @@ def _ui_index() -> Path:
 
 
 @app.get("/api/health")
-def health() -> dict[str, str]:
+def health() -> dict[str, str | int | bool | None]:
+    status = cache_status()
     return {
         "status": "ok",
         "ui": "react" if (DIST_DIR / "index.html").exists() else "legacy",
         "equity_api": "v1",
+        **status,
     }
 
 

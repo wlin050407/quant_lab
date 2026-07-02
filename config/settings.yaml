@@ -32,3 +32,7 @@ data_source:
     index_symbol: SPX
     pin_play_times_et: ["10:00:00", "13:00:00", "15:30:00"]
     strike_range: 40
+  terminal:
+    # auto | vendor | thetadata — see docs/terminal/GEXBOT_MIGRATION_PLAN.md
+    chain_provider: auto
+    gexbot_hist_cache_dir: data/processed/gexbot_hist

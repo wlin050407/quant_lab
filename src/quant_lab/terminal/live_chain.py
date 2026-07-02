@@ -1,6 +1,6 @@
-"""Live ThetaData intraday chain fetch for Terminal (today only).
+"""Live intraday chain fetch for Terminal (today + recent history).
 
-Historical sessions use local parquet via ``load_built_intraday_chain``.
+Supports ThetaData (legacy) and GEXBot + Unusual Whales (vendor) providers.
 """
 
 from __future__ import annotations
@@ -14,10 +14,19 @@ import pandas as pd
 
 from quant_lab.config import env_var
 from quant_lab.data.base import MARKET_TZ
+from quant_lab.data.gexbot_client import get_gexbot_client
 from quant_lab.data.intraday_time import session_datetime
-from quant_lab.data.thetadata_chain import build_0dte_chain_snapshot, ChainMode
+from quant_lab.data.thetadata_chain import ChainMode, build_0dte_chain_snapshot
 from quant_lab.data.thetadata_client import get_thetadata_client, refresh_thetadata_client
+from quant_lab.data.unusualwhales_client import (
+    UnusualWhalesConfigError,
+    get_unusual_whales_client,
+    resolve_unusual_whales_api_key,
+)
+from quant_lab.data.vendor_chain import build_0dte_chain_from_vendors
+from quant_lab.terminal.chain_provider import resolve_terminal_chain_provider
 from quant_lab.terminal.intraday_spec import resolve_intraday_spec
+from quant_lab.terminal.session_oi_cache import get_reference_oi
 
 if TYPE_CHECKING:
     from thetadata import ThetaClient
@@ -337,6 +346,146 @@ def fetch_intraday_chain_from_thetadata(
     return chain, spot, effective_time, False
 
 
+def fetch_intraday_chain_from_vendors(
+    session_date: date,
+    time_of_day: str,
+    *,
+    symbol: str = "^SPX",
+    cache_ttl_seconds: float | None = None,
+    chain_mode: ChainMode = "pin",
+) -> tuple[pd.DataFrame, float, str, bool]:
+    """Build 0DTE chain from GEXBot + Unusual Whales with shared live cache."""
+    spec = resolve_intraday_spec(symbol)
+    if spec is None:
+        raise ValueError(f"no intraday spec for {symbol!r}")
+
+    effective_time = _effective_time_of_day(session_date, time_of_day)
+    live_follow = (
+        time_of_day.strip().lower() == LIVE_TIME_OF_DAY and is_live_session(session_date)
+    )
+    cache_key: _CacheKey = (
+        spec.terminal_symbol,
+        session_date.isoformat(),
+        "live" if live_follow else effective_time,
+        chain_mode,
+    )
+    ttl = (
+        cache_ttl_seconds
+        if cache_ttl_seconds is not None
+        else (
+            live_refresh_seconds()
+            if is_live_session(session_date)
+            else HISTORICAL_CACHE_TTL_SECONDS
+        )
+    )
+    now_mono = time.monotonic()
+    cached = _live_cache.get(cache_key)
+    if cached is not None:
+        expires_at, chain, spot, time_used, fetched_at = cached
+        if now_mono < expires_at:
+            _live_poll_flags[cache_key] = {
+                "fetched_at_mono": fetched_at,
+                "from_cache": True,
+                "stale_served": False,
+                "time_used": time_used,
+            }
+            return chain.copy(), spot, time_used, True
+
+    gexbot = get_gexbot_client()
+    uw = None
+    if resolve_unusual_whales_api_key():
+        try:
+            uw = get_unusual_whales_client()
+        except UnusualWhalesConfigError:
+            uw = None
+
+    ref_oi = get_reference_oi(spec.terminal_symbol, session_date)
+    use_hist_spot = not is_live_session(session_date)
+
+    t0 = time.monotonic()
+    try:
+        snapshot = build_0dte_chain_from_vendors(
+            gexbot,
+            uw,
+            session_date=session_date,
+            time_of_day=effective_time,
+            terminal_symbol=spec.terminal_symbol,
+            option_root=spec.option_root,
+            chain_mode=chain_mode,
+            reference_oi=ref_oi,
+            use_hist_spot=use_hist_spot,
+        )
+    except Exception as exc:
+        stale = _serve_stale_cache(
+            cache_key,
+            spec.terminal_symbol,
+            effective_time,
+            chain_mode,
+            exc,
+            now_mono,
+        )
+        if stale is not None:
+            return stale
+        raise
+
+    elapsed_ms = (time.monotonic() - t0) * 1000.0
+    chain = snapshot.chain.copy()
+    spot = float(snapshot.spot)
+    fetched_at = now_mono
+    _live_cache[cache_key] = (
+        now_mono + ttl,
+        chain.copy(),
+        spot,
+        effective_time,
+        fetched_at,
+    )
+    _live_poll_flags[cache_key] = {
+        "fetched_at_mono": fetched_at,
+        "from_cache": False,
+        "stale_served": False,
+        "time_used": effective_time,
+    }
+    log.info(
+        "vendor intraday chain %s %s @ %s mode=%s (%d rows, %.0fms)",
+        spec.terminal_symbol,
+        session_date.isoformat(),
+        effective_time,
+        chain_mode,
+        len(chain),
+        elapsed_ms,
+    )
+    return chain, spot, effective_time, False
+
+
+def fetch_intraday_chain(
+    session_date: date,
+    time_of_day: str,
+    *,
+    symbol: str = "^SPX",
+    strike_range: int | None = None,
+    cache_ttl_seconds: float | None = None,
+    chain_mode: ChainMode = "pin",
+) -> tuple[pd.DataFrame, float, str, bool]:
+    """Provider-aware intraday chain fetch (ThetaData or GEXBot+UW)."""
+    provider = resolve_terminal_chain_provider()
+    if provider == "vendor":
+        return fetch_intraday_chain_from_vendors(
+            session_date,
+            time_of_day,
+            symbol=symbol,
+            cache_ttl_seconds=cache_ttl_seconds,
+            chain_mode=chain_mode,
+        )
+    return fetch_intraday_chain_from_thetadata(
+        session_date,
+        time_of_day,
+        symbol=symbol,
+        strike_range=strike_range,
+        cache_ttl_seconds=cache_ttl_seconds,
+        chain_mode=chain_mode,
+    )
+
+
 def fetch_live_intraday_chain(
     session_date: date,
     time_of_day: str,
@@ -353,7 +502,7 @@ def fetch_live_intraday_chain(
     if not is_live_session(session_date):
         raise ValueError(f"fetch_live_intraday_chain is for today only, got {session_date}")
 
-    return fetch_intraday_chain_from_thetadata(
+    return fetch_intraday_chain(
         session_date,
         time_of_day,
         symbol=symbol,

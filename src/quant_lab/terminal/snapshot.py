@@ -32,13 +32,14 @@ from quant_lab.terminal.deploy import (
 from quant_lab.factors.effective_oi import EFFECTIVE_OI_COL, FLOW_SOURCE_COL
 from quant_lab.terminal.live_chain import (
     LIVE_TIME_OF_DAY,
-    fetch_intraday_chain_from_thetadata,
+    fetch_intraday_chain,
     fetch_live_intraday_chain,
     is_live_session,
     live_refresh_seconds,
     market_today,
     resolve_intraday_clock,
 )
+from quant_lab.terminal.chain_provider import resolve_terminal_chain_provider
 from quant_lab.factors.gex import (
     add_bs_gamma_column,
     add_bs_vanna_column,
@@ -388,7 +389,7 @@ def _thetadata_unavailable(exc: BaseException) -> bool:
     return any(n in msg for n in needles)
 
 
-def _fetch_thetadata_intraday_chain(
+def _fetch_remote_intraday_chain(
     session: date,
     iso: str,
     symbol: str,
@@ -398,13 +399,15 @@ def _fetch_thetadata_intraday_chain(
 ) -> tuple[pd.DataFrame, float, str, str]:
     if not is_date_in_history_window(session):
         raise FileNotFoundError(f"no intraday chain for {symbol} on {iso} (outside history window)")
+    provider = resolve_terminal_chain_provider()
     try:
-        chain, spot, time_used, _cached = fetch_intraday_chain_from_thetadata(
+        chain, spot, time_used, _cached = fetch_intraday_chain(
             session, time_of_day, symbol=symbol, chain_mode=chain_mode
         )
     except Exception as exc:
         log.warning(
-            "ThetaData chain fetch failed for %s on %s @ %s: %s",
+            "%s chain fetch failed for %s on %s @ %s: %s",
+            provider,
             symbol,
             iso,
             time_of_day,
@@ -413,7 +416,12 @@ def _fetch_thetadata_intraday_chain(
         raise FileNotFoundError(
             f"no intraday chain for {symbol} on {iso} @ {time_of_day}"
         ) from exc
-    source = "live" if is_live_session(session) else "thetadata"
+    if is_live_session(session):
+        source = "live"
+    elif provider == "vendor":
+        source = "vendor"
+    else:
+        source = "thetadata"
     return chain, spot, time_used, source
 
 
@@ -437,11 +445,11 @@ def _load_intraday_chain_fallbacks(
     option_root: str,
     chain_mode: ChainMode,
 ) -> ChainLoad:
-    """After live cache misses: remote ThetaData (honors ``chain_mode``), then local parquet."""
+    """After live cache misses: remote provider (vendor or ThetaData), then local parquet."""
     remote_exc: FileNotFoundError | None = None
     if is_date_in_history_window(session):
         try:
-            return _fetch_thetadata_intraday_chain(
+            return _fetch_remote_intraday_chain(
                 session, iso, symbol, time_of_day=clock, chain_mode=chain_mode
             )
         except FileNotFoundError as exc:
@@ -472,7 +480,7 @@ def _load_intraday_chain_safe(
 ) -> ChainLoad:
     """Load 0DTE intraday chain for the terminal dashboard.
 
-    Order: **live** in-memory cache → **remote** ThetaData (respects ``chain_mode``) →
+    Order: **live** in-memory cache → **remote** vendor or ThetaData (respects ``chain_mode``) →
     **local** intraday parquet. Default ``chain_mode="pin"`` uses 09:30 reference OI;
     ``full`` adds session trade flow; ``gex`` skips flow for aux heatmaps only.
     """
@@ -491,7 +499,7 @@ def _load_intraday_chain_safe(
             return chain, spot, time_used, "live"
         except Exception as exc:
             log.warning(
-                "live ThetaData fetch failed for %s %s @ %s: %s — trying fallbacks",
+                "live remote fetch failed for %s %s @ %s: %s — trying fallbacks",
                 symbol,
                 iso,
                 clock,
@@ -692,7 +700,16 @@ def _session_time_to_close_pct(session: date, time_of_day: str | None) -> float:
 
 
 def _intraday_chain_sources() -> frozenset[str]:
-    return frozenset({"live", "local", "thetadata", "thetadata_live"})
+    return frozenset({"live", "local", "thetadata", "thetadata_live", "vendor"})
+
+
+def _provider_display_name() -> str:
+    try:
+        from quant_lab.terminal.chain_provider import resolve_terminal_chain_provider
+
+        return "GEXBot+UW" if resolve_terminal_chain_provider() == "vendor" else "ThetaData"
+    except Exception:
+        return "ThetaData"
 
 
 def _skip_flip_on_live_poll(chain_source: str | None) -> bool:
@@ -729,8 +746,13 @@ def _refresh_row_from_intraday_chain(
 def _intraday_data_labels(chain_source: str, time_used: str) -> tuple[str, str]:
     """Map intraday load result to ``(data_source, data_mode)``."""
     tshort = time_used[:5] if time_used else "??:??"
+    vendor = _provider_display_name()
     if chain_source == "live":
+        if vendor == "GEXBot+UW":
+            return "vendor_live", f"GEXBot+UW live @ {tshort} ET"
         return "thetadata_live", f"ThetaData live @ {tshort} ET"
+    if chain_source == "vendor":
+        return "vendor", f"GEXBot+UW intraday @ {tshort} ET"
     return "thetadata", f"ThetaData intraday @ {tshort} ET"
 
 
@@ -1083,6 +1105,29 @@ def build_session_hold_dashboard(
     return json_safe(payload)
 
 
+def _fetch_vendor_levels_overlay(symbol: str) -> dict[str, Any] | None:
+    """GEXBot majors/flip for cross-check in API meta (vendor provider only)."""
+    try:
+        if resolve_terminal_chain_provider() != "vendor":
+            return None
+        from quant_lab.data.gexbot_client import get_gexbot_client, gexbot_ticker
+        from quant_lab.data.vendor_chain import vendor_levels_from_classic
+
+        client = get_gexbot_client()
+        ticker = gexbot_ticker(symbol)
+        levels = vendor_levels_from_classic(client.classic(ticker, "gex_zero"))
+        try:
+            levels.update(vendor_levels_from_classic(client.classic_majors(ticker, "gex_zero")))
+        except (OSError, PermissionError, ValueError):
+            pass
+        levels["source"] = "gexbot"
+        levels["gex_method"] = "vendor_precomputed"
+        return levels
+    except Exception as exc:
+        log.debug("vendor levels overlay unavailable: %s", exc)
+        return None
+
+
 def build_dashboard(
     symbol: str,
     asof: date,
@@ -1116,13 +1161,16 @@ def build_dashboard(
                 iso, symbol, time_of_day=time_of_day, chain_mode=chain_mode
             )
             session_hours = _session_hours_to_close(asof, intraday_time or time_of_day)
+            provider_label = _provider_display_name()
             if main_chain_source == "live":
                 if _is_live_follow_request(asof, time_of_day):
-                    data_mode = f"ThetaData live follow @ {intraday_time[:5]} ET"
+                    data_mode = f"{provider_label} live follow @ {intraday_time[:5]} ET"
                 else:
-                    data_mode = f"ThetaData snapshot @ {intraday_time[:5]} ET"
+                    data_mode = f"{provider_label} snapshot @ {intraday_time[:5]} ET"
+            elif main_chain_source == "vendor":
+                data_mode = f"{provider_label} intraday @ {intraday_time[:5]} ET"
             else:
-                data_mode = f"ThetaData intraday @ {intraday_time[:5]} ET"
+                data_mode = f"{provider_label} intraday @ {intraday_time[:5]} ET"
             if (
                 main_chain_source in _intraday_chain_sources()
                 and not chain.empty
@@ -1471,9 +1519,13 @@ def build_dashboard(
         is_live_poll=live_follow,
         live_follow=live_follow,
         data_source=(
-            "thetadata_live"
-            if main_chain_source == "live"
-            else ("thetadata" if "ThetaData" in data_mode else "eod")
+            "vendor_live"
+            if main_chain_source == "live" and _provider_display_name() == "GEXBot+UW"
+            else (
+                "thetadata_live"
+                if main_chain_source == "live"
+                else ("vendor" if main_chain_source == "vendor" else ("thetadata" if "ThetaData" in data_mode else "eod"))
+            )
         ),
         cohort_fallback=cohort_fallback,
         t_diag=t_diag,
@@ -1498,9 +1550,21 @@ def build_dashboard(
         magnet_shift = record_magnet_shift(symbol, iso, levels["king"])
 
     ds_meta = (
-        "thetadata_live"
-        if "live" in data_mode.lower()
-        else ("thetadata" if "ThetaData" in data_mode else "eod")
+        "vendor_live"
+        if main_chain_source == "live" and _provider_display_name() == "GEXBot+UW"
+        else (
+            "thetadata_live"
+            if "live" in data_mode.lower() and "ThetaData" in data_mode
+            else (
+                "vendor_live"
+                if "live" in data_mode.lower() and "GEXBot" in data_mode
+                else (
+                    "vendor"
+                    if main_chain_source == "vendor"
+                    else ("thetadata" if "ThetaData" in data_mode else "eod")
+                )
+            )
+        )
     )
     model_metadata = build_model_metadata(
         gex_inputs=gex_inputs,
@@ -1514,6 +1578,7 @@ def build_dashboard(
         live_pin_quality=live_pin_quality_to_dict(live_quality),
         live_chain_poll=live_poll,
     )
+    vendor_levels = _fetch_vendor_levels_overlay(symbol)
 
     payload = {
         "symbol": symbol,
@@ -1571,7 +1636,11 @@ def build_dashboard(
             ),
             "chain_time_requested": chain_time_requested,
             "intraday_times_available": ["live", *list(PIN_PLAY_TIMES_ET)],
-            "quote_granularity": "1m" if main_chain_source in ("live", "local", "thetadata") else None,
+            "quote_granularity": (
+                "1s"
+                if main_chain_source == "vendor"
+                else ("1m" if main_chain_source in ("live", "local", "thetadata") else None)
+            ),
             "live_refresh_seconds": refresh_secs,
             "oi_mode": pos_meta["oi_mode"],
             "volume_source": pos_meta["volume_source"],
@@ -1590,6 +1659,7 @@ def build_dashboard(
             "t_years_at_calc": _f(row.get("t_years_at_calc")),
             "em_source": row.get("em_source"),
             "model_metadata": model_metadata,
+            "vendor_levels": vendor_levels,
         },
     }
     return json_safe(payload)

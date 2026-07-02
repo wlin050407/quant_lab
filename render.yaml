@@ -3,16 +3,28 @@ services:
     name: quantlab-terminal
     runtime: docker
     dockerfilePath: ./Dockerfile
+    # Starter ($7/mo) recommended: always-on during market hours (no free-tier spin-down).
     plan: starter
     healthCheckPath: /api/health
     envVars:
+      - key: TERMINAL_CHAIN_PROVIDER
+        value: auto
       - key: TERMINAL_HISTORY_DAYS
         value: "14"
-      - key: THETADATA_EMAIL
+      - key: TERMINAL_PREWARM_HIST
+        value: "1"
+      - key: TERMINAL_VENDOR_LIVE_POLLER
+        value: "1"
+      - key: GEXBOT_API_KEY
         sync: false
-      - key: THETADATA_PASSWORD
+      - key: UNUSUAL_WHALES_API_KEY
         sync: false
       - key: TERMINAL_AUTH_USER
         sync: false
       - key: TERMINAL_AUTH_PASSWORD
+        sync: false
+      # Legacy ThetaData rollback (optional):
+      - key: THETADATA_EMAIL
+        sync: false
+      - key: THETADATA_PASSWORD
         sync: false

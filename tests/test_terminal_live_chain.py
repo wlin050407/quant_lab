@@ -94,16 +94,19 @@ def test_fetch_live_intraday_chain_uses_cache() -> None:
 
     with patch.object(live_chain, "is_live_session", return_value=True):
         with patch.object(live_chain, "_effective_time_of_day", return_value="13:00:00"):
-            with patch.object(live_chain, "get_thetadata_client"):
-                with patch.object(
-                    live_chain, "build_0dte_chain_snapshot", return_value=snapshot
-                ) as mock_build:
-                    out1, spot1, time1, cached1 = fetch_live_intraday_chain(
-                        today, "13:00:00", symbol="^SPX"
-                    )
-                    out2, spot2, time2, cached2 = fetch_live_intraday_chain(
-                        today, "13:00:00", symbol="^SPX"
-                    )
+            with patch.object(
+                live_chain, "resolve_terminal_chain_provider", return_value="thetadata"
+            ):
+                with patch.object(live_chain, "get_thetadata_client"):
+                    with patch.object(
+                        live_chain, "build_0dte_chain_snapshot", return_value=snapshot
+                    ) as mock_build:
+                        out1, spot1, time1, cached1 = fetch_live_intraday_chain(
+                            today, "13:00:00", symbol="^SPX"
+                        )
+                        out2, spot2, time2, cached2 = fetch_live_intraday_chain(
+                            today, "13:00:00", symbol="^SPX"
+                        )
 
     assert mock_build.call_count == 1
     assert cached1 is False
@@ -160,12 +163,16 @@ def test_load_intraday_chain_thetadata_when_local_missing() -> None:
                 return_value=True,
             ):
                 with patch(
-                    "quant_lab.terminal.snapshot.fetch_intraday_chain_from_thetadata",
+                    "quant_lab.terminal.snapshot.fetch_intraday_chain",
                     return_value=(remote_df, 5200.0, "13:00:00", False),
                 ):
-                    chain, spot, _time_used, source = _load_intraday_chain_safe(
-                        "2026-05-28", "^SPX", time_of_day="13:00:00"
-                    )
+                    with patch(
+                        "quant_lab.terminal.snapshot.resolve_terminal_chain_provider",
+                        return_value="thetadata",
+                    ):
+                        chain, spot, _time_used, source = _load_intraday_chain_safe(
+                            "2026-05-28", "^SPX", time_of_day="13:00:00"
+                        )
     assert source == "thetadata"
     assert spot == 5200.0
     assert chain.iloc[0]["strike"] == 5200.0
@@ -182,16 +189,20 @@ def test_load_intraday_chain_prefers_remote_over_local_for_recent_session() -> N
             return_value=True,
         ):
             with patch(
-                "quant_lab.terminal.snapshot.fetch_intraday_chain_from_thetadata",
+                "quant_lab.terminal.snapshot.fetch_intraday_chain",
                 return_value=(remote_df, 5300.0, "13:00:00", False),
             ) as mock_remote:
                 with patch(
-                    "quant_lab.terminal.snapshot.load_built_intraday_chain",
-                    return_value=(local_df, local_meta),
-                ) as mock_local:
-                    chain, spot, _time_used, source = _load_intraday_chain_safe(
-                        "2026-05-29", "^SPX", time_of_day="13:00:00"
-                    )
+                    "quant_lab.terminal.snapshot.resolve_terminal_chain_provider",
+                    return_value="thetadata",
+                ):
+                    with patch(
+                        "quant_lab.terminal.snapshot.load_built_intraday_chain",
+                        return_value=(local_df, local_meta),
+                    ) as mock_local:
+                        chain, spot, _time_used, source = _load_intraday_chain_safe(
+                            "2026-05-29", "^SPX", time_of_day="13:00:00"
+                        )
     mock_remote.assert_called_once()
     mock_local.assert_not_called()
     assert source == "thetadata"
@@ -208,7 +219,7 @@ def test_load_intraday_chain_falls_back_to_local_when_remote_missing() -> None:
             return_value=True,
         ):
             with patch(
-                "quant_lab.terminal.snapshot._fetch_thetadata_intraday_chain",
+                "quant_lab.terminal.snapshot._fetch_remote_intraday_chain",
                 side_effect=FileNotFoundError("no remote"),
             ):
                 with patch(
@@ -241,12 +252,16 @@ def test_live_fail_falls_through_to_thetadata_when_local_missing() -> None:
                     return_value=True,
                 ):
                     with patch(
-                        "quant_lab.terminal.snapshot.fetch_intraday_chain_from_thetadata",
+                        "quant_lab.terminal.snapshot.fetch_intraday_chain",
                         return_value=(remote_df, 5100.0, "13:00:00", False),
                     ) as mock_remote:
-                        chain, spot, _time_used, source = _load_intraday_chain_safe(
-                            today.isoformat(), "^SPX", time_of_day="live"
-                        )
+                        with patch(
+                            "quant_lab.terminal.snapshot.resolve_terminal_chain_provider",
+                            return_value="thetadata",
+                        ):
+                            chain, spot, _time_used, source = _load_intraday_chain_safe(
+                                today.isoformat(), "^SPX", time_of_day="live"
+                            )
     mock_remote.assert_called_once()
     assert spot == 5100.0
     assert chain.iloc[0]["strike"] == 5100.0
@@ -274,25 +289,28 @@ def test_fetch_intraday_serves_stale_cache_on_network_failure() -> None:
 
     with patch.object(live_chain, "is_live_session", return_value=True):
         with patch.object(live_chain, "_effective_time_of_day", return_value="13:00:00"):
-            with patch.object(live_chain, "get_thetadata_client"):
-                with patch.object(
-                    live_chain, "build_0dte_chain_snapshot"
-                ) as mock_build:
-                    mock_build.return_value = fresh_snapshot
-                    chain1, spot1, time1, cached1 = fetch_intraday_chain_from_thetadata(
-                        today, "13:00:00", symbol="^SPX", cache_ttl_seconds=0.01
-                    )
-                    assert cached1 is False
-                    assert spot1 == 5000.0
+            with patch.object(
+                live_chain, "resolve_terminal_chain_provider", return_value="thetadata"
+            ):
+                with patch.object(live_chain, "get_thetadata_client"):
+                    with patch.object(
+                        live_chain, "build_0dte_chain_snapshot"
+                    ) as mock_build:
+                        mock_build.return_value = fresh_snapshot
+                        chain1, spot1, time1, cached1 = fetch_intraday_chain_from_thetadata(
+                            today, "13:00:00", symbol="^SPX", cache_ttl_seconds=0.01
+                        )
+                        assert cached1 is False
+                        assert spot1 == 5000.0
 
-                    import time as _time
-                    _time.sleep(0.05)
+                        import time as _time
+                        _time.sleep(0.05)
 
-                    mock_build.reset_mock()
-                    mock_build.side_effect = RuntimeError("UNAVAILABLE: gRPC blip")
-                    chain2, spot2, time2, cached2 = fetch_intraday_chain_from_thetadata(
-                        today, "13:00:00", symbol="^SPX", cache_ttl_seconds=0.01
-                    )
+                        mock_build.reset_mock()
+                        mock_build.side_effect = RuntimeError("UNAVAILABLE: gRPC blip")
+                        chain2, spot2, time2, cached2 = fetch_intraday_chain_from_thetadata(
+                            today, "13:00:00", symbol="^SPX", cache_ttl_seconds=0.01
+                        )
 
     assert cached2 is True, "stale cache should be served when fetch fails"
     assert spot2 == 5000.0
@@ -307,15 +325,18 @@ def test_fetch_intraday_raises_when_no_stale_cache_available() -> None:
     today = live_chain.market_today()
     with patch.object(live_chain, "is_live_session", return_value=True):
         with patch.object(live_chain, "_effective_time_of_day", return_value="13:00:00"):
-            with patch.object(live_chain, "get_thetadata_client"):
-                with patch.object(
-                    live_chain, "build_0dte_chain_snapshot",
-                    side_effect=RuntimeError("UNAVAILABLE: gRPC blip"),
-                ):
-                    with pytest.raises(RuntimeError, match="UNAVAILABLE"):
-                        fetch_intraday_chain_from_thetadata(
-                            today, "13:00:00", symbol="^SPX", cache_ttl_seconds=0.01
-                        )
+            with patch.object(
+                live_chain, "resolve_terminal_chain_provider", return_value="thetadata"
+            ):
+                with patch.object(live_chain, "get_thetadata_client"):
+                    with patch.object(
+                        live_chain, "build_0dte_chain_snapshot",
+                        side_effect=RuntimeError("UNAVAILABLE: gRPC blip"),
+                    ):
+                        with pytest.raises(RuntimeError, match="UNAVAILABLE"):
+                            fetch_intraday_chain_from_thetadata(
+                                today, "13:00:00", symbol="^SPX", cache_ttl_seconds=0.01
+                            )
 
 
 def test_fetch_intraday_skips_stale_cache_past_max_age() -> None:
@@ -336,24 +357,25 @@ def test_fetch_intraday_skips_stale_cache_past_max_age() -> None:
 
     with patch.object(lc, "is_live_session", return_value=True):
         with patch.object(lc, "_effective_time_of_day", return_value="13:00:00"):
-            with patch.object(lc, "get_thetadata_client"):
-                with patch.object(lc, "build_0dte_chain_snapshot") as mock_build:
-                    mock_build.return_value = fresh_snapshot
-                    fetch_intraday_chain_from_thetadata(
-                        today, "13:00:00", symbol="^SPX", cache_ttl_seconds=0.01
-                    )
+            with patch.object(lc, "resolve_terminal_chain_provider", return_value="thetadata"):
+                with patch.object(lc, "get_thetadata_client"):
+                    with patch.object(lc, "build_0dte_chain_snapshot") as mock_build:
+                        mock_build.return_value = fresh_snapshot
+                        fetch_intraday_chain_from_thetadata(
+                            today, "13:00:00", symbol="^SPX", cache_ttl_seconds=0.01
+                        )
 
-                with patch.object(lc, "STALE_CACHE_MAX_SECONDS", 0.0):
-                    import time as _time
-                    _time.sleep(0.05)
-                    with patch.object(
-                        lc, "build_0dte_chain_snapshot",
-                        side_effect=RuntimeError("UNAVAILABLE"),
-                    ):
-                        with pytest.raises(RuntimeError, match="UNAVAILABLE"):
-                            fetch_intraday_chain_from_thetadata(
-                                today, "13:00:00", symbol="^SPX", cache_ttl_seconds=0.01
-                            )
+                    with patch.object(lc, "STALE_CACHE_MAX_SECONDS", 0.0):
+                        import time as _time
+                        _time.sleep(0.05)
+                        with patch.object(
+                            lc, "build_0dte_chain_snapshot",
+                            side_effect=RuntimeError("UNAVAILABLE"),
+                        ):
+                            with pytest.raises(RuntimeError, match="UNAVAILABLE"):
+                                fetch_intraday_chain_from_thetadata(
+                                    today, "13:00:00", symbol="^SPX", cache_ttl_seconds=0.01
+                                )
 
 
 def test_fetch_live_cache_isolated_by_symbol() -> None:
@@ -364,23 +386,26 @@ def test_fetch_live_cache_isolated_by_symbol() -> None:
 
     with patch.object(live_chain, "is_live_session", return_value=True):
         with patch.object(live_chain, "_effective_time_of_day", return_value="13:00:00"):
-            with patch.object(live_chain, "get_thetadata_client"):
-                with patch.object(live_chain, "build_0dte_chain_snapshot") as mock_build:
-                    mock_build.side_effect = [
-                        OptionChainSnapshot(
-                            symbol="^SPX",
-                            asof=datetime(2026, 5, 24, 17, 0, tzinfo=timezone.utc),
-                            spot=5000.0,
-                            chain=chain_spx,
-                        ),
-                        OptionChainSnapshot(
-                            symbol="SPY",
-                            asof=datetime(2026, 5, 24, 17, 0, tzinfo=timezone.utc),
-                            spot=500.0,
-                            chain=chain_spy,
-                        ),
-                    ]
-                    fetch_live_intraday_chain(today, "13:00:00", symbol="^SPX")
-                    fetch_live_intraday_chain(today, "13:00:00", symbol="SPY")
+            with patch.object(
+                live_chain, "resolve_terminal_chain_provider", return_value="thetadata"
+            ):
+                with patch.object(live_chain, "get_thetadata_client"):
+                    with patch.object(live_chain, "build_0dte_chain_snapshot") as mock_build:
+                        mock_build.side_effect = [
+                            OptionChainSnapshot(
+                                symbol="^SPX",
+                                asof=datetime(2026, 5, 24, 17, 0, tzinfo=timezone.utc),
+                                spot=5000.0,
+                                chain=chain_spx,
+                            ),
+                            OptionChainSnapshot(
+                                symbol="SPY",
+                                asof=datetime(2026, 5, 24, 17, 0, tzinfo=timezone.utc),
+                                spot=500.0,
+                                chain=chain_spy,
+                            ),
+                        ]
+                        fetch_live_intraday_chain(today, "13:00:00", symbol="^SPX")
+                        fetch_live_intraday_chain(today, "13:00:00", symbol="SPY")
 
     assert mock_build.call_count == 2
