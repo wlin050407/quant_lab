@@ -1,7 +1,7 @@
 # Pin Center Fusion — MM Structure × Local Physical (Optimal Pin Play)
 
 **Branch:** `feature/pin-center-fusion`  
-**Status:** F4 backtest hook shipped · V1 full replay gate pending (n≥200 GEXBot hist sessions)  
+**Status:** F4 shipped · V3 PASS · V1 blocked (terminal×hist cohort n=4; hist n=204 available)  
 **Parent design:** [VENDOR_RESONANCE_V2.md](./VENDOR_RESONANCE_V2.md) · [PIN_PLAY_SPEC.md](../PIN_PLAY_SPEC.md)  
 **Reference algorithm:** `SPX_MM_STRUCTURE_ALGORITHM.md` (external rule engine)
 
@@ -282,6 +282,20 @@ Script: `scripts/validate_pin_center_offline.py`
 
 - Extend Phase 3f: fly@pin_center vs fly@king vs fly@spot
 - **Pass:** pin_center equal-weight PnL ≥ fly@king (SPY EoD proxy until Phase 4)
+- Script: `python scripts/validate_pin_center_offline.py --v3 --symbol SPY` (reads `data/processed/pin_play/*`)
+
+### Empirical status (2026-07-03, local)
+
+| Gate | Result | Notes |
+|------|--------|-------|
+| **V3** | **PASS** | SPY EoD: fused −$9,102 vs king −$12,726 (+$3,624); 774/1584 paired days differ in strike |
+| **V1** | **BLOCKED** | GEXBot hist **204 days** (2025-09-08→2026-06-30); terminal pin≥70+long_γ **overlap n=4** → full gate needs more high-pin terminal rows in hist window |
+| **V2** | **PARTIAL** | 30m primary hit 100% on n=4 only — not significant |
+| **Intraday fused** | Worse vs king | SPXW: fused −$1,528 vs king −$1,357; gate-only filter without hist structure |
+
+Probe / prefetch: `python scripts/probe_gexbot_hist.py` · manifest → `artifacts/manifests/gexbot_hist_coverage.json`
+
+Intraday sensitivity: `run_zdte_pin_fly_intraday_backtest.py --center fused --no-fusion-gate`
 
 ### V4 — Live Terminal acceptance (P0 ship)
 

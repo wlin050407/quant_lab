@@ -263,7 +263,10 @@ def run_v1_replay(
         "median_abs_close_minus_primary": med_primary,
         "median_abs_close_minus_fused": med_fused,
         "v1_pass": v1_pass,
+        "v1_partial": len(rows) < 200,
+        "v1_blocker": None if len(rows) >= 200 else f"n_sessions={len(rows)} < 200",
         "v1_gate": "fused_median <= min(king, primary) and n>=200",
         "v2_primary_hit_30m_rate": v2_rate,
         "v2_pass": v2_rate is not None and v2_rate >= 0.55,
+        "v2_partial": len(rows) < 200,
     }

@@ -15,6 +15,42 @@ from quant_lab.terminal.pin_center import PhysicalSnapshot, fuse_pin_center
 from quant_lab.terminal.pin_center_replay import run_v1_replay
 
 
+def _safe_symbol(symbol: str) -> str:
+    return symbol.replace("^", "").replace("/", "_")
+
+
+def validate_v3_pnl(symbol: str = "SPY") -> dict[str, Any]:
+    """V3 gate: fly@fused equal-weight total PnL vs fly@king (from pin_play parquets)."""
+    base = settings.paths.processed / "pin_play"
+    king_path = base / f"{_safe_symbol(symbol)}_pin_fly_king.parquet"
+    fused_path = base / f"{_safe_symbol(symbol)}_pin_fly_fused.parquet"
+    if not king_path.is_file() or not fused_path.is_file():
+        return {
+            "mode": "v3_pnl",
+            "status": "skipped",
+            "reason": "pin_play_parquets_missing",
+            "hint": f"run scripts/run_zdte_pin_fly_eod_backtest.py --symbol {symbol}",
+        }
+    king = pd.read_parquet(king_path)
+    fused = pd.read_parquet(fused_path)
+    if king.empty or fused.empty:
+        return {"mode": "v3_pnl", "status": "skipped", "reason": "empty_trades"}
+    king_pnl = float(king["pnl_per_contract"].sum())
+    fused_pnl = float(fused["pnl_per_contract"].sum())
+    return {
+        "mode": "v3_pnl",
+        "status": "ok",
+        "symbol": symbol,
+        "n_king": int(len(king)),
+        "n_fused": int(len(fused)),
+        "king_total_pnl": king_pnl,
+        "fused_total_pnl": fused_pnl,
+        "fused_minus_king": fused_pnl - king_pnl,
+        "v3_pass": fused_pnl >= king_pnl,
+        "v3_gate": "fused equal-weight total PnL >= king (SPY EoD proxy)",
+    }
+
+
 def _load_fixture(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
@@ -114,6 +150,18 @@ def main() -> None:
         help="Run GEXBot hist replay V1/V2 (requires API key + cache)",
     )
     parser.add_argument(
+        "--v3",
+        action="store_true",
+        help="Run V3 PnL gate from pin_play EoD backtest parquets",
+    )
+    parser.add_argument(
+        "--probe-hist",
+        action="store_true",
+        help="Probe GEXBot hist metadata coverage (no full download)",
+    )
+    parser.add_argument("--hist-start", type=str, default="2025-01-01")
+    parser.add_argument("--hist-end", type=str, default=None)
+    parser.add_argument(
         "--state-fixture",
         type=Path,
         default=Path("tests/fixtures/mm_structure_state_hubs.json"),
@@ -131,6 +179,30 @@ def main() -> None:
 
     if args.replay:
         out["replay"] = run_v1_replay(f"^{args.symbol}" if args.symbol.upper() == "SPX" else args.symbol)
+
+    if args.v3:
+        out["v3_pnl"] = validate_v3_pnl(args.symbol)
+
+    if args.probe_hist:
+        from datetime import date
+
+        from quant_lab.config import load_dotenv_if_present
+        from quant_lab.data.gexbot_hist_probe import probe_hist_coverage, write_coverage_manifest
+
+        load_dotenv_if_present()
+        sym = f"^{args.symbol.upper()}" if args.symbol.upper() == "SPX" else args.symbol.upper()
+        end = date.fromisoformat(args.hist_end) if args.hist_end else date.today()
+        try:
+            coverage = probe_hist_coverage(sym, start=date.fromisoformat(args.hist_start), end=end)
+            manifest = write_coverage_manifest(coverage)
+            out["probe_hist"] = {
+                "status": "ok",
+                "manifest": str(manifest),
+                **coverage,
+                "v1_blocked": coverage["n_available"] < 200,
+            }
+        except Exception as exc:  # noqa: BLE001 — CLI surfaces config/network errors
+            out["probe_hist"] = {"status": "skipped", "reason": type(exc).__name__, "detail": str(exc)}
 
     if args.state_fixture.exists():
         out["structure_p1"] = validate_structure_p1(args.state_fixture)

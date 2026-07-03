@@ -76,6 +76,7 @@ def _simulate_book(
     commission: float,
     require_long_gamma: bool,
     center_mode: CenterMode = "king",
+    fusion_gate: bool = True,
 ) -> tuple[pd.DataFrame, int]:
     trades: list[dict] = []
     for session in sessions:
@@ -101,6 +102,7 @@ def _simulate_book(
             commission_per_contract=commission,
             require_long_gamma=require_long_gamma,
             center_mode=center_mode,
+            fusion_gate=fusion_gate,
         )
         if trade is None:
             continue
@@ -140,7 +142,11 @@ def main(argv: list[str] | None = None) -> int:
         default="compare",
         help="fly body strike: king, fused pin_center, or compare both",
     )
-    parser.add_argument("--log-level", default="WARNING")
+    parser.add_argument(
+        "--no-fusion-gate",
+        action="store_true",
+        help="fused mode: do not skip on pin_center entry_blocked (sensitivity)",
+    )
     args = parser.parse_args(argv)
 
     logging.basicConfig(
@@ -174,6 +180,7 @@ def main(argv: list[str] | None = None) -> int:
             commission=args.commission,
             require_long_gamma=not args.allow_short_gamma,
             center_mode=mode,
+            fusion_gate=not args.no_fusion_gate,
         )
         attempts_by_mode[mode] = n_sessions
         all_results[mode] = trades_df

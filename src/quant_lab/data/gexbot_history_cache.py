@@ -125,6 +125,32 @@ def _download_hist_to_parquet(
         tmp_path.unlink(missing_ok=True)
 
 
+def hist_cache_path(
+    terminal_symbol: str,
+    session_date: date,
+    *,
+    package: str = DEFAULT_PACKAGE,
+    category: str = DEFAULT_CATEGORY,
+) -> Path:
+    """Parquet path for a cached GEXBot hist session (may not exist)."""
+    ticker = gexbot_ticker(terminal_symbol)
+    return _cache_path(ticker, package, category, session_date)
+
+
+def load_cached_hist_day(
+    terminal_symbol: str,
+    session_date: date,
+    *,
+    package: str = DEFAULT_PACKAGE,
+    category: str = DEFAULT_CATEGORY,
+) -> pd.DataFrame | None:
+    """Load hist from local cache only; return None when not cached."""
+    path = hist_cache_path(terminal_symbol, session_date, package=package, category=category)
+    if not path.is_file():
+        return None
+    return load_parquet(path)
+
+
 def load_or_fetch_hist_day(
     client: GexbotClient,
     terminal_symbol: str,

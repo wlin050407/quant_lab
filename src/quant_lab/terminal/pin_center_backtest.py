@@ -172,15 +172,27 @@ def resolve_pin_center_from_intraday_ctx(
     session_date: date,
     entry_time: str,
     terminal_symbol: str = "^SPX",
+    skip_when_blocked: bool = True,
 ) -> PinCenterDecision | None:
     """Intraday chain context → fused pin center @ entry."""
     fields = terminal_fields_from_mapping(ctx, spot=spot)
+    from quant_lab.data.gexbot_history_cache import load_cached_hist_day
     from quant_lab.data.intraday_time import hours_to_close
 
     minutes = hours_to_close(session_date, entry_time) * 60.0
+    hist = load_cached_hist_day(terminal_symbol, session_date)
+    if hist is not None and not hist.empty:
+        return resolve_pin_center_with_hist(
+            fields,
+            hist,
+            session_date,
+            terminal_symbol=terminal_symbol,
+            entry_clock=entry_time,
+            skip_when_blocked=skip_when_blocked,
+        )
     return resolve_pin_center_for_backtest(
         fields,
         terminal_symbol=terminal_symbol,
         minutes_to_close=minutes,
-        skip_when_blocked=True,
+        skip_when_blocked=skip_when_blocked,
     )

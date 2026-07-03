@@ -299,6 +299,7 @@ def simulate_pin_fly_intraday_session(
     commission_per_contract: float = DEFAULT_COMMISSION_PER_CONTRACT,
     require_long_gamma: bool = True,
     center_mode: CenterMode = "king",
+    fusion_gate: bool = True,
 ) -> PinFlyIntradayTrade | None:
     """Simulate one Pin Play session from 13:00 entry through intraday exits."""
     ctx = intraday_context_from_chain(
@@ -321,6 +322,7 @@ def simulate_pin_fly_intraday_session(
             spot=spot_entry,
             session_date=session_date,
             entry_time=entry_time,
+            skip_when_blocked=fusion_gate,
         )
         if decision is None:
             return None
