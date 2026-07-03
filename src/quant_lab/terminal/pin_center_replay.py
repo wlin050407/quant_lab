@@ -12,6 +12,7 @@ import pandas as pd
 
 from quant_lab.config import settings
 from quant_lab.data.gexbot_history_cache import (
+    load_cached_hist_day,
     load_or_fetch_hist_day,
     snapshot_at_time,
     snapshot_at_unix,
@@ -175,6 +176,45 @@ def replay_session(
     )
 
 
+def _hist_available_dates(terminal_symbol: str) -> list[date]:
+    """Cached or manifest-listed GEXBot hist session dates."""
+    from quant_lab.data.gexbot_hist_probe import load_coverage_manifest
+    from quant_lab.data.gexbot_history_cache import hist_cache_path
+
+    manifest = load_coverage_manifest()
+    sym_key = terminal_symbol.replace("^", "").upper()
+    if manifest is not None:
+        man_sym = str(manifest.get("terminal_symbol", "")).replace("^", "").upper()
+        if man_sym == sym_key and manifest.get("available_dates"):
+            return sorted(date.fromisoformat(d) for d in manifest["available_dates"])
+
+    root = hist_cache_path(terminal_symbol, date.today()).parent
+    if not root.is_dir():
+        return []
+    out: list[date] = []
+    for path in root.glob("*.parquet"):
+        try:
+            out.append(date.fromisoformat(path.stem))
+        except ValueError:
+            continue
+    return sorted(out)
+
+
+def _load_hist_for_replay(
+    terminal_symbol: str,
+    session_date: date,
+    client: Any | None,
+) -> pd.DataFrame:
+    cached = load_cached_hist_day(terminal_symbol, session_date)
+    if cached is not None and not cached.empty:
+        return cached
+    if client is not None:
+        return load_or_fetch_hist_day(client, terminal_symbol, session_date)
+    from quant_lab.data.gexbot_client import GexbotConfigError, get_gexbot_client
+
+    return load_or_fetch_hist_day(get_gexbot_client(), terminal_symbol, session_date)
+
+
 def run_v1_replay(
     terminal_symbol: str,
     *,
@@ -182,6 +222,7 @@ def run_v1_replay(
     client: Any | None = None,
     max_sessions: int = 400,
     include_sessions: bool = False,
+    hist_only: bool = True,
 ) -> dict[str, Any]:
     """V1 gate: median |close - K| for king / primary / fused on GEXBot hist sessions."""
     path = _terminal_path(terminal_symbol)
@@ -197,33 +238,42 @@ def run_v1_replay(
     else:
         return {"status": "skipped", "reason": "no_date_column"}
 
+    terminal_by_date = {d: terminal_df[terminal_df["date"] == d].iloc[-1] for d in terminal_df["date"].unique()}
+
+    if hist_only:
+        hist_dates = _hist_available_dates(terminal_symbol)
+        session_dates = [d for d in hist_dates if d in terminal_by_date][-max_sessions:]
+    else:
+        session_dates = sorted(terminal_df["date"].unique())[-max_sessions:]
+
     rows: list[SessionReplayRow] = []
     skipped_no_hist = 0
-    for session_date in sorted(terminal_df["date"].unique())[-max_sessions:]:
-        day_rows = terminal_df[terminal_df["date"] == session_date]
-        if day_rows.empty:
+    skipped_no_terminal = 0
+    skipped_pin = 0
+    skipped_regime = 0
+    for session_date in session_dates:
+        if session_date not in terminal_by_date:
+            skipped_no_terminal += 1
             continue
-        term_row = day_rows.iloc[-1]
+        term_row = terminal_by_date[session_date]
         pin = _optional_float(term_row.get("pin_score"))
         if pin is None or pin < pin_min:
+            skipped_pin += 1
             continue
         if str(term_row.get("regime", "")) != "long_gamma":
+            skipped_regime += 1
             continue
 
         try:
-            if client is not None:
-                hist = load_or_fetch_hist_day(client, terminal_symbol, session_date)
-            else:
-                from quant_lab.data.gexbot_client import GexbotConfigError, get_gexbot_client
-
-                try:
-                    hist = load_or_fetch_hist_day(get_gexbot_client(), terminal_symbol, session_date)
-                except GexbotConfigError:
-                    return {
-                        "status": "skipped",
-                        "reason": "gexbot_api_key_missing",
-                    }
+            hist = _load_hist_for_replay(terminal_symbol, session_date, client)
         except (FileNotFoundError, OSError, ValueError):
+            from quant_lab.data.gexbot_client import GexbotConfigError, get_gexbot_client
+
+            if client is None:
+                try:
+                    get_gexbot_client()
+                except GexbotConfigError:
+                    return {"status": "skipped", "reason": "gexbot_api_key_missing"}
             skipped_no_hist += 1
             continue
 
@@ -242,6 +292,9 @@ def run_v1_replay(
             "status": "skipped",
             "reason": "no_replay_rows",
             "skipped_no_hist": skipped_no_hist,
+            "skipped_pin": skipped_pin,
+            "skipped_regime": skipped_regime,
+            "n_hist_dates": len(session_dates),
         }
 
     king_errs = [r.king_err for r in rows]
@@ -266,8 +319,12 @@ def run_v1_replay(
         "status": "ok",
         "symbol": terminal_symbol,
         "pin_min": pin_min,
+        "hist_only": hist_only,
+        "n_hist_dates_scanned": len(session_dates),
         "n_sessions": len(rows),
         "skipped_no_hist": skipped_no_hist,
+        "skipped_pin": skipped_pin,
+        "skipped_regime": skipped_regime,
         "median_abs_close_minus_king": med_king,
         "median_abs_close_minus_primary": med_primary,
         "median_abs_close_minus_fused": med_fused,

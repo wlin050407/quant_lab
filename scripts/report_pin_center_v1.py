@@ -24,6 +24,11 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--symbol", default="SPY")
     parser.add_argument("--pin-min", type=float, default=50.0)
+    parser.add_argument(
+        "--full",
+        action="store_true",
+        help="run official pin_min=70 plus sensitivity 60/50 on all cached hist dates",
+    )
     parser.add_argument("--log-level", default="INFO")
     args = parser.parse_args(argv)
 
@@ -33,40 +38,69 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     sym = f"^{args.symbol.upper()}" if args.symbol.upper() == "SPX" else args.symbol.upper()
-    result = run_v1_replay(sym, pin_min=args.pin_min, include_sessions=True)
-    if result.get("status") != "ok":
-        print(json.dumps(result, indent=2))
-        return 1
+    pin_levels = [70.0, 60.0, 50.0] if args.full else [args.pin_min]
 
-    sessions = result.pop("sessions", [])
-    safe = sym.replace("^", "").replace("/", "_")
-    out_dir = _report_dir()
-    summary_path = out_dir / f"{safe}_v1_pin{int(args.pin_min)}_summary.json"
-    sessions_path = out_dir / f"{safe}_v1_pin{int(args.pin_min)}_sessions.parquet"
+    summaries: list[dict] = []
+    for pin_min in pin_levels:
+        result = run_v1_replay(
+            sym,
+            pin_min=pin_min,
+            include_sessions=True,
+            hist_only=True,
+            max_sessions=500,
+        )
+        summaries.append(result)
+        if result.get("status") != "ok":
+            print(f"pin_min={pin_min}: {result}")
+            continue
 
-    summary_path.write_text(json.dumps(result, indent=2), encoding="utf-8")
-    if sessions:
-        import pandas as pd
+        sessions = result.pop("sessions", [])
+        safe = sym.replace("^", "").replace("/", "_")
+        out_dir = _report_dir()
+        pin_tag = int(pin_min)
+        summary_path = out_dir / f"{safe}_v1_pin{pin_tag}_summary.json"
+        sessions_path = out_dir / f"{safe}_v1_pin{pin_tag}_sessions.parquet"
+        summary_path.write_text(json.dumps(result, indent=2), encoding="utf-8")
+        if sessions:
+            import pandas as pd
 
-        pd.DataFrame(sessions).to_parquet(sessions_path, index=False)
+            pd.DataFrame(sessions).to_parquet(sessions_path, index=False)
 
-    print(f"=== V1 replay report: {sym} pin_min={args.pin_min} ===")
-    print(f"n_sessions={result['n_sessions']}  skipped_no_hist={result['skipped_no_hist']}")
-    print(f"median |close-K|: king={result['median_abs_close_minus_king']:.2f}  "
-          f"primary={result['median_abs_close_minus_primary']}  "
-          f"fused={result['median_abs_close_minus_fused']:.2f}")
-    print(f"mean   |close-K|: king={result['mean_abs_close_minus_king']:.2f}  "
-          f"fused={result['mean_abs_close_minus_fused']:.2f}")
-    if result.get("fused_beats_king_rate") is not None:
-        print(f"fused <= king error: {result['fused_beats_king_rate']:.1%} of sessions")
-    if result.get("fused_beats_primary_rate") is not None:
-        print(f"fused <= primary error: {result['fused_beats_primary_rate']:.1%} of sessions")
-    print(f"V2 primary 30m hit rate: {result.get('v2_primary_hit_30m_rate')}")
-    print(f"v1_pass={result['v1_pass']}  blocker={result.get('v1_blocker')}")
-    print(f"wrote {summary_path}")
-    if sessions:
-        print(f"wrote {sessions_path}")
-    return 0
+        print(f"=== V1 replay: {sym} pin_min={pin_min} (hist cache full) ===")
+        print(
+            f"scanned={result['n_hist_dates_scanned']}  "
+            f"n={result['n_sessions']}  "
+            f"skip(pin/regime/hist)={result.get('skipped_pin')}/"
+            f"{result.get('skipped_regime')}/{result.get('skipped_no_hist')}"
+        )
+        print(
+            f"median |close-K|: king={result['median_abs_close_minus_king']:.2f}  "
+            f"primary={result['median_abs_close_minus_primary']}  "
+            f"fused={result['median_abs_close_minus_fused']:.2f}"
+        )
+        if result.get("fused_beats_king_rate") is not None:
+            print(f"fused <= king: {result['fused_beats_king_rate']:.1%}")
+        if result.get("fused_beats_primary_rate") is not None:
+            print(f"fused <= primary: {result['fused_beats_primary_rate']:.1%}")
+        print(f"V2 30m hit: {result.get('v2_primary_hit_30m_rate')}")
+        print(f"v1_pass={result['v1_pass']}  blocker={result.get('v1_blocker')}")
+        print(f"wrote {summary_path}")
+        if sessions:
+            print(f"wrote {sessions_path}")
+        print()
+
+    if args.full and len(summaries) > 1:
+        print("--- full V1 sweep ---")
+        for r in summaries:
+            if r.get("status") != "ok":
+                continue
+            print(
+                f"  pin>={r['pin_min']:.0f}  n={r['n_sessions']:3d}  "
+                f"med_fused={r['median_abs_close_minus_fused']:.2f}  "
+                f"med_king={r['median_abs_close_minus_king']:.2f}  "
+                f"v1_pass={r['v1_pass']}"
+            )
+    return 0 if any(r.get("status") == "ok" for r in summaries) else 1
 
 
 if __name__ == "__main__":
