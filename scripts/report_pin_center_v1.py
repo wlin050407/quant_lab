@@ -27,7 +27,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--full",
         action="store_true",
-        help="run official pin_min=70 plus sensitivity 60/50 on all cached hist dates",
+        help="sweep pin 70/60/50/40/0 on cached hist; add --all-regimes for max n",
+    )
+    parser.add_argument(
+        "--all-regimes",
+        action="store_true",
+        help="include short_gamma/undetermined (max hist×terminal overlap)",
     )
     parser.add_argument("--log-level", default="INFO")
     args = parser.parse_args(argv)
@@ -38,7 +43,8 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     sym = f"^{args.symbol.upper()}" if args.symbol.upper() == "SPX" else args.symbol.upper()
-    pin_levels = [70.0, 60.0, 50.0] if args.full else [args.pin_min]
+    pin_levels = [70.0, 60.0, 50.0, 40.0, 0.0] if args.full else [args.pin_min]
+    long_gamma_only = not args.all_regimes
 
     summaries: list[dict] = []
     for pin_min in pin_levels:
@@ -48,6 +54,7 @@ def main(argv: list[str] | None = None) -> int:
             include_sessions=True,
             hist_only=True,
             max_sessions=500,
+            long_gamma_only=long_gamma_only,
         )
         summaries.append(result)
         if result.get("status") != "ok":
@@ -66,7 +73,8 @@ def main(argv: list[str] | None = None) -> int:
 
             pd.DataFrame(sessions).to_parquet(sessions_path, index=False)
 
-        print(f"=== V1 replay: {sym} pin_min={pin_min} (hist cache full) ===")
+        regime_tag = "long_gamma" if long_gamma_only else "all_regimes"
+        print(f"=== V1 replay: {sym} pin_min={pin_min} cohort={regime_tag} ===")
         print(
             f"scanned={result['n_hist_dates_scanned']}  "
             f"n={result['n_sessions']}  "

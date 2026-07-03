@@ -98,12 +98,13 @@ def replay_session(
     entry_clock: str = ENTRY_CLOCK,
     close_clock: str = CLOSE_CLOCK,
     pin_min: float = 70.0,
+    require_long_gamma: bool = True,
 ) -> SessionReplayRow | None:
     """Replay one session: 13:00 information set → close pin error."""
     physical = physical_from_terminal_row(terminal_row, spot=float(terminal_row.get("spot", np.nan)))
     if physical is None or physical.pin_score is None:
         return None
-    if str(terminal_row.get("regime", "")) != "long_gamma":
+    if require_long_gamma and str(terminal_row.get("regime", "")) != "long_gamma":
         return None
     if physical.pin_score < pin_min:
         return None
@@ -223,6 +224,7 @@ def run_v1_replay(
     max_sessions: int = 400,
     include_sessions: bool = False,
     hist_only: bool = True,
+    long_gamma_only: bool = True,
 ) -> dict[str, Any]:
     """V1 gate: median |close - K| for king / primary / fused on GEXBot hist sessions."""
     path = _terminal_path(terminal_symbol)
@@ -260,7 +262,7 @@ def run_v1_replay(
         if pin is None or pin < pin_min:
             skipped_pin += 1
             continue
-        if str(term_row.get("regime", "")) != "long_gamma":
+        if long_gamma_only and str(term_row.get("regime", "")) != "long_gamma":
             skipped_regime += 1
             continue
 
@@ -283,6 +285,7 @@ def run_v1_replay(
             terminal_row=term_row,
             hist=hist,
             pin_min=pin_min,
+            require_long_gamma=long_gamma_only,
         )
         if replay is not None:
             rows.append(replay)
@@ -320,6 +323,7 @@ def run_v1_replay(
         "symbol": terminal_symbol,
         "pin_min": pin_min,
         "hist_only": hist_only,
+        "long_gamma_only": long_gamma_only,
         "n_hist_dates_scanned": len(session_dates),
         "n_sessions": len(rows),
         "skipped_no_hist": skipped_no_hist,
