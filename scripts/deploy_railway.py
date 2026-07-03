@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import json
 import os
-import secrets
 import shutil
 import subprocess
 import sys
@@ -175,18 +174,28 @@ def _resolve_credentials() -> tuple[str, dict[str, str]]:
     )
 
 
+def _optional_basic_auth() -> tuple[str, str] | None:
+    """Return auth pair only when both env vars are explicitly set."""
+    load_dotenv_if_present()
+    user = os.environ.get("TERMINAL_AUTH_USER")
+    password = os.environ.get("TERMINAL_AUTH_PASSWORD")
+    if user and password:
+        return user, password
+    return None
+
+
 def _set_variables(
     provider: str,
     creds: dict[str, str],
-    auth_user: str,
-    auth_password: str,
+    auth: tuple[str, str] | None,
 ) -> None:
-    pairs = {
+    pairs: dict[str, str] = {
         **creds,
-        "TERMINAL_AUTH_USER": auth_user,
-        "TERMINAL_AUTH_PASSWORD": auth_password,
         "TERMINAL_HISTORY_DAYS": str(DEFAULT_HISTORY_DAYS),
     }
+    if auth is not None:
+        pairs["TERMINAL_AUTH_USER"] = auth[0]
+        pairs["TERMINAL_AUTH_PASSWORD"] = auth[1]
     for key, value in pairs.items():
         _run(
             _railway_args(
@@ -231,30 +240,32 @@ def main() -> int:
         print(exc, file=sys.stderr)
         return 1
 
-    auth_user = os.environ.get("TERMINAL_AUTH_USER") or "quantlab"
-    auth_password = os.environ.get("TERMINAL_AUTH_PASSWORD") or secrets.token_urlsafe(16)
+    auth = _optional_basic_auth()
 
     _ensure_project()
     _ensure_service()
-    _set_variables(provider, creds, auth_user, auth_password)
+    _set_variables(provider, creds, auth)
     _run(_railway_args("up", "--detach", "--service", "quantlab-terminal"))
 
     domain = _public_domain()
     if domain is None:
         _run(_railway_args("domain"), check=False)
 
-    notes = [
-        f"provider={provider}",
-        f"auth_user={auth_user}",
-        f"auth_password={auth_password}",
-    ]
+    notes = [f"provider={provider}"]
+    if auth is not None:
+        notes.extend([f"auth_user={auth[0]}", f"auth_password={auth[1]}"])
+    else:
+        notes.append("auth=disabled")
     if domain:
         url = domain if domain.startswith("http") else f"https://{domain}"
         notes.append(f"url={url}")
     DEPLOY_NOTES.write_text("\n".join(notes) + "\n", encoding="utf-8")
 
     print("\nDeploy started.")
-    print(f"Basic auth saved to {DEPLOY_NOTES} (gitignored).")
+    if auth is not None:
+        print(f"Basic auth saved to {DEPLOY_NOTES} (gitignored).")
+    else:
+        print("Basic auth disabled (set TERMINAL_AUTH_USER/PASSWORD in .env to enable).")
     if domain:
         print(f"Open: https://{domain.removeprefix('https://').removeprefix('http://')}")
     else:
