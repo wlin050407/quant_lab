@@ -1,0 +1,27 @@
+{
+  "spot": 7130.0,
+  "classic": {
+    "spot": 7130.0,
+    "zero_gamma": 7125.0,
+    "sum_gex_vol": 900000.0,
+    "major_pos_vol": 7135.0,
+    "max_priors": [[7135.0, 1.5]]
+  },
+  "orderflow": {
+    "spot": 7130.0,
+    "gex_orderflow": 40.0,
+    "dex_orderflow": 20.0,
+    "zero_net_total_dex": 10.0
+  },
+  "state_hubs": {
+    "gamma_zero": {
+      "spot": 7130.0,
+      "major_pos_vol": 7135.0,
+      "strikes": [[7135.0, 180.0, 0.0], [7140.0, 90.0, 0.0]]
+    },
+    "vanna_zero": {
+      "spot": 7130.0,
+      "strikes": [[7145.0, 320.0, 0.0], [7120.0, 280.0, 0.0]]
+    }
+  }
+}

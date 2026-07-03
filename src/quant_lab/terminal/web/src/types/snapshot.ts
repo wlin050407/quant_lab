@@ -200,6 +200,57 @@ export interface PlaybookCheck {
   weight?: number | null;
 }
 
+export interface StructureTarget {
+  level: number;
+  score: number;
+  distance_pts: number;
+  sources: string[];
+}
+
+export interface AttractionRow {
+  level: number;
+  score: number;
+  visual_strength: number;
+  side: string;
+  sources: string[];
+}
+
+export interface StructureFamilyWeights {
+  gamma: number;
+  vex: number;
+  iv: number;
+  profile?: string;
+}
+
+export interface StructureSnapshot {
+  structure_version: string;
+  regime: string;
+  trend_state: string;
+  momentum_state: string;
+  momentum_score: number;
+  primary_mm_target: StructureTarget | null;
+  secondary_mm_target: StructureTarget | null;
+  call_wall: number | null;
+  put_wall: number | null;
+  gamma_flip: number | null;
+  execution_state: string;
+  attraction_profile: AttractionRow[];
+  structure_bias: number;
+  family_weights?: StructureFamilyWeights | null;
+  mm_reference_family_weights?: StructureFamilyWeights | null;
+}
+
+export interface PinCenterDecision {
+  pin_center: number;
+  center_source: string;
+  center_confidence: string;
+  candidates: Record<string, number>;
+  size_overlay: number;
+  entry_blocked: boolean;
+  entry_blocked_reason: string | null;
+  narrative: string;
+}
+
 export interface PlaybookExitRule {
   id: string;
   label: string;
@@ -339,6 +390,8 @@ export interface DashboardSnapshot {
     vendor_levels?: VendorLevels | null;
     vendor_pin_ladder?: VendorPinLadderRow[] | null;
     resonance?: ResonanceReport | null;
+    structure?: StructureSnapshot | null;
+    pin_center?: PinCenterDecision | null;
     model_metadata?: ModelMetadata;
     gex_model?: string;
     risk_free_rate?: number | null;

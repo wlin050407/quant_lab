@@ -13,8 +13,17 @@ from quant_lab.data.vendor_chain import vendor_pin_ladder_from_classic
 def test_hub_and_ticker_from_group() -> None:
     assert _hub_for_group("SPX_classic_gex_zero") == "classic"
     assert _hub_for_group("SPX_orderflow_orderflow") == "orderflow"
+    assert _hub_for_group("SPX_state_vanna_zero") == "state_vanna"
+    assert _hub_for_group("SPX_state_gamma_zero") == "state_gamma"
     assert _ticker_from_group("SPX_classic_gex_zero") == "SPX"
     assert _ticker_from_group("ES_SPX_orderflow_orderflow") == "ES_SPX"
+
+
+def test_state_hub_key_from_group() -> None:
+    from quant_lab.data.gexbot_stream import _state_hub_key_from_group
+
+    assert _state_hub_key_from_group("SPX_state_vanna_zero") == "vanna_zero"
+    assert _state_hub_key_from_group("SPX_classic_gex_zero") is None
 
 
 def test_default_ws_groups_contains_spx() -> None:

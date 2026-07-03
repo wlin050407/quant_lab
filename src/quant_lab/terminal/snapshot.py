@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict, dataclass, field
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -13,33 +13,16 @@ import numpy as np
 import pandas as pd
 
 from quant_lab.config import settings
-from quant_lab.data.storage import load_option_chain, list_option_snapshots
+from quant_lab.data.base import MARKET_TZ
+from quant_lab.data.macro_calendar import macro_playbook_gate
+from quant_lab.data.storage import list_option_snapshots, load_option_chain
 from quant_lab.data.thetadata_chain import (
-    TERMINAL_SYMBOL as THETADATA_TERMINAL_SYMBOL,
     ChainMode,
     list_intraday_chain_dates,
     load_built_intraday_chain,
 )
 from quant_lab.data.thetadata_intraday import PIN_PLAY_TIMES_ET
-from quant_lab.terminal.intraday_spec import LIVE_INTRADAY_SYMBOLS, resolve_intraday_spec, supports_live_intraday
-from quant_lab.terminal.deploy import (
-    filter_dates_by_retention,
-    history_retention_days,
-    is_date_in_history_window,
-    last_trading_session_date,
-    recent_trading_dates,
-)
 from quant_lab.factors.effective_oi import EFFECTIVE_OI_COL, FLOW_SOURCE_COL
-from quant_lab.terminal.live_chain import (
-    LIVE_TIME_OF_DAY,
-    fetch_intraday_chain,
-    fetch_live_intraday_chain,
-    is_live_session,
-    live_refresh_seconds,
-    market_today,
-    resolve_intraday_clock,
-)
-from quant_lab.terminal.chain_provider import resolve_terminal_chain_provider
 from quant_lab.factors.gex import (
     add_bs_gamma_column,
     add_bs_vanna_column,
@@ -48,28 +31,14 @@ from quant_lab.factors.gex import (
     compute_gamma_profile_curve,
     compute_gex_profile,
     compute_vex_profile,
+    diagnose_cohort_time_to_expiry,
     filter_chain_by_dte,
     net_gex_bn_per_1pct,
     net_vex_bn_per_1pct,
     pct_dte_cohort_of_total,
     vanna_interpretation,
 )
-from quant_lab.factors.regime import (
-    pin_reliability,
-    pin_score_regime_adjusted,
-    regime_from_net_gex,
-    should_trade_with_resonance,
-    should_trade_zdte,
-)
-from quant_lab.terminal.magnet_state import record_magnet_shift
-from quant_lab.terminal.live_chain import live_chain_poll_meta
-from quant_lab.terminal.live_pin_quality import (
-    assess_live_pin_quality,
-    cap_pin_reliability,
-    live_pin_quality_to_dict,
-)
-from quant_lab.terminal.model_metadata import build_model_metadata, compute_flip_result_for_chain
-from quant_lab.factors.gex import diagnose_cohort_time_to_expiry
+from quant_lab.factors.pin_cluster import detect_pin_cluster, pin_cluster_to_dict
 from quant_lab.factors.positioning import (
     PIN_SCORE_MODEL_VERSION,
     atm_iv_from_chain,
@@ -79,10 +48,46 @@ from quant_lab.factors.positioning import (
     pin_score_from_chain,
     resolve_cohort_time_years,
 )
-from quant_lab.factors.pin_cluster import detect_pin_cluster, pin_cluster_to_dict
 from quant_lab.factors.rates import resolve_gex_inputs
-from quant_lab.data.macro_calendar import macro_playbook_gate
+from quant_lab.factors.regime import (
+    pin_reliability,
+    pin_score_regime_adjusted,
+    regime_from_net_gex,
+    should_trade_with_resonance,
+    should_trade_zdte,
+)
 from quant_lab.factors.trinity import trinity_from_kings
+from quant_lab.terminal.chain_provider import resolve_terminal_chain_provider
+from quant_lab.terminal.deploy import (
+    filter_dates_by_retention,
+    is_date_in_history_window,
+    last_trading_session_date,
+    recent_trading_dates,
+)
+from quant_lab.terminal.intraday_spec import (
+    LIVE_INTRADAY_SYMBOLS,
+    resolve_intraday_spec,
+    supports_live_intraday,
+)
+from quant_lab.terminal.live_chain import (
+    LIVE_TIME_OF_DAY,
+    fetch_intraday_chain,
+    fetch_live_intraday_chain,
+    is_live_session,
+    live_chain_poll_meta,
+    live_refresh_seconds,
+    market_today,
+    resolve_intraday_clock,
+)
+from quant_lab.terminal.live_pin_quality import (
+    assess_live_pin_quality,
+    cap_pin_reliability,
+    live_pin_quality_to_dict,
+)
+from quant_lab.terminal.magnet_state import record_magnet_shift
+from quant_lab.terminal.mm_structure import build_structure_snapshot
+from quant_lab.terminal.model_metadata import build_model_metadata, compute_flip_result_for_chain
+from quant_lab.terminal.pin_center import PhysicalSnapshot, fuse_pin_center
 from quant_lab.terminal.pin_playbook import build_pin_playbook, pin_playbook_to_dict
 from quant_lab.terminal.session_status import (
     SessionHoldReason,
@@ -91,7 +96,6 @@ from quant_lab.terminal.session_status import (
     session_hold_title,
 )
 from quant_lab.terminal.strategy_hint import StrategyHint, recommend_strategy
-from quant_lab.data.base import MARKET_TZ
 
 log = logging.getLogger(__name__)
 
@@ -1106,6 +1110,88 @@ def build_session_hold_dashboard(
     return json_safe(payload)
 
 
+def _max_priors_from_overlay(vendor_overlay: dict[str, Any] | None) -> list[tuple[float, float]]:
+    if vendor_overlay is None:
+        return []
+    max_priors_raw = vendor_overlay.get("max_priors_raw") or []
+    priors: list[tuple[float, float]] = []
+    if isinstance(max_priors_raw, list):
+        for item in max_priors_raw:
+            if isinstance(item, (list, tuple)) and len(item) >= 2:
+                try:
+                    priors.append((float(item[0]), float(item[1])))
+                except (TypeError, ValueError):
+                    continue
+    return priors
+
+
+def _build_fusion_stack(
+    symbol: str,
+    row: dict[str, Any],
+    spot: float,
+    regime: str,
+    *,
+    vendor_overlay: dict[str, Any] | None,
+    resonance: dict[str, Any],
+    session_hours: float,
+    chain: pd.DataFrame | None = None,
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+    """Structure snapshot + fused pin center for Playbook."""
+    classic, orderflow, state_hubs = None, None, {}
+    try:
+        from quant_lab.data.gexbot_stream import get_vendor_payloads
+
+        classic, orderflow, state_hubs = get_vendor_payloads(symbol)
+    except Exception as exc:
+        log.debug("fusion vendor payloads unavailable: %s", exc)
+
+    if classic is None and vendor_overlay is not None:
+        max_priors_raw = vendor_overlay.get("max_priors_raw") or []
+        classic = {"max_priors": max_priors_raw}
+
+    iv_floor: float | None = None
+    if chain is not None and not chain.empty:
+        try:
+            from quant_lab.terminal.iv_surface import iv_floor_strike_from_chain
+
+            iv_floor = iv_floor_strike_from_chain(chain, spot, dte_max=1)
+        except Exception as exc:
+            log.debug("iv floor strike unavailable: %s", exc)
+
+    structure = build_structure_snapshot(
+        terminal_symbol=symbol,
+        classic=classic,
+        orderflow=orderflow,
+        spot=spot,
+        state_hubs=state_hubs or None,
+        iv_floor_strike=iv_floor,
+    )
+    physical = PhysicalSnapshot(
+        spot=spot,
+        king_bs=_optional_float(row.get("king_dte1")),
+        flip_bs=_optional_float(row.get("flip_dte1")),
+        call_wall_bs=_optional_float(row.get("call_wall_dte1")),
+        put_wall_bs=_optional_float(row.get("put_wall_dte1")),
+        max_pain=_optional_float(row.get("max_pain_dte1")),
+        pin_score=_optional_float(row.get("pin_score")),
+        regime_local=regime,
+        pct_gex_dte1=_optional_float(row.get("pct_gex_dte1")),
+        expected_move_1sd=_optional_float(row.get("expected_move_1sd")),
+        magnet_strike=_optional_float(row.get("magnet_dte1")) or _optional_float(row.get("king_dte1")),
+    )
+    minutes_to_close = session_hours * 60.0 if np.isfinite(session_hours) else None
+    pin_decision = fuse_pin_center(
+        physical,
+        structure,
+        max_priors=_max_priors_from_overlay(vendor_overlay),
+        minutes_to_close=minutes_to_close,
+        resonance_tier=str(resonance.get("tier")) if resonance else None,
+    )
+    structure_dict = structure.to_dict() if structure is not None else None
+    pin_center_dict = pin_decision.to_dict()
+    return structure_dict, pin_center_dict
+
+
 def _fetch_vendor_overlay(symbol: str) -> dict[str, Any] | None:
     """GEXBot structure + pin ladder for meta (WS stream with REST fallback)."""
     try:
@@ -1525,6 +1611,25 @@ def build_dashboard(
     chain_time_requested = (
         "now" if time_of_day.strip().lower() == LIVE_TIME_OF_DAY else time_of_day[:5]
     )
+    vendor_overlay = _fetch_vendor_overlay(symbol)
+    resonance = _build_resonance_report(symbol, row, spot, regime, vendor_overlay)
+    trade_ok, trade_reason = should_trade_with_resonance(
+        base_ok=base_trade_ok,
+        base_reason=base_trade_reason,  # type: ignore[arg-type]
+        pin_score=pin if np.isfinite(pin) else float("nan"),
+        resonance_tier=str(resonance.get("tier")) if resonance else None,
+    )
+    structure_meta, pin_center_meta = _build_fusion_stack(
+        symbol,
+        row,
+        spot,
+        regime,
+        vendor_overlay=vendor_overlay,
+        resonance=resonance,
+        session_hours=session_hours,
+        chain=chain if not chain.empty else None,
+    )
+    pin_center_val = _optional_float((pin_center_meta or {}).get("pin_center"))
     pin_playbook = build_pin_playbook(
         symbol=symbol,
         session_date=asof,
@@ -1543,6 +1648,12 @@ def build_dashboard(
         gate_reason=trade_reason,
         trinity_score=_f(align.score),
         trinity_direction=align.direction,
+        pin_center=pin_center_val,
+        pin_center_source=str((pin_center_meta or {}).get("center_source") or ""),
+        fusion_size_overlay=float((pin_center_meta or {}).get("size_overlay") or 1.0),
+        fusion_entry_blocked=bool((pin_center_meta or {}).get("entry_blocked")),
+        fusion_entry_blocked_reason=(pin_center_meta or {}).get("entry_blocked_reason"),
+        fusion_narrative=(pin_center_meta or {}).get("narrative"),
     )
 
     session_hours = pin_playbook.hours_to_close
@@ -1639,20 +1750,11 @@ def build_dashboard(
         live_pin_quality=live_pin_quality_to_dict(live_quality),
         live_chain_poll=live_poll,
     )
-    vendor_overlay = _fetch_vendor_overlay(symbol)
     vendor_levels = vendor_overlay.get("levels") if vendor_overlay else None
     vendor_pin_ladder = vendor_overlay.get("pin_ladder") if vendor_overlay else None
     vendor_stream = None
     if vendor_levels and isinstance(vendor_levels.get("stream"), dict):
         vendor_stream = vendor_levels.pop("stream")
-
-    resonance = _build_resonance_report(symbol, row, spot, regime, vendor_overlay)
-    trade_ok, trade_reason = should_trade_with_resonance(
-        base_ok=base_trade_ok,
-        base_reason=base_trade_reason,  # type: ignore[arg-type]
-        pin_score=pin if np.isfinite(pin) else float("nan"),
-        resonance_tier=str(resonance.get("tier")) if resonance else None,
-    )
 
     payload = {
         "symbol": symbol,
@@ -1730,7 +1832,7 @@ def build_dashboard(
             "include_trinity": include_trinity,
             "chain_mode": chain_mode,
             "trinity_live_panels": trinity_live_count,
-            "server_pulled_at": datetime.now(timezone.utc).isoformat(),
+            "server_pulled_at": datetime.now(UTC).isoformat(),
             "magnet_shift": magnet_shift is not None,
             "magnet_previous": _f(magnet_shift.previous) if magnet_shift else None,
             "magnet_delta_pts": _f(magnet_shift.delta_pts) if magnet_shift else None,
@@ -1742,6 +1844,8 @@ def build_dashboard(
             "vendor_levels": vendor_levels,
             "vendor_pin_ladder": vendor_pin_ladder,
             "resonance": resonance,
+            "structure": structure_meta,
+            "pin_center": pin_center_meta,
         },
     }
     return json_safe(payload)

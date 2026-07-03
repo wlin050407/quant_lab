@@ -2,6 +2,7 @@ import { fmtGexBn, fmtPct, fmtPrice } from "../lib/format";
 import type { DashboardSnapshot, PinClusterPayload, PinMagnetRow } from "../types/snapshot";
 import { LivePinQualityBanner } from "./LivePinQualityBanner";
 import { VendorAlignmentCard } from "./VendorAlignmentCard";
+import { AttractionProfileCard } from "./AttractionProfileCard";
 import { PinScoreGauge } from "./PinScoreGauge";
 
 const BREAKDOWN_LABELS: Record<string, string> = {
@@ -207,6 +208,8 @@ export function PinPanel({ snapshot }: { snapshot: DashboardSnapshot }) {
       />
 
       <VendorAlignmentCard snapshot={snapshot} />
+
+      <AttractionProfileCard structure={snapshot.meta?.structure} />
 
       {showZone && cluster ? (
         <PinZoneHero

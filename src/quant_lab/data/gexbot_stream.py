@@ -30,12 +30,19 @@ from quant_lab.data.gexbot_client import (
     resolve_gexbot_api_key,
 )
 from quant_lab.data.gexbot_ws_decode import decode_gex_message, decode_orderflow_message
+from quant_lab.terminal.structure_history import record_structure_sample
 
 log = logging.getLogger(__name__)
 
 ConnectionStatus = Literal["live", "reconnecting", "rest_fallback", "stopped", "disabled"]
 
 DEFAULT_WS_GROUPS = ("SPX_classic_gex_zero", "SPX_orderflow_orderflow")
+DEFAULT_STATE_WS_GROUPS = (
+    "SPX_state_gamma_zero",
+    "SPX_state_vanna_zero",
+    "SPX_state_charm_zero",
+    "SPX_state_delta_zero",
+)
 _STALE_SEC_DEFAULT = 15.0
 _REST_FALLBACK_SEC_DEFAULT = 60.0
 
@@ -63,11 +70,26 @@ def gexbot_ws_enabled() -> bool:
     return _env_enabled("TERMINAL_GEXBOT_WS")
 
 
+def gexbot_ws_state_hubs_enabled() -> bool:
+    return _env_enabled("TERMINAL_GEXBOT_WS_STATE", default="0")
+
+
 def default_ws_groups() -> tuple[str, ...]:
     raw = env_var("TERMINAL_GEXBOT_WS_GROUPS")
-    if raw is None or not raw.strip():
-        return DEFAULT_WS_GROUPS
-    return tuple(g.strip() for g in raw.split(",") if g.strip())
+    if raw is not None and raw.strip():
+        return tuple(g.strip() for g in raw.split(",") if g.strip())
+    groups = list(DEFAULT_WS_GROUPS)
+    if gexbot_ws_state_hubs_enabled():
+        groups.extend(DEFAULT_STATE_WS_GROUPS)
+    return tuple(groups)
+
+
+def _state_hub_key_from_group(group: str) -> str | None:
+    """``SPX_state_vanna_zero`` → ``vanna_zero``."""
+    if "_state_" not in group:
+        return None
+    suffix = group.split("_state_", 1)[1]
+    return suffix if suffix else None
 
 
 def _hub_for_group(group: str) -> str:
@@ -76,7 +98,9 @@ def _hub_for_group(group: str) -> str:
     if "_orderflow_" in group:
         return "orderflow"
     if "_state_" in group:
-        return "state_gex"
+        suffix = group.split("_state_", 1)[1]
+        family = suffix.split("_")[0] if suffix else "gex"
+        return f"state_{family}"
     return "classic"
 
 
@@ -95,6 +119,7 @@ class VendorStreamState:
     spot: float | None = None
     classic: dict[str, Any] = field(default_factory=dict)
     orderflow: dict[str, Any] = field(default_factory=dict)
+    state_hubs: dict[str, dict[str, Any]] = field(default_factory=dict)
     connection_status: ConnectionStatus = "stopped"
     last_ws_at: float | None = None
     last_rest_at: float | None = None
@@ -132,6 +157,25 @@ def get_vendor_stream_state(terminal_symbol: str) -> VendorStreamState | None:
     ticker = gexbot_ticker(terminal_symbol)
     with _lock:
         return _state_by_ticker.get(ticker)
+
+
+def _terminal_symbol_from_ticker(ticker: str) -> str:
+    return f"^{ticker}" if ticker.upper() == "SPX" else ticker
+
+
+def get_vendor_payloads(
+    terminal_symbol: str,
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None, dict[str, dict[str, Any]]]:
+    """Classic + orderflow + optional state hub payloads for structure / fusion."""
+    classic = get_vendor_classic_payload(terminal_symbol)
+    stream = get_vendor_stream_state(terminal_symbol)
+    orderflow = dict(stream.orderflow) if stream is not None and stream.orderflow else None
+    state_hubs = (
+        {k: dict(v) for k, v in stream.state_hubs.items()}
+        if stream is not None and stream.state_hubs
+        else {}
+    )
+    return classic, orderflow, state_hubs
 
 
 def get_vendor_classic_payload(terminal_symbol: str) -> dict[str, Any] | None:
@@ -367,19 +411,39 @@ class GexbotStreamService:
         now_utc = datetime.now(UTC)
 
         if "proto.gex" in type_url:
-            classic = decode_gex_message(any_message)
+            payload = decode_gex_message(any_message)
+            state_key = _state_hub_key_from_group(group)
+            terminal_symbol = _terminal_symbol_from_ticker(ticker)
             with _lock:
                 state = _state_by_ticker.setdefault(ticker, VendorStreamState(ticker=ticker))
-                state.classic = classic
-                spot = classic.get("spot")
-                state.spot = float(spot) if spot is not None else state.spot
+                spot = payload.get("spot")
+                if spot is not None:
+                    state.spot = float(spot)
                 state.updated_at = now_utc
                 state.last_ws_at = now_mono
                 state.connection_status = "live"
+                if state_key is not None:
+                    state.state_hubs[state_key] = payload
+                    classic_snapshot = dict(state.classic) if state.classic else None
+                    orderflow_snapshot = dict(state.orderflow) if state.orderflow else None
+                    spot_snapshot = state.spot
+                else:
+                    state.classic = payload
+                    orderflow_snapshot = dict(state.orderflow) if state.orderflow else None
+                    spot_snapshot = state.spot
+                    classic_snapshot = payload
+            if state_key is None:
+                record_structure_sample(
+                    terminal_symbol,
+                    classic=classic_snapshot,
+                    orderflow=orderflow_snapshot,
+                    spot=spot_snapshot,
+                )
             return
 
         if "proto.orderflow" in type_url:
             orderflow = decode_orderflow_message(any_message)
+            terminal_symbol = _terminal_symbol_from_ticker(ticker)
             with _lock:
                 state = _state_by_ticker.setdefault(ticker, VendorStreamState(ticker=ticker))
                 state.orderflow = orderflow
@@ -389,6 +453,14 @@ class GexbotStreamService:
                 state.updated_at = now_utc
                 state.last_ws_at = now_mono
                 state.connection_status = "live"
+                classic_snapshot = dict(state.classic) if state.classic else None
+                spot_snapshot = state.spot
+            record_structure_sample(
+                terminal_symbol,
+                classic=classic_snapshot,
+                orderflow=orderflow,
+                spot=spot_snapshot,
+            )
 
     def _run_watchdog(self) -> None:
         stale_sec = _env_float("TERMINAL_GEXBOT_WS_STALE_SEC", _STALE_SEC_DEFAULT)

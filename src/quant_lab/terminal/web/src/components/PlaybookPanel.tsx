@@ -83,6 +83,22 @@ export function PlaybookPanel({ snapshot }: { snapshot: DashboardSnapshot }) {
       {pb.structure ? (
         <section className="playbook-section" aria-label="Proposed structure">
           <h3 className="playbook-section-title">Structure</h3>
+          {snapshot.meta?.pin_center ? (
+            <div className="playbook-pin-center">
+              <span className="playbook-pin-center-k">Fused pin center</span>
+              <strong>{fmtPrice(snapshot.meta.pin_center.pin_center)}</strong>
+              <span className={`chip chip-confidence chip-confidence--${snapshot.meta.pin_center.center_confidence}`}>
+                {snapshot.meta.pin_center.center_confidence}
+              </span>
+              <span className="chip chip-muted">{snapshot.meta.pin_center.center_source}</span>
+              {snapshot.meta.pin_center.entry_blocked ? (
+                <span className="chip chip-warn">Entry blocked</span>
+              ) : null}
+              {snapshot.meta.pin_center.narrative ? (
+                <p className="playbook-pin-center-note">{snapshot.meta.pin_center.narrative}</p>
+              ) : null}
+            </div>
+          ) : null}
           <div className="playbook-structure">
             <div className="playbook-structure-row">
               <span>Body @ {fmtPrice(pb.structure.center)}</span>

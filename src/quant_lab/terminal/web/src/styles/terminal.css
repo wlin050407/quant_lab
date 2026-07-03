@@ -2027,6 +2027,37 @@ html[data-locale="zh"] {
   flex-shrink: 0;
 }
 .playbook-exit.active .playbook-exit-dot { background: #fbbf24; }
+.playbook-pin-center {
+  margin-bottom: 0.45rem;
+  padding: 0.45rem 0.5rem;
+  border-radius: 8px;
+  border: 1px solid rgba(20, 184, 166, 0.25);
+  background: rgba(20, 184, 166, 0.06);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  font-family: var(--mono);
+  font-size: 0.62rem;
+}
+.playbook-pin-center-k {
+  font-size: 0.56rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+  width: 100%;
+}
+.playbook-pin-center-note {
+  width: 100%;
+  margin: 0.15rem 0 0;
+  font-size: 0.58rem;
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+.chip-confidence--high { color: var(--brand-mint); border-color: rgba(20, 184, 166, 0.35); }
+.chip-confidence--medium { color: #fbbf24; border-color: rgba(251, 191, 36, 0.35); }
+.chip-confidence--low { color: #f87171; border-color: rgba(248, 113, 113, 0.35); }
+.chip-warn { color: #f87171; border-color: rgba(248, 113, 113, 0.35); background: rgba(248, 113, 113, 0.08); }
 .playbook-structure {
   border: 1px solid var(--border);
   border-radius: 8px;

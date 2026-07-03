@@ -1,0 +1,16 @@
+{
+  "physical": {
+    "spot": 7130.0,
+    "king_bs": 7135.0,
+    "flip_bs": 7125.0,
+    "call_wall_bs": 7150.0,
+    "put_wall_bs": 7100.0,
+    "max_pain": 7130.0,
+    "pin_score": 78.0,
+    "regime_local": "long_gamma",
+    "pct_gex_dte1": 42.0,
+    "expected_move_1sd": 35.0,
+    "magnet_strike": 7135.0
+  },
+  "max_priors": [[7135.0, 2.5], [7140.0, 1.0]]
+}

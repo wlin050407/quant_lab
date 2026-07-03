@@ -148,10 +148,15 @@ def _build_structure(
     max_pain: float | None,
     expected_move: float | None,
     spx_notional: bool,
+    pin_center: float | None = None,
+    pin_center_source: str | None = None,
 ) -> PlaybookStructure | None:
     center: float | None = None
     source = "magnet"
-    if magnet_strike is not None and np.isfinite(magnet_strike):
+    if pin_center is not None and np.isfinite(pin_center):
+        center = float(pin_center)
+        source = pin_center_source or "fused"
+    elif magnet_strike is not None and np.isfinite(magnet_strike):
         center = float(magnet_strike)
         if king is not None and np.isfinite(king) and abs(center - king) <= 0.51:
             source = "king"
@@ -248,6 +253,12 @@ def build_pin_playbook(
     gate_reason: str,
     trinity_score: float | None = None,
     trinity_direction: str | None = None,
+    pin_center: float | None = None,
+    pin_center_source: str | None = None,
+    fusion_size_overlay: float = 1.0,
+    fusion_entry_blocked: bool = False,
+    fusion_entry_blocked_reason: str | None = None,
+    fusion_narrative: str | None = None,
 ) -> PinPlaybook:
     """Assemble Pin Play playbook for Terminal right rail."""
     phase_id, phase_title, phase_detail = session_phase(time_of_day)
@@ -283,7 +294,15 @@ def build_pin_playbook(
         if not range_ok:
             gate_mult = min(gate_mult, 0.25)
 
-    size_mult = float(pin_mult * regime_mult * gate_mult)
+    size_mult = float(pin_mult * regime_mult * gate_mult * fusion_size_overlay)
+
+    fusion_detail = fusion_narrative or ""
+    if fusion_entry_blocked and fusion_entry_blocked_reason:
+        fusion_detail = (
+            f"{fusion_detail} Entry blocked: {fusion_entry_blocked_reason}."
+            if fusion_detail
+            else f"Entry blocked: {fusion_entry_blocked_reason}."
+        )
 
     checks = (
         PlaybookCheck(
@@ -342,6 +361,8 @@ def build_pin_playbook(
         max_pain=max_pain,
         expected_move=expected_move,
         spx_notional=spx,
+        pin_center=pin_center,
+        pin_center_source=pin_center_source,
     )
 
     entry_allowed = (
@@ -349,17 +370,24 @@ def build_pin_playbook(
         and size_mult > 0.0
         and gate_should_trade
         and regime_ok
+        and not fusion_entry_blocked
     )
     if entry_allowed:
         summary = f"Entry OK · size {size_mult:.2f}× — {structure.summary if structure else 'structure n/a'}"
+        if fusion_detail:
+            summary = f"{summary} · {fusion_detail}"
     elif phase_id == "entry_window" and size_mult <= 0:
         summary = "Entry window open but sizing is 0× — sit out or reduce"
     elif phase_id == "manage":
         summary = f"Manage open fly · target size reference {size_mult:.2f}× at entry"
     elif phase_id == "pre_entry":
         summary = f"Pre-entry · projected size {size_mult:.2f}× if gates hold at 13:00"
+        if fusion_detail:
+            summary = f"{summary} · {fusion_detail}"
     else:
         summary = phase_detail
+        if fusion_detail and phase_id in ("read_map", "pre_entry", "manage"):
+            summary = f"{phase_detail} · {fusion_detail}"
 
     return PinPlaybook(
         session_phase=phase_id,
