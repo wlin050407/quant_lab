@@ -776,3 +776,20 @@
   line-height: 1.4;
   color: var(--text-muted);
 }
+
+.attraction-trends {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.35rem;
+  font-family: var(--mono);
+  font-size: 0.52rem;
+  color: rgba(148, 163, 184, 0.9);
+}
+
+.attraction-trends span {
+  padding: 0.1rem 0.3rem;
+  border-radius: 3px;
+  background: rgba(15, 23, 42, 0.5);
+  border: 1px solid rgba(148, 163, 184, 0.12);
+}

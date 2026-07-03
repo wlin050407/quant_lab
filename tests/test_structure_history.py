@@ -9,6 +9,7 @@ from quant_lab.terminal.structure_history import (
     record_structure_sample,
     samples_for,
     trend_pct,
+    trend_summary,
 )
 
 
@@ -30,3 +31,15 @@ def test_trend_pct_after_two_samples() -> None:
     pct = trend_pct("^SPX", "sum_gex_vol", lookback_sec=60.0)
     assert pct is not None
     assert pct == 0.5
+
+
+def test_trend_summary_exposes_horizons() -> None:
+    clear_structure_history()
+    with patch("quant_lab.terminal.structure_history.time.monotonic", side_effect=[100.0, 400.0, 1000.0]):
+        record_structure_sample("^SPX", classic={"spot": 7000.0, "sum_gex_vol": 100.0, "zero_gamma": 6990.0})
+        record_structure_sample("^SPX", classic={"spot": 7010.0, "sum_gex_vol": 120.0, "zero_gamma": 6995.0})
+        record_structure_sample("^SPX", classic={"spot": 7020.0, "sum_gex_vol": 150.0, "zero_gamma": 7000.0})
+    summary = trend_summary("^SPX")
+    assert "spot_5m_pct" in summary
+    assert summary["spot_5m_pct"] is not None
+    assert summary["zero_gamma_5m_pts"] == 5.0

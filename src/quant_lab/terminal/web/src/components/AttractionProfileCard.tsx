@@ -77,6 +77,23 @@ export function AttractionProfileCard({ structure }: { structure: StructureSnaps
         </p>
       ) : null}
 
+      {structure.structure_trends ? (
+        <div className="attraction-trends">
+          {structure.structure_trends.spot_5m_pct != null ? (
+            <span>Spot 5m {structure.structure_trends.spot_5m_pct >= 0 ? "+" : ""}
+              {(structure.structure_trends.spot_5m_pct * 100).toFixed(2)}%</span>
+          ) : null}
+          {structure.structure_trends.gex_vol_5m_pct != null ? (
+            <span>GEX vol 5m {structure.structure_trends.gex_vol_5m_pct >= 0 ? "+" : ""}
+              {(structure.structure_trends.gex_vol_5m_pct * 100).toFixed(1)}%</span>
+          ) : null}
+          {structure.structure_trends.zero_gamma_5m_pts != null ? (
+            <span>Flip Δ {structure.structure_trends.zero_gamma_5m_pts >= 0 ? "+" : ""}
+              {structure.structure_trends.zero_gamma_5m_pts.toFixed(1)}pt</span>
+          ) : null}
+        </div>
+      ) : null}
+
       <ul className="attraction-list">
         {structure.attraction_profile.slice(0, 8).map((row) => (
           <AttractionBar key={row.level} row={row} />

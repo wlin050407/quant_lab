@@ -112,6 +112,38 @@ def trend_pct(
     return float((cur - past_val) / abs(past_val))
 
 
+def trend_summary(terminal_symbol: str) -> dict[str, float | None]:
+    """Multi-horizon structure tape trends for UI (3m / 5m / 15m)."""
+    return {
+        "spot_3m_pct": trend_pct(terminal_symbol, "spot", lookback_sec=3 * 60),
+        "spot_5m_pct": trend_pct(terminal_symbol, "spot", lookback_sec=5 * 60),
+        "spot_15m_pct": trend_pct(terminal_symbol, "spot", lookback_sec=15 * 60),
+        "gex_vol_5m_pct": trend_pct(terminal_symbol, "sum_gex_vol", lookback_sec=5 * 60),
+        "gex_vol_15m_pct": trend_pct(terminal_symbol, "sum_gex_vol", lookback_sec=15 * 60),
+        "zero_gamma_5m_pts": _delta_pts(terminal_symbol, "zero_gamma", lookback_sec=5 * 60),
+    }
+
+
+def _delta_pts(terminal_symbol: str, field: str, *, lookback_sec: float) -> float | None:
+    rows = samples_for(terminal_symbol)
+    if len(rows) < 2:
+        return None
+    now = rows[-1].monotonic_ts
+    cur = getattr(rows[-1], field, None)
+    if cur is None or not _finite(cur):
+        return None
+    past_val: float | None = None
+    for row in reversed(rows):
+        if now - row.monotonic_ts >= lookback_sec:
+            past_val = getattr(row, field, None)
+            break
+    if past_val is None:
+        past_val = getattr(rows[0], field, None)
+    if past_val is None or not _finite(past_val):
+        return None
+    return float(cur - past_val)
+
+
 def spot_trend_pct(terminal_symbol: str, lookback_sec: float) -> float | None:
     return trend_pct(terminal_symbol, "spot", lookback_sec=lookback_sec)
 

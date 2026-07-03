@@ -238,6 +238,7 @@ export interface StructureSnapshot {
   structure_bias: number;
   family_weights?: StructureFamilyWeights | null;
   mm_reference_family_weights?: StructureFamilyWeights | null;
+  structure_trends?: Record<string, number | null> | null;
 }
 
 export interface PinCenterDecision {

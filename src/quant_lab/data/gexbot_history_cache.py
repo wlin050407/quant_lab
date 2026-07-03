@@ -62,6 +62,9 @@ def _normalize_hist_rows(rows: list[dict[str, Any]]) -> pd.DataFrame:
                 "timestamp_unix": ts,
                 "spot": float(row.get("spot", np.nan)),
                 "zero_gamma": float(row.get("zero_gamma", np.nan)),
+                "major_pos_vol": float(row.get("major_pos_vol", np.nan)),
+                "major_neg_vol": float(row.get("major_neg_vol", np.nan)),
+                "sum_gex_vol": float(row.get("sum_gex_vol", np.nan)),
             }
         )
     df = pd.DataFrame.from_records(records)
@@ -102,6 +105,9 @@ def _download_hist_to_parquet(
                         "timestamp_unix": int(row.get("timestamp", 0)),
                         "spot": float(row.get("spot", np.nan)),
                         "zero_gamma": float(row.get("zero_gamma", np.nan)),
+                        "major_pos_vol": float(row.get("major_pos_vol", np.nan)),
+                        "major_neg_vol": float(row.get("major_neg_vol", np.nan)),
+                        "sum_gex_vol": float(row.get("sum_gex_vol", np.nan)),
                     }
                 )
                 if len(batch) >= _HIST_BATCH_ROWS:
@@ -155,7 +161,19 @@ def snapshot_at_unix(hist: pd.DataFrame, target_unix: int) -> dict[str, Any]:
         "timestamp": int(row["timestamp_unix"]),
         "spot": float(row["spot"]),
         "zero_gamma": float(row["zero_gamma"]),
+        "major_pos_vol": _row_optional_float(row, "major_pos_vol"),
+        "major_neg_vol": _row_optional_float(row, "major_neg_vol"),
+        "sum_gex_vol": _row_optional_float(row, "sum_gex_vol"),
     }
+
+
+def _row_optional_float(row: pd.Series, col: str) -> float:
+    if col not in row.index:
+        return float("nan")
+    val = row[col]
+    if pd.isna(val):
+        return float("nan")
+    return float(val)
 
 
 def snapshot_at_time(

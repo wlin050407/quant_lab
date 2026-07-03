@@ -1654,6 +1654,11 @@ def build_dashboard(
         fusion_entry_blocked=bool((pin_center_meta or {}).get("entry_blocked")),
         fusion_entry_blocked_reason=(pin_center_meta or {}).get("entry_blocked_reason"),
         fusion_narrative=(pin_center_meta or {}).get("narrative"),
+        fusion_center_confidence=str((pin_center_meta or {}).get("center_confidence") or ""),
+        fusion_execution_state=str((structure_meta or {}).get("execution_state") or ""),
+        fusion_primary_mm=_optional_float(
+            ((structure_meta or {}).get("primary_mm_target") or {}).get("level")
+        ),
     )
 
     session_hours = pin_playbook.hours_to_close

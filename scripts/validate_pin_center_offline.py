@@ -12,6 +12,7 @@ import pandas as pd
 from quant_lab.config import settings
 from quant_lab.terminal.mm_structure import build_structure_snapshot
 from quant_lab.terminal.pin_center import PhysicalSnapshot, fuse_pin_center
+from quant_lab.terminal.pin_center_replay import run_v1_replay
 
 
 def _load_fixture(path: Path) -> dict[str, Any]:
@@ -108,6 +109,11 @@ def main() -> None:
     parser.add_argument("--symbol", default="SPY")
     parser.add_argument("--history", action="store_true", help="Run terminal history proxy V1")
     parser.add_argument(
+        "--replay",
+        action="store_true",
+        help="Run GEXBot hist replay V1/V2 (requires API key + cache)",
+    )
+    parser.add_argument(
         "--state-fixture",
         type=Path,
         default=Path("tests/fixtures/mm_structure_state_hubs.json"),
@@ -122,6 +128,9 @@ def main() -> None:
 
     if args.history:
         out["history"] = validate_terminal_history(args.symbol)
+
+    if args.replay:
+        out["replay"] = run_v1_replay(f"^{args.symbol}" if args.symbol.upper() == "SPX" else args.symbol)
 
     if args.state_fixture.exists():
         out["structure_p1"] = validate_structure_p1(args.state_fixture)

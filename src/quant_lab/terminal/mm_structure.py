@@ -8,7 +8,7 @@ from typing import Any, Literal
 import numpy as np
 
 from quant_lab.config import env_var
-from quant_lab.terminal.structure_history import trend_pct
+from quant_lab.terminal.structure_history import trend_pct, trend_summary
 
 StructureRegime = Literal[
     "positive_gamma",
@@ -141,6 +141,7 @@ class StructureSnapshot:
     attraction_profile: list[AttractionRow] = field(default_factory=list)
     structure_bias: float = 0.0
     family_weights: FamilyWeights | None = None
+    structure_trends: dict[str, float | None] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -163,6 +164,7 @@ class StructureSnapshot:
             "structure_bias": self.structure_bias,
             "family_weights": self.family_weights.to_dict() if self.family_weights else None,
             "mm_reference_family_weights": MM_REFERENCE_FAMILY_WEIGHTS,
+            "structure_trends": self.structure_trends,
         }
 
 
@@ -231,6 +233,7 @@ def build_structure_snapshot(
     )
     trend_state = _trend_state(structure_bias, momentum_score)
     version = "p1" if state_hubs else "p0"
+    trends = trend_summary(terminal_symbol)
 
     return StructureSnapshot(
         structure_version=version,
@@ -247,6 +250,7 @@ def build_structure_snapshot(
         attraction_profile=profile,
         structure_bias=structure_bias,
         family_weights=weights,
+        structure_trends=trends,
     )
 
 

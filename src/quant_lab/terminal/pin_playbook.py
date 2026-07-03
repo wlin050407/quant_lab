@@ -259,6 +259,9 @@ def build_pin_playbook(
     fusion_entry_blocked: bool = False,
     fusion_entry_blocked_reason: str | None = None,
     fusion_narrative: str | None = None,
+    fusion_center_confidence: str | None = None,
+    fusion_execution_state: str | None = None,
+    fusion_primary_mm: float | None = None,
 ) -> PinPlaybook:
     """Assemble Pin Play playbook for Terminal right rail."""
     phase_id, phase_title, phase_detail = session_phase(time_of_day)
@@ -302,6 +305,31 @@ def build_pin_playbook(
             f"{fusion_detail} Entry blocked: {fusion_entry_blocked_reason}."
             if fusion_detail
             else f"Entry blocked: {fusion_entry_blocked_reason}."
+        )
+
+    structure_ok = True
+    structure_detail = "King / primary / fused center aligned"
+    if fusion_entry_blocked:
+        structure_ok = False
+        structure_detail = fusion_entry_blocked_reason or "Structure entry blocked"
+    elif fusion_execution_state == "dynamic_conflict_pin_wait":
+        structure_ok = False
+        structure_detail = "Momentum vs structure conflict — wait"
+    elif fusion_center_confidence == "low":
+        structure_ok = pin_high
+        structure_detail = (
+            "Low center confidence — conservative King"
+            if not pin_high
+            else "Low confidence but pin≥70 — reduced conviction"
+        )
+    elif (
+        fusion_primary_mm is not None
+        and king is not None
+        and np.isfinite(king)
+        and abs(fusion_primary_mm - king) > 10.0
+    ):
+        structure_detail = (
+            f"Primary {fusion_primary_mm:.0f} vs King {king:.0f} — using fused center"
         )
 
     checks = (
@@ -351,6 +379,13 @@ def build_pin_playbook(
             detail=gate_reason,
             weight=1.0 if gate_should_trade else 0.0,
         ),
+        PlaybookCheck(
+            id="structure",
+            label="Structure alignment",
+            passed=structure_ok,
+            detail=structure_detail,
+            weight=1.0 if structure_ok else 0.25,
+        ),
     )
 
     spx = symbol.replace("^", "") in ("SPX", "SPXW")
@@ -371,6 +406,7 @@ def build_pin_playbook(
         and gate_should_trade
         and regime_ok
         and not fusion_entry_blocked
+        and structure_ok
     )
     if entry_allowed:
         summary = f"Entry OK · size {size_mult:.2f}× — {structure.summary if structure else 'structure n/a'}"

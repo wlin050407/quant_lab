@@ -1,7 +1,7 @@
 # Pin Center Fusion — MM Structure × Local Physical (Optimal Pin Play)
 
 **Branch:** `feature/pin-center-fusion`  
-**Status:** P0+F1 done · F2 state hubs + IV surface wired · F3 offline validate stub  
+**Status:** F3 replay + structure gate + trends shipped · F4 backtest hook pending  
 **Parent design:** [VENDOR_RESONANCE_V2.md](./VENDOR_RESONANCE_V2.md) · [PIN_PLAY_SPEC.md](../PIN_PLAY_SPEC.md)  
 **Reference algorithm:** `SPX_MM_STRUCTURE_ALGORITHM.md` (external rule engine)
 
@@ -297,7 +297,7 @@ Script: `scripts/validate_pin_center_offline.py`
 | **F0** (now) | spec, branch, `structure_history`, `mm_structure` P0, `pin_center`, snapshot/playbook wire, tests | V4 |
 | **F1** | extend orderflow decode, attraction UI panel, history trends in API | visual review — **attraction panel + fused center in Playbook shipped** |
 | **F2** | state hub WS groups, IV surface module | V2 on 2026 hist |
-| **F3** | `validate_pin_center_offline.py`, weight tuning | V1 + V3 |
+| **F3** | `pin_center_replay.py`, validate `--replay`, Playbook structure check, trends | V1/V2 when hist cached |
 | **F4** | Phase 4 intraday backtest uses pin_center | ROADMAP Phase 4 |
 
 ## 10. Files (F0)
