@@ -58,6 +58,7 @@ from quant_lab.factors.regime import (
     pin_reliability,
     pin_score_regime_adjusted,
     regime_from_net_gex,
+    should_trade_with_resonance,
     should_trade_zdte,
 )
 from quant_lab.terminal.magnet_state import record_magnet_shift
@@ -1105,27 +1106,80 @@ def build_session_hold_dashboard(
     return json_safe(payload)
 
 
-def _fetch_vendor_levels_overlay(symbol: str) -> dict[str, Any] | None:
-    """GEXBot majors/flip for cross-check in API meta (vendor provider only)."""
+def _fetch_vendor_overlay(symbol: str) -> dict[str, Any] | None:
+    """GEXBot structure + pin ladder for meta (WS stream with REST fallback)."""
     try:
         if resolve_terminal_chain_provider() != "vendor":
             return None
-        from quant_lab.data.gexbot_client import get_gexbot_client, gexbot_ticker
-        from quant_lab.data.vendor_chain import vendor_levels_from_classic
+        from quant_lab.data.gexbot_stream import vendor_overlay_from_stream_or_rest
 
-        client = get_gexbot_client()
-        ticker = gexbot_ticker(symbol)
-        levels = vendor_levels_from_classic(client.classic(ticker, "gex_zero"))
-        try:
-            levels.update(vendor_levels_from_classic(client.classic_majors(ticker, "gex_zero")))
-        except (OSError, PermissionError, ValueError):
-            pass
-        levels["source"] = "gexbot"
-        levels["gex_method"] = "vendor_precomputed"
-        return levels
+        return vendor_overlay_from_stream_or_rest(symbol)
     except Exception as exc:
-        log.debug("vendor levels overlay unavailable: %s", exc)
+        log.debug("vendor overlay unavailable: %s", exc)
         return None
+
+
+def _build_resonance_report(
+    symbol: str,
+    row: dict[str, Any],
+    spot: float,
+    regime: str,
+    vendor_overlay: dict[str, Any] | None,
+) -> dict[str, Any]:
+    from quant_lab.terminal.resonance import (
+        ResonanceLocal,
+        ResonanceVendor,
+        compute_resonance,
+    )
+
+    if vendor_overlay is None:
+        return compute_resonance(
+            ResonanceLocal(
+                spot=spot,
+                flip=_optional_float(row.get("flip_dte1")),
+                king=_optional_float(row.get("king_dte1")),
+                max_pain=_optional_float(row.get("max_pain_dte1")),
+                pin_score=_optional_float(row.get("pin_score")),
+                regime=regime,
+            ),
+            None,
+        ).to_dict()
+
+    levels = vendor_overlay.get("levels") or {}
+    max_priors_raw = vendor_overlay.get("max_priors_raw") or []
+    priors: list[tuple[float, float]] = []
+    if isinstance(max_priors_raw, list):
+        for item in max_priors_raw:
+            if isinstance(item, (list, tuple)) and len(item) >= 2:
+                try:
+                    priors.append((float(item[0]), float(item[1])))
+                except (TypeError, ValueError):
+                    continue
+
+    vendor = ResonanceVendor(
+        zero_gamma=_optional_float(levels.get("zero_gamma")),
+        major_pos_oi=_optional_float(levels.get("major_pos_oi")),
+        major_neg_oi=_optional_float(levels.get("major_neg_oi")),
+        max_priors=priors,
+        gex_orderflow=_optional_float(levels.get("gex_orderflow")),
+    )
+    local = ResonanceLocal(
+        spot=spot,
+        flip=_optional_float(row.get("flip_dte1")),
+        king=_optional_float(row.get("king_dte1")),
+        max_pain=_optional_float(row.get("max_pain_dte1")),
+        pin_score=_optional_float(row.get("pin_score")),
+        regime=regime,
+    )
+    return compute_resonance(local, vendor).to_dict()
+
+
+def _optional_float(val: Any) -> float | None:
+    try:
+        out = float(val)
+    except (TypeError, ValueError):
+        return None
+    return out if np.isfinite(out) else None
 
 
 def build_dashboard(
@@ -1307,6 +1361,7 @@ def build_dashboard(
         pin_score=pin if np.isfinite(pin) else 50.0,
         regime=regime,  # type: ignore[arg-type]
     )
+    base_trade_ok, base_trade_reason = trade_ok, trade_reason
 
     hint = recommend_strategy(
         regime=regime,
@@ -1584,7 +1639,20 @@ def build_dashboard(
         live_pin_quality=live_pin_quality_to_dict(live_quality),
         live_chain_poll=live_poll,
     )
-    vendor_levels = _fetch_vendor_levels_overlay(symbol)
+    vendor_overlay = _fetch_vendor_overlay(symbol)
+    vendor_levels = vendor_overlay.get("levels") if vendor_overlay else None
+    vendor_pin_ladder = vendor_overlay.get("pin_ladder") if vendor_overlay else None
+    vendor_stream = None
+    if vendor_levels and isinstance(vendor_levels.get("stream"), dict):
+        vendor_stream = vendor_levels.pop("stream")
+
+    resonance = _build_resonance_report(symbol, row, spot, regime, vendor_overlay)
+    trade_ok, trade_reason = should_trade_with_resonance(
+        base_ok=base_trade_ok,
+        base_reason=base_trade_reason,  # type: ignore[arg-type]
+        pin_score=pin if np.isfinite(pin) else float("nan"),
+        resonance_tier=str(resonance.get("tier")) if resonance else None,
+    )
 
     payload = {
         "symbol": symbol,
@@ -1606,7 +1674,12 @@ def build_dashboard(
             "spot_vs_king_pct": _f(row.get("spot_vs_king_pct")),
             "spot_vs_flip_pct": _f(row.get("spot_vs_flip_pct")),
         },
-        "gate": {"should_trade": trade_ok, "reason": trade_reason},
+        "gate": {
+            "should_trade": trade_ok,
+            "reason": trade_reason,
+            "base_should_trade": base_trade_ok,
+            "base_reason": base_trade_reason,
+        },
         "strategy": asdict(hint),
         "trinity": {
             "score": _f(align.score),
@@ -1665,7 +1738,10 @@ def build_dashboard(
             "t_years_at_calc": _f(row.get("t_years_at_calc")),
             "em_source": row.get("em_source"),
             "model_metadata": model_metadata,
+            "vendor_stream": vendor_stream,
             "vendor_levels": vendor_levels,
+            "vendor_pin_ladder": vendor_pin_ladder,
+            "resonance": resonance,
         },
     }
     return json_safe(payload)

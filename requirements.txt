@@ -13,6 +13,9 @@ fastapi>=0.115              # Ultimate Terminal M4 local web API
 uvicorn[standard]>=0.32      # serve Terminal UI
 httpx>=0.27                 # FastAPI TestClient in tests
 ijson>=3.2                  # stream-parse large GEXBot hist JSON without OOM
+zstandard>=0.22             # GEXBot WebSocket zstd payload decode
+protobuf>=4.25              # GEXBot WebSocket protobuf messages
+azure-messaging-webpubsubclient>=1.0  # GEXBot Quant WebSocket (Azure Web PubSub)
 
 # ThetaData optional — cloud vendor deploy does not need it. Local rollback:
 #   pip install -r requirements-thetadata.txt

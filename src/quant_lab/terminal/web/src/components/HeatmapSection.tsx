@@ -182,6 +182,7 @@ export function HeatmapSection({
                 key={o.key}
                 panel={p}
                 levels={isPrimary ? snapshot.levels : null}
+                vendorLevels={isPrimary ? snapshot.meta?.vendor_levels : null}
                 metric={metric}
                 viewMode={viewMode}
                 primary={isPrimary}
@@ -240,6 +241,12 @@ export function HeatmapSection({
           <i className="dot dot-flip" />
           Flip level
         </span>
+        {snapshot.meta?.vendor_levels?.zero_gamma != null ? (
+          <span className="legend-item legend-item--vendor" title="Dashed lines = GEXBot structure">
+            <i className="dot dot-vendor" />
+            GEXBot walls
+          </span>
+        ) : null}
         <span className="cohort legend-item--keep" id="cohort-label">
           {snapshot.meta?.cohort ?? "dte≤1"}
         </span>

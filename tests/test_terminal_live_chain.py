@@ -409,3 +409,17 @@ def test_fetch_live_cache_isolated_by_symbol() -> None:
                         fetch_live_intraday_chain(today, "13:00:00", symbol="SPY")
 
     assert mock_build.call_count == 2
+
+
+def test_vendor_use_hist_replay_today_fixed_slot() -> None:
+    from quant_lab.terminal.live_chain import vendor_use_hist_replay
+
+    today = date(2026, 7, 2)
+    assert vendor_use_hist_replay(today, "13:00:00") is True
+    assert vendor_use_hist_replay(today, LIVE_TIME_OF_DAY) is False
+
+
+def test_vendor_use_hist_replay_prior_session() -> None:
+    from quant_lab.terminal.live_chain import vendor_use_hist_replay
+
+    assert vendor_use_hist_replay(date(2026, 6, 30), LIVE_TIME_OF_DAY) is True

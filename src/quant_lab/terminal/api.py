@@ -6,6 +6,7 @@ import logging
 from contextlib import asynccontextmanager
 from datetime import date
 from pathlib import Path
+from typing import Any
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse
@@ -54,7 +55,7 @@ def _ui_index() -> Path:
 
 
 @app.get("/api/health")
-def health() -> dict[str, str | int | bool | None]:
+def health() -> dict[str, Any]:
     status = cache_status()
     return {
         "status": "ok",

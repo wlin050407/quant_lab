@@ -346,6 +346,17 @@ def fetch_intraday_chain_from_thetadata(
     return chain, spot, effective_time, False
 
 
+def vendor_use_hist_replay(session_date: date, time_of_day: str) -> bool:
+    """Whether vendor chain should use GEXBot hist @ clock (not live classic).
+
+    On **today**, only ``time=live`` uses live GEXBot+UW. A fixed slot like ``13:00``
+  on the same session (including after RTH) replays from hist + UW ``date=``.
+    """
+    if not is_live_session(session_date):
+        return True
+    return time_of_day.strip().lower() != LIVE_TIME_OF_DAY
+
+
 def fetch_intraday_chain_from_vendors(
     session_date: date,
     time_of_day: str,
@@ -400,7 +411,7 @@ def fetch_intraday_chain_from_vendors(
             uw = None
 
     ref_oi = get_reference_oi(spec.terminal_symbol, session_date)
-    use_hist_spot = not is_live_session(session_date)
+    use_hist_spot = vendor_use_hist_replay(session_date, time_of_day)
 
     t0 = time.monotonic()
     try:

@@ -4,7 +4,9 @@ import {
   compareDivergence,
   emZoneVars,
   heatClass,
+  heatmapBarIntensity,
   heatmapRowTitle,
+  heatmapScaleMaxBn,
   levelTags,
   near,
   nearestStrikeToSpot,
@@ -12,6 +14,7 @@ import {
   sortedHeatmapRows,
   spotTopPct,
   formatStrikeAttr,
+  vendorGuideLines,
   vexHeatClass,
 } from "../lib/heatmap";
 import { LIVE_INTRADAY_SYMBOLS } from "../lib/liveSymbols";
@@ -21,6 +24,7 @@ import type {
   HeatmapViewMode,
   Levels,
   PanelSnapshot,
+  VendorLevels,
 } from "../types/snapshot";
 import { usePanelSectionMotion } from "../hooks/usePanelSectionMotion";
 import { useReducedMotion } from "../hooks/useReducedMotion";
@@ -31,6 +35,7 @@ import { PanelDataBadge } from "./PanelDataBadge";
 interface HeatmapPanelProps {
   panel: PanelSnapshot;
   levels: Levels | null;
+  vendorLevels?: VendorLevels | null;
   metric: ExposureMetric;
   viewMode: HeatmapViewMode;
   primary: boolean;
@@ -66,14 +71,14 @@ function SingleRow({
   spotStrike,
   levels,
   metric,
-  maxAbs,
+  scaleMax,
 }: {
   row: HeatmapRow;
   spot: number;
   spotStrike: number | null;
   levels: Levels | null;
   metric: ExposureMetric;
-  maxAbs: number;
+  scaleMax: number;
 }) {
   const val = exposureValue(row, metric);
   const barVal =
@@ -82,7 +87,7 @@ function SingleRow({
       : metric === "vex"
         ? (row.net_vex_bn ?? (row.net_vex ?? 0) / 1e9)
         : val;
-  const intensity = Math.abs(barVal) / (maxAbs || 1);
+  const intensity = heatmapBarIntensity(Math.abs(barVal), scaleMax);
   const cls = heatClass(intensity, val);
   const signPrefix = metric === "vex" ? "vex" : "gex";
   const tags = levelTags(row.strike, levels);
@@ -145,21 +150,21 @@ function CompareRow({
   spot,
   spotStrike,
   levels,
-  maxGex,
-  maxVex,
+  gexScaleMax,
+  vexScaleMax,
 }: {
   row: HeatmapRow;
   spot: number;
   spotStrike: number | null;
   levels: Levels | null;
-  maxGex: number;
-  maxVex: number;
+  gexScaleMax: number;
+  vexScaleMax: number;
 }) {
   const gexVal = gexBn(row);
   const vexVal = vexBn(row);
-  const gInt = Math.abs(gexVal) / maxGex;
-  const vInt = Math.abs(vexVal) / maxVex;
-  const diverge = compareDivergence(gexVal, vexVal, maxGex, maxVex);
+  const gInt = heatmapBarIntensity(Math.abs(gexVal), gexScaleMax);
+  const vInt = heatmapBarIntensity(Math.abs(vexVal), vexScaleMax);
+  const diverge = compareDivergence(gexVal, vexVal, gexScaleMax, vexScaleMax);
   const tags = levelTags(row.strike, levels);
   const visibleTags = tags.slice(0, 1);
   const tagTitle = tags.map((t) => t.text).join(" · ");
@@ -216,6 +221,7 @@ function CompareRow({
 export function HeatmapPanel({
   panel,
   levels,
+  vendorLevels,
   metric,
   viewMode,
   primary,
@@ -292,22 +298,16 @@ export function HeatmapPanel({
   const spot = panel.spot;
   const rows = sortedHeatmapRows(panel.heatmap);
   const spotStrike = nearestStrikeToSpot(rows, spot);
-  const maxGexBn = Math.max(...rows.map((r) => Math.abs(gexBn(r))), 0.001);
-  const maxVexBn = Math.max(...rows.map((r) => Math.abs(vexBn(r))), 0.001);
-  const maxAbs =
-    metric === "compare"
-      ? 1
-      : metric === "gex"
-        ? Math.max(
-            ...rows.map((r) => Math.abs(r.net_gex_bn ?? (r.net_gex ?? 0) * 0.01 / 1e9)),
-            0.001,
-          )
-        : metric === "vex"
-          ? Math.max(
-              ...rows.map((r) => Math.abs(r.net_vex_bn ?? (r.net_vex ?? 0) / 1e9)),
-              0.001,
-            )
-          : Math.max(...rows.map((r) => Math.abs(exposureValue(r, metric))), 1);
+  const gexAbs = rows.map((r) => Math.abs(gexBn(r)));
+  const vexAbs = rows.map((r) => Math.abs(vexBn(r)));
+  const gexScaleMax = heatmapScaleMaxBn(gexAbs);
+  const vexScaleMax = heatmapScaleMaxBn(vexAbs);
+  const scaleMax =
+    metric === "gex"
+      ? gexScaleMax
+      : metric === "vex"
+        ? vexScaleMax
+        : heatmapScaleMaxBn(rows.map((r) => Math.abs(exposureValue(r, metric))));
 
   const lv =
     levels ??
@@ -319,11 +319,13 @@ export function HeatmapPanel({
     } as Levels);
 
   const emVars = emZoneVars(rows, levels ?? undefined);
+  const vendorGuides = primary && metric === "gex" ? vendorGuideLines(rows, vendorLevels) : [];
   const spotPct = spotTopPct(rows, spot);
   const canvasClass = [
     "heatmap-canvas",
     metric === "compare" ? "mode-compare-canvas" : "",
     emVars ? "has-em" : "",
+    vendorGuides.length > 0 ? "has-vendor-guides" : "",
   ]
     .filter(Boolean)
     .join(" ");
@@ -346,6 +348,15 @@ export function HeatmapPanel({
       <div className="strike-plot-trace__scroll" ref={bodyRef}>
         <div ref={canvasRef} className={canvasClass} style={emVars as CSSProperties | undefined}>
         {emVars ? <div className="em-zone" /> : null}
+        {vendorGuides.map((guide) => (
+          <div
+            key={guide.key}
+            className={`vendor-guide ${guide.cls}`}
+            style={{ top: `${guide.pct.toFixed(3)}%` }}
+            title={guide.label}
+            aria-hidden
+          />
+        ))}
         {spotPct != null ? (
           <div className="spot-pointer" style={{ top: `${spotPct.toFixed(3)}%` }}>
             <span className="spot-pointer-label">{spot.toFixed(2)}</span>
@@ -359,8 +370,8 @@ export function HeatmapPanel({
                 spot={spot}
                 spotStrike={spotStrike}
                 levels={lv}
-                maxGex={maxGexBn}
-                maxVex={maxVexBn}
+                gexScaleMax={gexScaleMax}
+                vexScaleMax={vexScaleMax}
               />
             ))
           : rows.map((r) => (
@@ -371,7 +382,7 @@ export function HeatmapPanel({
                 spotStrike={spotStrike}
                 levels={lv}
                 metric={metric}
-                maxAbs={maxAbs}
+                scaleMax={scaleMax}
               />
             ))}
         </div>

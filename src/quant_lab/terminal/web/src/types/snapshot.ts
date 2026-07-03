@@ -140,6 +140,49 @@ export interface StrategyHint {
 export interface Gate {
   should_trade: boolean;
   reason: string;
+  base_should_trade?: boolean;
+  base_reason?: string;
+}
+
+export interface VendorLevels {
+  zero_gamma?: number | null;
+  major_pos_oi?: number | null;
+  major_neg_oi?: number | null;
+  major_pos_vol?: number | null;
+  major_neg_vol?: number | null;
+  gex_orderflow?: number | null;
+  source?: string;
+  gex_method?: string;
+}
+
+export interface VendorPinLadderRow {
+  strike: number;
+  weight: number;
+  weight_norm: number;
+}
+
+export interface VendorStreamMeta {
+  source?: string;
+  connection_status?: string;
+  last_update_ms?: number | null;
+  hubs?: string[];
+  ticker?: string;
+}
+
+export interface ResonanceDivergence {
+  field: string;
+  local: number | null;
+  vendor: number | null;
+  delta_pts?: number | null;
+  severity: "info" | "warn" | "critical" | string;
+}
+
+export interface ResonanceReport {
+  tier: "high" | "medium" | "low" | "unavailable" | string;
+  score: number | null;
+  axes: Record<string, number | null>;
+  divergences: ResonanceDivergence[];
+  narrative: string;
 }
 
 export interface Trinity {
@@ -292,6 +335,10 @@ export interface DashboardSnapshot {
     magnet_shift?: boolean;
     magnet_previous?: number | null;
     magnet_delta_pts?: number | null;
+    vendor_stream?: VendorStreamMeta | null;
+    vendor_levels?: VendorLevels | null;
+    vendor_pin_ladder?: VendorPinLadderRow[] | null;
+    resonance?: ResonanceReport | null;
     model_metadata?: ModelMetadata;
     gex_model?: string;
     risk_free_rate?: number | null;

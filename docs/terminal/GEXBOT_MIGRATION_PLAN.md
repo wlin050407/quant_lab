@@ -74,11 +74,9 @@ terminal/snapshot.py
 - [x] `meta.vendor_levels` GEXBot cross-check overlay
 - [x] `scripts/calibrate_vendor_gex.py`
 - [x] `render.yaml` vendor env template; **Render-first** `docs/DEPLOY.md`
-- [ ] GEXBot WebSocket push (deferred — REST poller + 1Hz hist sufficient for now)
+- [x] GEXBot WebSocket structure stream — see `docs/terminal/VENDOR_RESONANCE_V2.md`
 
 ## Known semantic gaps (documented in API meta)
-
-| Gap | Mitigation |
 |-----|------------|
 | UW `prev_oi` is prior session, not 09:30 | Session OI cache after first live poll; GEXBot hist @ 09:30 for replay |
 | UW contracts may be EoD snapshot on historical `date=` | Pair with GEXBot hist spot; label `oi_semantics` in meta |

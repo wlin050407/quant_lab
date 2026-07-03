@@ -1397,6 +1397,34 @@ html[data-locale="zh"] {
   border-radius: 2px;
 }
 
+/* GEXBot vendor structure guides (dashed, non-interactive) */
+.vendor-guide {
+  position: absolute;
+  left: var(--overlay-left, 44px);
+  right: 4px;
+  height: 0;
+  border-top: 1px dashed;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.75;
+}
+
+.vendor-guide--flip {
+  border-color: rgba(45, 212, 191, 0.65);
+}
+
+.vendor-guide--call {
+  border-color: rgba(74, 222, 128, 0.55);
+}
+
+.vendor-guide--put {
+  border-color: rgba(248, 113, 113, 0.55);
+}
+
+.dot-vendor {
+  background: linear-gradient(90deg, rgba(45, 212, 191, 0.9), rgba(167, 139, 250, 0.9));
+}
+
 /* Spot pointer — row-index aligned */
 .spot-pointer {
   position: absolute;

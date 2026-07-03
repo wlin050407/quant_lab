@@ -5,11 +5,18 @@ from __future__ import annotations
 import logging
 import threading
 from datetime import date, datetime
+from typing import Any
 
 from quant_lab.config import env_var
 from quant_lab.data.base import MARKET_TZ
 from quant_lab.data.gexbot_client import GexbotClient, GexbotConfigError, get_gexbot_client
 from quant_lab.data.gexbot_history_cache import gexbot_hist_cache_root, load_or_fetch_hist_day
+from quant_lab.data.gexbot_stream import (
+    gexbot_ws_enabled,
+    start_gexbot_stream_service,
+    stop_gexbot_stream_service,
+    stream_status,
+)
 from quant_lab.terminal.chain_provider import resolve_terminal_chain_provider
 from quant_lab.terminal.deploy import history_retention_days, recent_trading_dates
 from quant_lab.terminal.live_chain import (
@@ -109,6 +116,12 @@ def _run_vendor_live_poller() -> None:
         _shutdown.wait(timeout=live_refresh_seconds())
 
 
+def _live_poller_enabled() -> bool:
+    """UW chain warm poller — off by default when GEXBot WS handles structure."""
+    default = "0" if gexbot_ws_enabled() else "1"
+    return _env_enabled("TERMINAL_VENDOR_LIVE_POLLER", default=default)
+
+
 def start_background_tasks() -> None:
     """Start daemon threads when vendor provider is active."""
     global _threads
@@ -123,12 +136,14 @@ def start_background_tasks() -> None:
         log.info("background tasks skipped (provider=%s)", provider)
         return
 
+    start_gexbot_stream_service()
+
     if _env_enabled("TERMINAL_PREWARM_HIST"):
         t = threading.Thread(target=_run_prewarm, name="gexbot-prewarm", daemon=True)
         t.start()
         _threads.append(t)
 
-    if _env_enabled("TERMINAL_VENDOR_LIVE_POLLER"):
+    if _live_poller_enabled():
         t = threading.Thread(target=_run_vendor_live_poller, name="vendor-live-poller", daemon=True)
         t.start()
         _threads.append(t)
@@ -137,12 +152,13 @@ def start_background_tasks() -> None:
 def stop_background_tasks() -> None:
     """Signal background threads to stop (app shutdown)."""
     _shutdown.set()
+    stop_gexbot_stream_service()
     for t in _threads:
         t.join(timeout=2.0)
     _threads.clear()
 
 
-def cache_status() -> dict[str, str | int | None]:
+def cache_status() -> dict[str, Any]:
     """Lightweight status for ``/api/health``."""
     root = gexbot_hist_cache_root()
     try:
@@ -150,10 +166,14 @@ def cache_status() -> dict[str, str | int | None]:
     except Exception:
         provider = None
     parquet_files = list(root.glob("**/*.parquet")) if root.is_dir() else []
+    ws = stream_status()
     return {
         "chain_provider": provider,
         "gexbot_hist_cache_dir": str(root),
         "gexbot_hist_parquet_files": len(parquet_files),
         "prewarm_enabled": _env_enabled("TERMINAL_PREWARM_HIST"),
-        "live_poller_enabled": _env_enabled("TERMINAL_VENDOR_LIVE_POLLER"),
+        "live_poller_enabled": _live_poller_enabled(),
+        "gexbot_ws_enabled": ws.get("ws_enabled"),
+        "gexbot_ws_groups": ws.get("ws_groups"),
+        "gexbot_ws_tickers": ws.get("tickers"),
     }

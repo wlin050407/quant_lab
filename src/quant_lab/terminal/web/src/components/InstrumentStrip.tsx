@@ -1,11 +1,13 @@
 import type { ReactNode } from "react";
 
 import { distPct } from "../lib/heatmap";
+import { gateDetail } from "../lib/resonance";
 import { countValidLevels, DEALER_LEVELS, isValidLevel } from "../lib/levels";
 import { chainFlowModeLabel, dataSourceLabel, oiModeLabel, volumeSourceLabel } from "../lib/snapshotMeta";
 import { fmtPct, fmtPrice, regimeDesc, regimeShort, vannaLabel } from "../lib/format";
 import type { DashboardSnapshot, ExposureMetric } from "../types/snapshot";
 
+import { ResonanceBadge } from "./ResonanceBadge";
 import { AnimatedPrice } from "./AnimatedPrice";
 import { KingPill } from "./KingPill";
 
@@ -47,7 +49,10 @@ export function InstrumentStrip({ snapshot, metric, loading }: InstrumentStripPr
   const sym = snapshot.symbol.replace("^", "");
   const pin = M.pin_score;
   const pinPct = pin != null && !Number.isNaN(pin) ? Math.min(100, Math.max(0, pin)) : null;
-  const isLive = snapshot.meta?.data_source === "thetadata_live";
+  const isLive =
+    snapshot.meta?.data_source === "thetadata_live" ||
+    snapshot.meta?.data_source === "vendor_live" ||
+    Boolean(snapshot.meta?.live_follow);
   const isIntraday = Boolean(snapshot.meta?.intraday_time);
   const timeLabel = isIntraday ? `${snapshot.meta?.intraday_time} ET` : "EoD";
   const strikes = snapshot.heatmap?.length ?? 0;
@@ -105,7 +110,15 @@ export function InstrumentStrip({ snapshot, metric, loading }: InstrumentStripPr
     warnings.push(`No data for ${snapshot.meta.requested_date} · showing ${snapshot.date}`);
   }
   if (snapshot.meta?.cohort_fallback) warnings.push("Cohort fallback");
-  if (!isIntraday && sym === "SPX") warnings.push("No intraday chain");
+  const req = snapshot.meta?.chain_time_requested;
+  const wantedSlot = Boolean(req && req !== "now");
+  if (!isIntraday && sym === "SPX" && wantedSlot) {
+    warnings.push(
+      `Intraday @ ${req} ET unavailable — try a recent weekday (≤14d), Demo, or RTH live`,
+    );
+  } else if (!isIntraday && sym === "SPX" && !isLive) {
+    warnings.push("EoD only — pick 13:00 / 11:00 or Live during market hours");
+  }
   if (strikes === 0) warnings.push("Empty chain");
   if (levelCount === 0) warnings.push("Levels need 0DTE chain");
   const modelWarnings = snapshot.meta?.model_metadata?.data_quality_warnings ?? [];
@@ -121,9 +134,13 @@ export function InstrumentStrip({ snapshot, metric, loading }: InstrumentStripPr
       <div className="instrument-strip-main">
         <div className={`strip-regime ${snapshot.regime}`}>
           <span className="strip-regime-v">{regimeShort(snapshot.regime)}</span>
-          <span className={`strip-gate ${g.should_trade ? "ok" : "no"}`}>
+          <span
+            className={`strip-gate ${g.should_trade ? "ok" : "no"}`}
+            title={gateDetail(g)}
+          >
             {g.should_trade ? "OK" : "OUT"}
           </span>
+          <ResonanceBadge snapshot={snapshot} compact />
         </div>
 
         <div className="strip-quote">

@@ -12,6 +12,7 @@ import pandas as pd
 from quant_lab.data.base import OptionChainSnapshot
 from quant_lab.data.gexbot_client import GexbotClient, gexbot_ticker
 from quant_lab.data.gexbot_history_cache import load_or_fetch_hist_day, snapshot_at_time
+from quant_lab.data.gexbot_stream import get_vendor_classic_payload, gexbot_ws_enabled
 from quant_lab.data.intraday_time import session_datetime
 from quant_lab.data.thetadata_chain import ChainMode, assemble_chain_from_quotes_oi
 from quant_lab.data.unusualwhales_client import (
@@ -139,6 +140,10 @@ def build_0dte_chain_from_vendors(
     uw_sym = uw_ticker(terminal_symbol)
 
     def _gexbot_live() -> dict:
+        if not use_hist_spot and gexbot_ws_enabled():
+            streamed = get_vendor_classic_payload(terminal_symbol)
+            if streamed is not None:
+                return streamed
         return gexbot.classic(ticker, "gex_zero")
 
     def _uw_contracts() -> list[dict]:
@@ -152,10 +157,10 @@ def build_0dte_chain_from_vendors(
         return uw.flow_per_strike_intraday(uw_sym, market_date=session_date, limit=500)
 
     with ThreadPoolExecutor(max_workers=3) as pool:
-        fut_gex = pool.submit(_gexbot_live)
+        fut_gex = pool.submit(_gexbot_live) if not use_hist_spot else None
         fut_contracts = pool.submit(_uw_contracts)
         fut_flow = pool.submit(_uw_flow)
-        classic = fut_gex.result()
+        classic = fut_gex.result() if fut_gex is not None else {}
         contracts = fut_contracts.result()
         flow_rows = fut_flow.result()
 
@@ -233,3 +238,38 @@ def vendor_levels_from_classic(classic: dict) -> dict[str, float | None]:
         "sum_gex_oi": _f("sum_gex_oi"),
         "sum_gex_vol": _f("sum_gex_vol"),
     }
+
+
+def vendor_pin_ladder_from_classic(
+    classic: dict,
+    *,
+    top_n: int = 5,
+) -> list[dict[str, float]]:
+    """Normalize GEXBot ``max_priors`` to top-N strike weights for UI overlay."""
+    raw = classic.get("max_priors")
+    if not isinstance(raw, list) or not raw:
+        return []
+    pairs: list[tuple[float, float]] = []
+    for item in raw:
+        if not isinstance(item, (list, tuple)) or len(item) < 2:
+            continue
+        try:
+            strike = float(item[0])
+            weight = float(item[1])
+        except (TypeError, ValueError):
+            continue
+        if np.isfinite(strike) and np.isfinite(weight) and weight > 0:
+            pairs.append((strike, weight))
+    if not pairs:
+        return []
+    by_strike: dict[float, float] = {}
+    for strike, weight in pairs:
+        by_strike[strike] = by_strike.get(strike, 0.0) + weight
+    ranked = sorted(by_strike.items(), key=lambda kv: kv[1], reverse=True)[:top_n]
+    max_w = ranked[0][1] if ranked else 1.0
+    if max_w <= 0:
+        max_w = 1.0
+    return [
+        {"strike": float(strike), "weight": float(weight), "weight_norm": float(weight / max_w)}
+        for strike, weight in ranked
+    ]

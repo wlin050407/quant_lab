@@ -414,3 +414,224 @@
     transform: translateY(0);
   }
 }
+
+/* Vendor alignment + resonance (Pin rail) */
+.vendor-alignment {
+  margin: 0.5rem 0 0.65rem;
+  padding: 0.45rem 0.5rem;
+  border-radius: 6px;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  background: rgba(15, 23, 42, 0.35);
+}
+
+.vendor-alignment-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.5rem;
+  margin-bottom: 0.35rem;
+}
+
+.vendor-alignment-head .pin-section-title {
+  margin: 0;
+  flex: 1 1 auto;
+}
+
+.vendor-alignment-narrative {
+  font-size: 0.58rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+  margin: 0 0 0.4rem;
+}
+
+.resonance-pill,
+.vendor-stream-pill {
+  font-family: var(--mono);
+  font-size: 0.52rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 0.12rem 0.35rem;
+  border-radius: 4px;
+  border: 1px solid transparent;
+}
+
+.resonance-tier--high {
+  color: #4ade80;
+  border-color: rgba(74, 222, 128, 0.35);
+  background: rgba(74, 222, 128, 0.1);
+}
+
+.resonance-tier--med {
+  color: #fbbf24;
+  border-color: rgba(251, 191, 36, 0.35);
+  background: rgba(251, 191, 36, 0.08);
+}
+
+.resonance-tier--low {
+  color: #f87171;
+  border-color: rgba(248, 113, 113, 0.35);
+  background: rgba(248, 113, 113, 0.08);
+}
+
+.resonance-tier--na {
+  color: var(--text-dim);
+  border-color: rgba(148, 163, 184, 0.2);
+}
+
+.vendor-stream-pill {
+  color: var(--brand-mint);
+  border-color: rgba(20, 184, 166, 0.3);
+  background: rgba(20, 184, 166, 0.08);
+}
+
+.vendor-compare-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.28rem;
+  margin-bottom: 0.4rem;
+}
+
+.vendor-compare-row {
+  display: grid;
+  grid-template-columns: 3.2rem 1fr auto 1fr auto;
+  align-items: center;
+  gap: 0.25rem;
+  font-family: var(--mono);
+  font-size: 0.58rem;
+}
+
+.vendor-compare-k {
+  color: var(--text-dim);
+  font-weight: 600;
+}
+
+.vendor-compare-local {
+  color: var(--text);
+  text-align: right;
+}
+
+.vendor-compare-vs {
+  color: var(--text-dim);
+  font-size: 0.5rem;
+  text-align: center;
+}
+
+.vendor-compare-vendor {
+  color: var(--brand-mint);
+}
+
+.vendor-compare-delta {
+  color: var(--text-muted);
+  font-size: 0.52rem;
+}
+
+.vendor-compare-delta.warn {
+  color: #fbbf24;
+}
+
+.resonance-axes {
+  list-style: none;
+  margin: 0 0 0.35rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.22rem;
+}
+
+.resonance-axis-row {
+  display: grid;
+  grid-template-columns: 4.2rem 1fr 1.6rem;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.54rem;
+}
+
+.resonance-axis-k {
+  color: var(--text-dim);
+}
+
+.resonance-axis-track {
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(148, 163, 184, 0.15);
+  overflow: hidden;
+}
+
+.resonance-axis-fill {
+  height: 100%;
+  background: linear-gradient(90deg, rgba(20, 184, 166, 0.5), rgba(45, 212, 191, 0.85));
+  border-radius: 2px;
+}
+
+.resonance-axis-v {
+  font-family: var(--mono);
+  text-align: right;
+  color: var(--text-muted);
+}
+
+.vendor-divergence-list {
+  list-style: none;
+  margin: 0 0 0.35rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.18rem;
+}
+
+.vendor-divergence {
+  font-size: 0.54rem;
+  color: var(--text-muted);
+  padding-left: 0.35rem;
+  border-left: 2px solid rgba(148, 163, 184, 0.25);
+}
+
+.vendor-divergence--warn {
+  border-left-color: #fbbf24;
+  color: #fde68a;
+}
+
+.vendor-divergence--critical {
+  border-left-color: #f87171;
+  color: #fecaca;
+}
+
+.vendor-prior-ladder {
+  margin-top: 0.25rem;
+}
+
+.vendor-prior-k {
+  display: block;
+  font-size: 0.52rem;
+  color: var(--text-dim);
+  margin-bottom: 0.2rem;
+}
+
+.vendor-prior-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.18rem;
+}
+
+.vendor-prior-row {
+  display: grid;
+  grid-template-columns: 3rem 1fr;
+  align-items: center;
+  gap: 0.35rem;
+  font-family: var(--mono);
+  font-size: 0.56rem;
+}
+
+.vendor-prior-track {
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(148, 163, 184, 0.12);
+}
+
+.vendor-prior-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: rgba(167, 139, 250, 0.65);
+}

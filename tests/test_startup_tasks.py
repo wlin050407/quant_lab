@@ -12,7 +12,8 @@ from quant_lab.terminal.startup_tasks import is_us_rth_now, prewarm_gexbot_histo
 
 
 @pytest.fixture(autouse=True)
-def _reset_threads() -> None:
+def _reset_threads(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("TERMINAL_GEXBOT_WS", "0")
     startup_tasks._threads.clear()
     startup_tasks._shutdown.clear()
     yield

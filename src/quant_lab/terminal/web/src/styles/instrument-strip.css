@@ -448,3 +448,40 @@
   font-size: 0.55rem;
   color: var(--text-dim);
 }
+
+/* Resonance badge (regime column) */
+.resonance-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.1rem 0.28rem;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  font-family: var(--mono);
+  line-height: 1;
+}
+
+.resonance-badge--compact {
+  padding: 0.08rem 0.22rem;
+}
+
+.resonance-badge-k {
+  font-size: 0.46rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  opacity: 0.85;
+}
+
+.resonance-badge-v {
+  font-size: 0.52rem;
+  font-weight: 800;
+}
+
+.resonance-badge-score {
+  font-size: 0.48rem;
+  opacity: 0.75;
+}
+
+.strip-regime .resonance-badge {
+  margin-top: 0.12rem;
+}

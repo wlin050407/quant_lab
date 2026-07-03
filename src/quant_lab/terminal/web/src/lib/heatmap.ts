@@ -112,6 +112,26 @@ export function computeSpotScrollTop(
   return Math.max(0, spotY - viewportHeight / 2);
 }
 
+/** Robust |GEX/VEX| scale (Bn): ignore a lone king outlier so body strikes stay visible. */
+export function heatmapScaleMaxBn(absValuesBn: number[]): number {
+  const sorted = absValuesBn
+    .filter((v) => Number.isFinite(v))
+    .map((v) => Math.abs(v))
+    .sort((a, b) => a - b);
+  if (!sorted.length) return 0.001;
+  const top = sorted[sorted.length - 1]!;
+  const second = sorted.length > 1 ? sorted[sorted.length - 2]! : top;
+  const pool = top > second * 4 && sorted.length > 2 ? sorted.slice(0, -1) : sorted;
+  const idx = Math.min(pool.length - 1, Math.floor(pool.length * 0.9));
+  return Math.max(pool[idx]!, 0.001);
+}
+
+/** Sqrt-scaled bar intensity in [0, 1] for mirror strike plot. */
+export function heatmapBarIntensity(absBn: number, scaleMaxBn: number): number {
+  if (!Number.isFinite(absBn) || scaleMaxBn <= 0) return 0;
+  return Math.min(1, Math.sqrt(Math.max(0, absBn) / scaleMaxBn));
+}
+
 export function scrollHeatmapToSpot(
   scrollEl: HTMLElement,
   canvasEl: HTMLElement,
@@ -154,13 +174,32 @@ export function vexHeatClass(intensity: number, sign: number): string {
 export function compareDivergence(
   gexVal: number,
   vexVal: number,
-  maxGex: number,
-  maxVex: number,
+  gexScaleMax: number,
+  vexScaleMax: number,
 ): boolean {
-  const gi = Math.abs(gexVal) / maxGex;
-  const vi = Math.abs(vexVal) / maxVex;
+  const gi = heatmapBarIntensity(Math.abs(gexVal), gexScaleMax);
+  const vi = heatmapBarIntensity(Math.abs(vexVal), vexScaleMax);
   if (gi < 0.35 || vi < 0.35) return false;
   return Math.sign(gexVal) !== Math.sign(vexVal);
+}
+
+export function vendorGuideLines(
+  rows: HeatmapRow[],
+  vendor: { zero_gamma?: number | null; major_pos_oi?: number | null; major_neg_oi?: number | null } | null | undefined,
+): Array<{ key: string; label: string; pct: number; cls: string }> {
+  if (!vendor || !rows.length) return [];
+  const sorted = sortedHeatmapRows(rows);
+  const out: Array<{ key: string; label: string; pct: number; cls: string }> = [];
+  const push = (key: string, label: string, level: number | null | undefined, cls: string) => {
+    if (level == null || Number.isNaN(level)) return;
+    const pct = rowCenterPct(sorted, level);
+    if (pct == null) return;
+    out.push({ key, label, pct, cls });
+  };
+  push("vflip", "GEXBot flip", vendor.zero_gamma, "vendor-guide--flip");
+  push("vcall", "GEXBot +γ wall", vendor.major_pos_oi, "vendor-guide--call");
+  push("vput", "GEXBot −γ wall", vendor.major_neg_oi, "vendor-guide--put");
+  return out;
 }
 
 export type LevelTag = { text: string; cls: string };

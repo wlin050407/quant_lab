@@ -17,6 +17,7 @@ ShouldTradeReason = Literal[
     "low_dte_gex_share",
     "low_pin_no_regime",
     "extreme_event_premium",
+    "low_resonance",
 ]
 
 
@@ -86,7 +87,26 @@ def should_trade_zdte(
         and regime == "undetermined"
     ):
         return False, "low_pin_no_regime"
-    if iv_ratio_0dte_7dte is not None and np.isfinite(iv_ratio_0dte_7dte):
-        if iv_ratio_0dte_7dte > max_iv_ratio:
-            return False, "extreme_event_premium"
+    if (
+        iv_ratio_0dte_7dte is not None
+        and np.isfinite(iv_ratio_0dte_7dte)
+        and iv_ratio_0dte_7dte > max_iv_ratio
+    ):
+        return False, "extreme_event_premium"
+    return True, "ok"
+
+
+def should_trade_with_resonance(
+    *,
+    base_ok: bool,
+    base_reason: ShouldTradeReason,
+    pin_score: float,
+    resonance_tier: str | None,
+    min_pin_override: float = 75.0,
+) -> tuple[bool, ShouldTradeReason]:
+    """Apply resonance overlay on top of FlashAlpha-style base gate."""
+    if not base_ok:
+        return False, base_reason
+    if resonance_tier == "low" and np.isfinite(pin_score) and pin_score < min_pin_override:
+        return False, "low_resonance"
     return True, "ok"
