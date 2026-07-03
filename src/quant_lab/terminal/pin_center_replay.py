@@ -96,6 +96,7 @@ def replay_session(
     hist: pd.DataFrame,
     entry_clock: str = ENTRY_CLOCK,
     close_clock: str = CLOSE_CLOCK,
+    pin_min: float = 70.0,
 ) -> SessionReplayRow | None:
     """Replay one session: 13:00 information set → close pin error."""
     physical = physical_from_terminal_row(terminal_row, spot=float(terminal_row.get("spot", np.nan)))
@@ -103,7 +104,7 @@ def replay_session(
         return None
     if str(terminal_row.get("regime", "")) != "long_gamma":
         return None
-    if physical.pin_score < 70.0:
+    if physical.pin_score < pin_min:
         return None
 
     try:
@@ -230,6 +231,7 @@ def run_v1_replay(
             session_date=session_date,
             terminal_row=term_row,
             hist=hist,
+            pin_min=pin_min,
         )
         if replay is not None:
             rows.append(replay)
