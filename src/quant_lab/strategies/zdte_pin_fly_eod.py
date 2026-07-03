@@ -32,8 +32,16 @@ from quant_lab.strategies.zdte_ic_eod import (
     select_contract,
 )
 
-CenterMode = Literal["king", "spot"]
-FlyCenterSource = Literal["king", "max_pain", "spot"]
+CenterMode = Literal["king", "spot", "fused"]
+FlyCenterSource = Literal[
+    "king",
+    "max_pain",
+    "spot",
+    "fused",
+    "primary_mm",
+    "close_pin",
+    "king_bs",
+]
 
 SPY_WING_MIN = 1.5
 SPY_WING_MAX = 3.0
@@ -81,9 +89,16 @@ def resolve_fly_center(
     king_dte1: float,
     max_pain_dte1: float,
     dte: int = 1,
+    pin_center: float | None = None,
+    pin_center_source: str | None = None,
 ) -> tuple[float, FlyCenterSource] | None:
-    """Pick butterfly body strike from King / max pain / spot."""
-    if center_mode == "spot":
+    """Pick butterfly body strike from King / max pain / spot / fused pin_center."""
+    if center_mode == "fused":
+        if pin_center is None or not np.isfinite(pin_center):
+            return None
+        target = float(pin_center)
+        source: FlyCenterSource = _normalize_fly_source(pin_center_source)
+    elif center_mode == "spot":
         target = spot
         source: FlyCenterSource = "spot"
     else:
@@ -108,6 +123,20 @@ def resolve_fly_center(
     if select_contract(chain, strike=center, right="P", dte=dte) is None:
         return None
     return float(center), source
+
+
+def _normalize_fly_source(raw: str | None) -> FlyCenterSource:
+    if raw in ("fused", "primary_mm", "close_pin", "king_bs", "max_priors", "max_pain"):
+        if raw in ("primary_mm", "max_priors"):
+            return "primary_mm"
+        if raw == "close_pin":
+            return "close_pin"
+        if raw == "king_bs":
+            return "king_bs"
+        if raw == "max_pain":
+            return "max_pain"
+        return "fused"
+    return "fused"
 
 
 def resolve_fly_strikes(
@@ -227,6 +256,8 @@ def simulate_pin_fly_trade(
     regime_filter: RegimeFilter = "none",
     commission_per_contract: float = DEFAULT_COMMISSION_PER_CONTRACT,
     spx_notional: bool = False,
+    pin_center: float | None = None,
+    pin_center_source: str | None = None,
 ) -> PinFlyTrade | None:
     """Simulate one short iron butterfly from signal EoD to next close."""
     if not passes_regime_filter(net_gex_bs, regime_filter=regime_filter):
@@ -238,6 +269,8 @@ def simulate_pin_fly_trade(
         center_mode=center_mode,
         king_dte1=king_dte1,
         max_pain_dte1=max_pain_dte1,
+        pin_center=pin_center,
+        pin_center_source=pin_center_source,
     )
     if resolved_center is None:
         return None

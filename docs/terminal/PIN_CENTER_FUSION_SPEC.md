@@ -1,7 +1,7 @@
 # Pin Center Fusion — MM Structure × Local Physical (Optimal Pin Play)
 
 **Branch:** `feature/pin-center-fusion`  
-**Status:** F3 replay + structure gate + trends shipped · F4 backtest hook pending  
+**Status:** F4 backtest hook shipped · V1 full replay gate pending (n≥200 GEXBot hist sessions)  
 **Parent design:** [VENDOR_RESONANCE_V2.md](./VENDOR_RESONANCE_V2.md) · [PIN_PLAY_SPEC.md](../PIN_PLAY_SPEC.md)  
 **Reference algorithm:** `SPX_MM_STRUCTURE_ALGORITHM.md` (external rule engine)
 
@@ -298,7 +298,7 @@ Script: `scripts/validate_pin_center_offline.py`
 | **F1** | extend orderflow decode, attraction UI panel, history trends in API | visual review — **attraction panel + fused center in Playbook shipped** |
 | **F2** | state hub WS groups, IV surface module | V2 on 2026 hist |
 | **F3** | `pin_center_replay.py`, validate `--replay`, Playbook structure check, trends | V1/V2 when hist cached |
-| **F4** | Phase 4 intraday backtest uses pin_center | ROADMAP Phase 4 |
+| **F4** | Phase 4 intraday + EoD backtest `center_mode=fused` via `pin_center_backtest.py` | ROADMAP Phase 4 — **shipped** |
 
 ## 10. Files (F0)
 
@@ -311,7 +311,9 @@ Script: `scripts/validate_pin_center_offline.py`
 | `src/quant_lab/data/gexbot_stream.py` | Append history on WS tick |
 | `src/quant_lab/terminal/snapshot.py` | Wire L1–L3 into dashboard |
 | `src/quant_lab/terminal/pin_playbook.py` | Use pin_center |
-| `tests/test_mm_structure.py` | Structure engine |
+| `src/quant_lab/terminal/pin_center_backtest.py` | EoD/intraday fused center for backtests |
+| `scripts/run_zdte_pin_fly_eod_backtest.py` | Compare king / spot / fused |
+| `scripts/run_zdte_pin_fly_intraday_backtest.py` | `--center king|fused|compare` |
 | `tests/test_pin_center.py` | Fusion rules |
 | `scripts/validate_pin_center_offline.py` | V1 stub |
 

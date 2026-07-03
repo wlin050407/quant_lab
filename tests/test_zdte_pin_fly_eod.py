@@ -81,6 +81,37 @@ def test_resolve_fly_center_king() -> None:
     assert resolved == (100.0, "king")
 
 
+def test_resolve_fly_center_fused() -> None:
+    chain = _sample_chain()
+    resolved = resolve_fly_center(
+        chain,
+        spot=100.0,
+        center_mode="fused",
+        king_dte1=100.0,
+        max_pain_dte1=100.0,
+        pin_center=101.0,
+        pin_center_source="primary_mm",
+    )
+    assert resolved is not None
+    center, source = resolved
+    assert center == 101.0
+    assert source == "primary_mm"
+
+
+def test_resolve_fly_center_fused_missing_center() -> None:
+    chain = _sample_chain()
+    assert (
+        resolve_fly_center(
+            chain,
+            spot=100.0,
+            center_mode="fused",
+            king_dte1=100.0,
+            max_pain_dte1=100.0,
+        )
+        is None
+    )
+
+
 def test_simulate_pin_fly_trade_king_mode() -> None:
     chain = _sample_chain()
     trade = simulate_pin_fly_trade(

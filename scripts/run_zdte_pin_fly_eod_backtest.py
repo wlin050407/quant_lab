@@ -40,6 +40,10 @@ from quant_lab.strategies.zdte_ic_eod import (
     trades_to_daily_returns,
 )
 from quant_lab.strategies.zdte_pin_fly_eod import CenterMode, simulate_pin_fly_trade
+from quant_lab.terminal.pin_center_backtest import (
+    resolve_pin_center_for_backtest,
+    terminal_fields_from_mapping,
+)
 
 log = logging.getLogger(__name__)
 
@@ -83,6 +87,16 @@ def _terminal_field(term: pd.DataFrame, signal_date: str, field: str) -> float:
     return float(val)
 
 
+def _terminal_row(terminal: pd.DataFrame, signal_date: str) -> dict | None:
+    ts = pd.Timestamp(signal_date)
+    if ts not in terminal.index:
+        return None
+    row = terminal.loc[ts]
+    if isinstance(row, pd.DataFrame):
+        row = row.iloc[0]
+    return row.to_dict()
+
+
 def _simulate_book(
     *,
     symbol: str,
@@ -123,6 +137,22 @@ def _simulate_book(
 
         n_attempts += 1
         spot_signal = float(meta["spot"].iloc[0]) if not meta.empty else float(g_row["spot"])
+        pin_center: float | None = None
+        pin_center_source: str | None = None
+        if center_mode == "fused":
+            row = _terminal_row(terminal, signal_date)
+            if row is None:
+                continue
+            try:
+                fields = terminal_fields_from_mapping(row, spot=spot_signal)
+            except ValueError:
+                continue
+            decision = resolve_pin_center_for_backtest(fields, skip_when_blocked=True)
+            if decision is None:
+                continue
+            pin_center = decision.pin_center
+            pin_center_source = decision.center_source
+
         trade = simulate_pin_fly_trade(
             chain,
             signal_date=signal_date,
@@ -136,6 +166,8 @@ def _simulate_book(
             expected_move_1sd=_terminal_field(terminal, signal_date, "expected_move_1sd"),
             regime_filter=regime_filter,  # type: ignore[arg-type]
             commission_per_contract=commission,
+            pin_center=pin_center,
+            pin_center_source=pin_center_source,
         )
         if trade is None:
             continue
@@ -319,7 +351,7 @@ def main(argv: list[str] | None = None) -> int:
 
     results: dict[str, dict[str, object]] = {}
     attempts_by_mode: dict[str, int] = {}
-    for mode in ("king", "spot"):
+    for mode in ("king", "spot", "fused"):
         trades_df, n_attempts = _simulate_book(
             symbol=args.symbol,
             snapshots=snapshots,
@@ -359,7 +391,8 @@ def main(argv: list[str] | None = None) -> int:
     print()
 
     king_df = pd.DataFrame()
-    for mode in ("king", "spot"):
+    fused_df = pd.DataFrame()
+    for mode in ("king", "spot", "fused"):
         stats = results.get(mode, {"enriched": pd.DataFrame()})
         enriched = stats.get("enriched", pd.DataFrame())
         if not isinstance(enriched, pd.DataFrame):
@@ -370,6 +403,8 @@ def main(argv: list[str] | None = None) -> int:
             print(f"wrote {path}")
             if mode == "king":
                 king_df = enriched
+            if mode == "fused":
+                fused_df = enriched
         part = len(enriched) / max(attempts_by_mode.get(mode, 1), 1)
         _print_book_summary(
             f"Iron fly @ {mode}",
@@ -384,9 +419,13 @@ def main(argv: list[str] | None = None) -> int:
         king_pnl = float(king_df["pnl_per_contract"].sum())
         spot_pnl = float(spot_df["pnl_per_contract"].sum())
         print("--- Phase 3f structure compare (equal-weight total PnL) ---")
-        print(f"  fly@King: ${king_pnl:,.0f}  ({len(king_df)} trades)")
-        print(f"  fly@spot: ${spot_pnl:,.0f}  ({len(spot_df)} trades)")
+        print(f"  fly@King:  ${king_pnl:,.0f}  ({len(king_df)} trades)")
+        print(f"  fly@spot:  ${spot_pnl:,.0f}  ({len(spot_df)} trades)")
         print(f"  King - spot: ${king_pnl - spot_pnl:,.0f}")
+        if not fused_df.empty:
+            fused_pnl = float(fused_df["pnl_per_contract"].sum())
+            print(f"  fly@fused: ${fused_pnl:,.0f}  ({len(fused_df)} trades)")
+            print(f"  fused - King: ${fused_pnl - king_pnl:,.0f}")
         print()
 
     if args.compare_ic:

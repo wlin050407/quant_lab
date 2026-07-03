@@ -43,12 +43,14 @@ from quant_lab.strategies.zdte_ic_eod import (
     select_contract,
 )
 from quant_lab.strategies.zdte_pin_fly_eod import (
+    CenterMode,
     FlyCenterSource,
     iron_butterfly_entry_credit,
     resolve_fly_center,
     resolve_fly_strikes,
     wing_width_from_expected_move,
 )
+from quant_lab.terminal.pin_center_backtest import resolve_pin_center_from_intraday_ctx
 
 ExitReason = Literal[
     "no_entry",
@@ -296,6 +298,7 @@ def simulate_pin_fly_intraday_session(
     exit_time: str = DEFAULT_EXIT_TIME,
     commission_per_contract: float = DEFAULT_COMMISSION_PER_CONTRACT,
     require_long_gamma: bool = True,
+    center_mode: CenterMode = "king",
 ) -> PinFlyIntradayTrade | None:
     """Simulate one Pin Play session from 13:00 entry through intraday exits."""
     ctx = intraday_context_from_chain(
@@ -310,13 +313,29 @@ def simulate_pin_fly_intraday_session(
 
     king = float(ctx["king_dte1"])
     max_pain = float(ctx["max_pain_dte1"])
+    pin_center: float | None = None
+    pin_center_source: str | None = None
+    if center_mode == "fused":
+        decision = resolve_pin_center_from_intraday_ctx(
+            ctx,
+            spot=spot_entry,
+            session_date=session_date,
+            entry_time=entry_time,
+        )
+        if decision is None:
+            return None
+        pin_center = decision.pin_center
+        pin_center_source = decision.center_source
+
     resolved = resolve_fly_center(
         chain_entry,
         spot=spot_entry,
-        center_mode="king",
+        center_mode=center_mode,
         king_dte1=king,
         max_pain_dte1=max_pain,
         dte=INTRADAY_DTE,
+        pin_center=pin_center,
+        pin_center_source=pin_center_source,
     )
     if resolved is None:
         return None

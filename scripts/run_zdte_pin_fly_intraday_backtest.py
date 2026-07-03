@@ -29,7 +29,7 @@ from quant_lab.strategies.zdte_ic_conditional import (
     weighted_trades_to_daily_returns,
 )
 from quant_lab.strategies.zdte_ic_eod import DEFAULT_COMMISSION_PER_CONTRACT, trades_to_daily_returns
-from quant_lab.strategies.zdte_pin_fly_eod import wing_width_from_expected_move
+from quant_lab.strategies.zdte_pin_fly_eod import CenterMode, wing_width_from_expected_move
 from quant_lab.strategies.zdte_pin_fly_intraday import (
     DEFAULT_ENTRY_TIME,
     DEFAULT_EXIT_TIME,
@@ -75,6 +75,7 @@ def _simulate_book(
     exit_time: str,
     commission: float,
     require_long_gamma: bool,
+    center_mode: CenterMode = "king",
 ) -> tuple[pd.DataFrame, int]:
     trades: list[dict] = []
     for session in sessions:
@@ -99,6 +100,7 @@ def _simulate_book(
             exit_time=exit_time,
             commission_per_contract=commission,
             require_long_gamma=require_long_gamma,
+            center_mode=center_mode,
         )
         if trade is None:
             continue
@@ -132,6 +134,12 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="include short_gamma entries (default: skip per Pin Play spec)",
     )
+    parser.add_argument(
+        "--center",
+        choices=("king", "fused", "compare"),
+        default="compare",
+        help="fly body strike: king, fused pin_center, or compare both",
+    )
     parser.add_argument("--log-level", default="WARNING")
     args = parser.parse_args(argv)
 
@@ -150,17 +158,83 @@ def main(argv: list[str] | None = None) -> int:
         print("no sessions with entry+exit intraday chains", file=sys.stderr)
         return 1
 
-    trades_df, n_sessions = _simulate_book(
-        sessions,
-        entry_time=args.entry_time,
-        exit_time=args.exit_time,
-        commission=args.commission,
-        require_long_gamma=not args.allow_short_gamma,
-    )
-    if trades_df.empty:
+    modes: tuple[CenterMode, ...]
+    if args.center == "compare":
+        modes = ("king", "fused")
+    else:
+        modes = (args.center,)  # type: ignore[assignment]
+
+    all_results: dict[str, pd.DataFrame] = {}
+    attempts_by_mode: dict[str, int] = {}
+    for mode in modes:
+        trades_df, n_sessions = _simulate_book(
+            sessions,
+            entry_time=args.entry_time,
+            exit_time=args.exit_time,
+            commission=args.commission,
+            require_long_gamma=not args.allow_short_gamma,
+            center_mode=mode,
+        )
+        attempts_by_mode[mode] = n_sessions
+        all_results[mode] = trades_df
+
+    if args.center != "compare":
+        trades_df = all_results.get(args.center, pd.DataFrame())
+        n_sessions = attempts_by_mode.get(args.center, 0)
+        if trades_df.empty:
+            print(f"sessions={n_sessions} but no trades filled (center={args.center})", file=sys.stderr)
+            return 2
+        _run_single_report(
+            trades_df,
+            n_sessions,
+            args,
+            label=f"Pin Play intraday iron fly @ {args.center} (SPXW)",
+            out_name=f"SPX_pin_fly_intraday_{args.center}.parquet",
+        )
+        return 0
+
+    king_df = all_results.get("king", pd.DataFrame())
+    fused_df = all_results.get("fused", pd.DataFrame())
+    n_sessions = attempts_by_mode.get("king", 0)
+    if king_df.empty and fused_df.empty:
         print(f"sessions={n_sessions} but no trades filled", file=sys.stderr)
         return 2
 
+    print("=== Pin Play intraday iron fly: King vs fused (SPXW) ===")
+    print()
+    for mode, df in (("king", king_df), ("fused", fused_df)):
+        if df.empty:
+            print(f"--- @ {mode}: no trades ---")
+            print()
+            continue
+        _run_single_report(
+            df,
+            n_sessions,
+            args,
+            label=f"Iron fly @ {mode}",
+            out_name=f"SPX_pin_fly_intraday_{mode}.parquet",
+            compact=True,
+        )
+    if not king_df.empty and not fused_df.empty:
+        k = float(king_df["pnl_per_contract"].sum())
+        f = float(fused_df["pnl_per_contract"].sum())
+        print("--- structure compare (equal-weight total PnL) ---")
+        print(f"  @King:  ${k:,.0f}  ({len(king_df)} trades)")
+        print(f"  @fused: ${f:,.0f}  ({len(fused_df)} trades)")
+        print(f"  fused - King: ${f - k:,.0f}")
+        print()
+    return 0
+
+
+def _run_single_report(
+    trades_df: pd.DataFrame,
+    n_sessions: int,
+    args: argparse.Namespace,
+    *,
+    label: str,
+    out_name: str,
+    compact: bool = False,
+) -> None:
     sizing = SizingConfig(
         pin=PinWeightConfig(
             w_high=PIN_PLAY_PIN_WEIGHTS["pin_high"],
@@ -204,11 +278,11 @@ def main(argv: list[str] | None = None) -> int:
 
     out_dir = settings.paths.processed / "pin_play"
     out_dir.mkdir(parents=True, exist_ok=True)
-    out_path = out_dir / "SPX_pin_fly_intraday.parquet"
+    out_path = out_dir / out_name
     enriched.to_parquet(out_path, index=False)
 
     participation = len(enriched) / max(n_sessions, 1)
-    print("=== Pin Play intraday iron fly @ King (SPXW) ===")
+    print(f"=== {label} ===")
     print(f"sessions={n_sessions}  filled={len(enriched)}  participation={participation:.1%}")
     print(f"range: {enriched['trade_date'].min()} -> {enriched['trade_date'].max()}")
     print(f"wrote {out_path}")
@@ -232,24 +306,25 @@ def main(argv: list[str] | None = None) -> int:
     print(f"mean PnL=${tail.mean_pnl:.1f}  worst=${tail.worst_pnl:.0f}  CVaR5=${tail.cvar_5pct:.0f}")
     print()
 
-    exit_counts = enriched["exit_reason"].value_counts()
-    print("--- exit reasons ---")
-    for reason, count in exit_counts.items():
-        print(f"  {reason}: {count}")
-    print()
+    if not compact:
+        exit_counts = enriched["exit_reason"].value_counts()
+        print("--- exit reasons ---")
+        for reason, count in exit_counts.items():
+            print(f"  {reason}: {count}")
+        print()
 
-    pin_rows = stratified_stats(enriched, enriched["pin_tier"], min_trades=10)
-    print("--- by pin tier ---")
-    for row in pin_rows:
-        print(
-            f"  {row.label:<14} n={row.n_trades:4d}  Sharpe={row.sharpe:6.2f}  "
-            f"hit={row.hit_rate:6.1%}  total=${row.total_pnl:,.0f}"
-        )
-    print()
+        pin_rows = stratified_stats(enriched, enriched["pin_tier"], min_trades=10)
+        print("--- by pin tier ---")
+        for row in pin_rows:
+            print(
+                f"  {row.label:<14} n={row.n_trades:4d}  Sharpe={row.sharpe:6.2f}  "
+                f"hit={row.hit_rate:6.1%}  total=${row.total_pnl:,.0f}"
+            )
+        print()
 
-    gate = stats_sized_oos.sharpe > 0.8
-    print(f"Phase 4 gate (sized OOS Sharpe > 0.8): {'PASS' if gate else 'FAIL'} ({stats_sized_oos.sharpe:.2f})")
-    return 0
+        gate = stats_sized_oos.sharpe > 0.8
+        print(f"Phase 4 gate (sized OOS Sharpe > 0.8): {'PASS' if gate else 'FAIL'} ({stats_sized_oos.sharpe:.2f})")
+        print()
 
 
 if __name__ == "__main__":
