@@ -147,6 +147,7 @@ def _resolve_credentials() -> tuple[str, dict[str, str]]:
             "GEXBOT_API_KEY": gexbot,
             "TERMINAL_CHAIN_PROVIDER": "vendor",
             "TERMINAL_GEXBOT_WS": "1",
+            "TERMINAL_GEXBOT_WS_STATE": "1",
             "TERMINAL_PREWARM_HIST": "1",
             "TERMINAL_VENDOR_LIVE_POLLER": "0",
         }
