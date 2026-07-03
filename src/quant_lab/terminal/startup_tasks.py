@@ -4,8 +4,11 @@ from __future__ import annotations
 
 import logging
 import threading
+import time
 from datetime import date, datetime
 from typing import Any
+
+import requests
 
 from quant_lab.config import env_var
 from quant_lab.data.base import MARKET_TZ
@@ -34,6 +37,22 @@ _shutdown = threading.Event()
 _threads: list[threading.Thread] = []
 
 
+def _prewarm_symbols() -> tuple[str, ...]:
+    """Symbols to hist-prewarm — default ^SPX only to reduce GEXBot rate limits."""
+    raw = env_var("TERMINAL_PREWARM_SYMBOLS")
+    if raw is not None and raw.strip():
+        return tuple(s.strip() for s in raw.split(",") if s.strip())
+    return ("^SPX",)
+
+
+def _prewarm_delay_seconds() -> float:
+    raw = env_var("TERMINAL_PREWARM_DELAY_SEC", default="2.5")
+    try:
+        return max(float(raw or "2.5"), 0.0)
+    except ValueError:
+        return 2.5
+
+
 def _env_enabled(name: str, *, default: str = "1") -> bool:
     raw = env_var(name, default=default)
     return raw is not None and raw.strip().lower() not in ("0", "false", "no", "off")
@@ -52,7 +71,7 @@ def is_us_rth_now() -> bool:
 
 def prewarm_gexbot_history(
     *,
-    symbols: tuple[str, ...] = PREWARM_SYMBOLS,
+    symbols: tuple[str, ...] | None = None,
     client: GexbotClient | None = None,
     days: int | None = None,
 ) -> dict[str, int]:
@@ -65,8 +84,11 @@ def prewarm_gexbot_history(
     if window is None:
         window = 14
     dates = [date.fromisoformat(d) for d in recent_trading_dates(days=window)]
-    stats = {"ok": 0, "skipped": 0, "failed": 0}
-    for sym in symbols:
+    dates.sort(reverse=True)
+    stats = {"ok": 0, "skipped": 0, "failed": 0, "rate_limited": 0}
+    delay = _prewarm_delay_seconds()
+    sym_list = symbols if symbols is not None else _prewarm_symbols()
+    for sym in sym_list:
         for session_date in dates:
             try:
                 load_or_fetch_hist_day(gex, sym, session_date)
@@ -74,9 +96,16 @@ def prewarm_gexbot_history(
             except FileNotFoundError:
                 stats["skipped"] += 1
                 log.debug("gexbot hist unavailable %s %s", sym, session_date)
+            except requests.HTTPError as exc:
+                stats["failed"] += 1
+                if exc.response is not None and exc.response.status_code == 429:
+                    stats["rate_limited"] += 1
+                log.warning("gexbot hist prewarm failed %s %s: %s", sym, session_date, exc)
             except OSError as exc:
                 stats["failed"] += 1
                 log.warning("gexbot hist prewarm failed %s %s: %s", sym, session_date, exc)
+            if delay > 0:
+                time.sleep(delay)
     return stats
 
 
@@ -84,10 +113,11 @@ def _run_prewarm() -> None:
     try:
         stats = prewarm_gexbot_history()
         log.info(
-            "gexbot hist prewarm complete ok=%d skipped=%d failed=%d cache=%s",
+            "gexbot hist prewarm complete ok=%d skipped=%d failed=%d rate_limited=%d cache=%s",
             stats["ok"],
             stats["skipped"],
             stats["failed"],
+            stats.get("rate_limited", 0),
             gexbot_hist_cache_root(),
         )
     except GexbotConfigError as exc:

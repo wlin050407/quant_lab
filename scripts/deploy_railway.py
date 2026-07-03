@@ -149,6 +149,8 @@ def _resolve_credentials() -> tuple[str, dict[str, str]]:
             "TERMINAL_GEXBOT_WS": "1",
             "TERMINAL_GEXBOT_WS_STATE": "1",
             "TERMINAL_PREWARM_HIST": "1",
+            "TERMINAL_PREWARM_SYMBOLS": "^SPX",
+            "TERMINAL_PREWARM_DELAY_SEC": "3",
             "TERMINAL_VENDOR_LIVE_POLLER": "0",
         }
         if uw:

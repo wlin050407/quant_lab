@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import tempfile
 import threading
+import time
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -30,6 +31,8 @@ DEFAULT_CATEGORY = "gex_zero"
 
 # One hist download at a time — avoids Railway OOM from parallel full-day JSON pulls.
 _download_lock = threading.Lock()
+_HIST_DOWNLOAD_RETRIES = 5
+_HIST_RETRY_BASE_SEC = 2.0
 
 
 def gexbot_hist_cache_root() -> Path:
@@ -87,12 +90,32 @@ def _download_hist_to_parquet(
     with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as tmp:
         tmp_path = Path(tmp.name)
     try:
-        with requests.get(url, stream=True, timeout=DEFAULT_TIMEOUT_SECONDS) as resp:
-            resp.raise_for_status()
-            with tmp_path.open("wb") as out:
-                for chunk in resp.iter_content(chunk_size=1024 * 1024):
-                    if chunk:
-                        out.write(chunk)
+        last_resp: requests.Response | None = None
+        for attempt in range(_HIST_DOWNLOAD_RETRIES):
+            with requests.get(url, stream=True, timeout=DEFAULT_TIMEOUT_SECONDS) as resp:
+                last_resp = resp
+                if resp.status_code in (429, 503) and attempt < _HIST_DOWNLOAD_RETRIES - 1:
+                    delay = min(_HIST_RETRY_BASE_SEC * (2**attempt), 60.0)
+                    log.warning(
+                        "GEXBot hist blob %s returned %s — retry in %.1fs",
+                        session_date,
+                        resp.status_code,
+                        delay,
+                    )
+                    time.sleep(delay)
+                    continue
+                resp.raise_for_status()
+                with tmp_path.open("wb") as out:
+                    for chunk in resp.iter_content(chunk_size=1024 * 1024):
+                        if chunk:
+                            out.write(chunk)
+                break
+        else:
+            status = last_resp.status_code if last_resp is not None else "unknown"
+            raise requests.HTTPError(
+                f"GEXBot hist download failed after retries (status={status})",
+                response=last_resp,
+            )
 
         batches: list[pd.DataFrame] = []
         batch: list[dict[str, Any]] = []

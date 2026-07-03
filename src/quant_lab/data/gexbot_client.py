@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from datetime import date
 from typing import Any
 
@@ -15,6 +16,9 @@ log = logging.getLogger(__name__)
 GEXBOT_BASE_URL = "https://api.gex.bot/v2"
 DEFAULT_USER_AGENT = "quantlab-terminal/1.0"
 DEFAULT_TIMEOUT_SECONDS = 45.0
+DEFAULT_MAX_RETRIES = 6
+DEFAULT_RETRY_BASE_SEC = 2.0
+_RETRYABLE_STATUS = frozenset({429, 503})
 
 
 class GexbotConfigError(RuntimeError):
@@ -56,15 +60,41 @@ class GexbotClient:
             "Accept": "application/json",
         }
 
+    def _retry_delay_seconds(self, resp: requests.Response, attempt: int) -> float:
+        raw = resp.headers.get("Retry-After")
+        if raw:
+            try:
+                return max(float(raw), 0.5)
+            except ValueError:
+                pass
+        return min(DEFAULT_RETRY_BASE_SEC * (2**attempt), 60.0)
+
     def _get(self, path: str, *, params: dict[str, str] | None = None) -> dict[str, Any]:
         url = f"{self._base_url}/{path.lstrip('/')}"
-        resp = requests.get(url, headers=self._headers, params=params, timeout=self._timeout)
-        if resp.status_code == 401:
-            raise GexbotConfigError("GEXBot API key rejected (401)")
-        if resp.status_code == 403:
-            raise PermissionError(f"GEXBot forbidden for {path} (403)")
-        resp.raise_for_status()
-        payload = resp.json()
+        last_resp: requests.Response | None = None
+        for attempt in range(DEFAULT_MAX_RETRIES):
+            resp = requests.get(url, headers=self._headers, params=params, timeout=self._timeout)
+            last_resp = resp
+            if resp.status_code == 401:
+                raise GexbotConfigError("GEXBot API key rejected (401)")
+            if resp.status_code == 403:
+                raise PermissionError(f"GEXBot forbidden for {path} (403)")
+            if resp.status_code in _RETRYABLE_STATUS and attempt < DEFAULT_MAX_RETRIES - 1:
+                delay = self._retry_delay_seconds(resp, attempt)
+                log.warning(
+                    "GEXBot %s returned %s — retry in %.1fs (%d/%d)",
+                    path,
+                    resp.status_code,
+                    delay,
+                    attempt + 1,
+                    DEFAULT_MAX_RETRIES,
+                )
+                time.sleep(delay)
+                continue
+            break
+        assert last_resp is not None
+        last_resp.raise_for_status()
+        payload = last_resp.json()
         if not isinstance(payload, dict):
             raise ValueError(f"expected JSON object from GEXBot {path}, got {type(payload)}")
         return payload

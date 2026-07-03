@@ -32,7 +32,8 @@ def test_prewarm_counts_ok_and_skipped() -> None:
             "quant_lab.terminal.startup_tasks.load_or_fetch_hist_day",
             side_effect=[MagicMock(), FileNotFoundError("holiday")],
         ) as mock_load:
-            stats = prewarm_gexbot_history(symbols=("^SPX",), client=client, days=2)
+            with patch("quant_lab.terminal.startup_tasks.time.sleep"):
+                stats = prewarm_gexbot_history(symbols=("^SPX",), client=client, days=2)
     assert mock_load.call_count == 2
     assert stats["ok"] == 1
     assert stats["skipped"] == 1
