@@ -1,7 +1,8 @@
 """Deploy Quantlab Terminal to Railway (after ``railway login``).
 
-Reads ThetaData credentials from local ``.env`` / creds file, sets Railway
-variables, uploads Dockerfile build, and prints the public URL + basic auth.
+Reads vendor (GEXBot + Unusual Whales) or legacy ThetaData credentials from
+``.env`` / environment, sets Railway variables, uploads Dockerfile build, and
+prints the public URL + basic auth.
 """
 
 from __future__ import annotations
@@ -14,7 +15,10 @@ import subprocess
 import sys
 from pathlib import Path
 
+from quant_lab.config import load_dotenv_if_present
+from quant_lab.data.gexbot_client import resolve_gexbot_api_key
 from quant_lab.data.thetadata_client import ThetaDataConfigError, resolve_email_password
+from quant_lab.data.unusualwhales_client import resolve_unusual_whales_api_key
 from quant_lab.terminal.deploy import DEFAULT_HISTORY_DAYS
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -47,6 +51,8 @@ def _railway_args(*parts: str) -> list[str]:
 
 def _print_cmd(args: list[str]) -> None:
     secret_keys = {
+        "GEXBOT_API_KEY",
+        "UNUSUAL_WHALES_API_KEY",
         "THETADATA_EMAIL",
         "THETADATA_PASSWORD",
         "TERMINAL_AUTH_USER",
@@ -56,7 +62,7 @@ def _print_cmd(args: list[str]) -> None:
     for arg in args:
         if "=" in arg:
             key = arg.split("=", 1)[0]
-            if key in secret_keys or key.endswith(("PASSWORD", "TOKEN", "SECRET")):
+            if key in secret_keys or key.endswith(("PASSWORD", "TOKEN", "SECRET", "_KEY")):
                 parts.append(f"{key}=***")
                 continue
         parts.append(arg)
@@ -130,10 +136,53 @@ def _ensure_service() -> None:
     _run(_railway_args("service", "link", "quantlab-terminal"), check=False)
 
 
-def _set_variables(email: str, password: str, auth_user: str, auth_password: str) -> None:
+def _resolve_credentials() -> tuple[str, dict[str, str]]:
+    """Return (provider_mode, env_pairs) for Railway."""
+    load_dotenv_if_present()
+    gexbot = resolve_gexbot_api_key()
+    uw = resolve_unusual_whales_api_key()
+    theta = resolve_email_password()
+
+    if gexbot:
+        pairs: dict[str, str] = {
+            "GEXBOT_API_KEY": gexbot,
+            "TERMINAL_CHAIN_PROVIDER": "auto",
+            "TERMINAL_PREWARM_HIST": "1",
+            "TERMINAL_VENDOR_LIVE_POLLER": "1",
+        }
+        if uw:
+            pairs["UNUSUAL_WHALES_API_KEY"] = uw
+        else:
+            print(
+                "Warning: UNUSUAL_WHALES_API_KEY missing — pin_score/chain may fail.",
+                file=sys.stderr,
+            )
+        return "vendor", pairs
+
+    if theta:
+        email, password = theta
+        return "thetadata", {
+            "TERMINAL_CHAIN_PROVIDER": "thetadata",
+            "THETADATA_EMAIL": email,
+            "THETADATA_PASSWORD": password,
+        }
+
+    raise RuntimeError(
+        "No deploy credentials found. Add to .env:\n"
+        "  GEXBOT_API_KEY=...\n"
+        "  UNUSUAL_WHALES_API_KEY=...\n"
+        "Or legacy ThetaData: THETADATA_EMAIL/PASSWORD or THETADATA_CREDENTIALS_FILE"
+    )
+
+
+def _set_variables(
+    provider: str,
+    creds: dict[str, str],
+    auth_user: str,
+    auth_password: str,
+) -> None:
     pairs = {
-        "THETADATA_EMAIL": email,
-        "THETADATA_PASSWORD": password,
+        **creds,
         "TERMINAL_AUTH_USER": auth_user,
         "TERMINAL_AUTH_PASSWORD": auth_password,
         "TERMINAL_HISTORY_DAYS": str(DEFAULT_HISTORY_DAYS),
@@ -149,6 +198,7 @@ def _set_variables(email: str, password: str, auth_user: str, auth_password: str
                 "--skip-deploys",
             )
         )
+    print(f"Railway variables set for provider={provider}")
 
 
 def _public_domain() -> str | None:
@@ -176,21 +226,17 @@ def main() -> int:
         return 1
 
     try:
-        creds = resolve_email_password()
-    except ThetaDataConfigError as exc:
+        provider, creds = _resolve_credentials()
+    except (RuntimeError, ThetaDataConfigError) as exc:
         print(exc, file=sys.stderr)
         return 1
-    if creds is None:
-        print("ThetaData credentials missing locally (.env or creds file).", file=sys.stderr)
-        return 1
 
-    email, theta_password = creds
-    auth_user = "quantlab"
-    auth_password = secrets.token_urlsafe(16)
+    auth_user = os.environ.get("TERMINAL_AUTH_USER") or "quantlab"
+    auth_password = os.environ.get("TERMINAL_AUTH_PASSWORD") or secrets.token_urlsafe(16)
 
     _ensure_project()
     _ensure_service()
-    _set_variables(email, theta_password, auth_user, auth_password)
+    _set_variables(provider, creds, auth_user, auth_password)
     _run(_railway_args("up", "--detach", "--service", "quantlab-terminal"))
 
     domain = _public_domain()
@@ -198,6 +244,7 @@ def main() -> int:
         _run(_railway_args("domain"), check=False)
 
     notes = [
+        f"provider={provider}",
         f"auth_user={auth_user}",
         f"auth_password={auth_password}",
     ]

@@ -1,6 +1,6 @@
 # Deploy Quantlab Terminal to Railway
 # 1) Opens browser login if needed
-# 2) Sets ThetaData + basic-auth env vars from local creds
+# 2) Sets GEXBot+UW (preferred) or ThetaData + basic-auth from .env
 # 3) `railway up` via Dockerfile
 
 $ErrorActionPreference = "Stop"

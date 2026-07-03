@@ -2,7 +2,8 @@
 
 Deploy as a **single persistent Docker web service**. No GitHub Pages, no bundled historical parquet — live and recent sessions use your configured intraday provider.
 
-**Recommended host:** [Render](https://render.com) **Starter** ($7/mo, always-on).  
+**Recommended host:** [Railway](https://railway.app) Hobby (credits-based, usually always-on).  
+**Alternative:** [Render](https://render.com) Starter ($7/mo) if Railway is unstable.  
 **Default data provider:** GEXBot + Unusual Whales (`TERMINAL_CHAIN_PROVIDER=auto`).  
 See [`docs/terminal/GEXBOT_MIGRATION_PLAN.md`](terminal/GEXBOT_MIGRATION_PLAN.md).
 
@@ -49,7 +50,46 @@ Phase B 已加 **启动时 GEXBot hist 预缓存** + **盘中后台 REST poller*
 
 Health check (no auth): `GET /api/health` — includes `chain_provider`, cache file count.
 
-## Render (recommended)
+## Railway (recommended)
+
+### One-command deploy
+
+1. Add to project `.env` (never commit):
+
+   ```env
+   GEXBOT_API_KEY=your-gexbot-key
+   UNUSUAL_WHALES_API_KEY=your-uw-key
+   ```
+
+2. From repo root:
+
+   ```powershell
+   .\scripts\deploy_railway.ps1
+   ```
+
+   Script sets Railway variables, runs `railway up` (Dockerfile), prints URL + generated basic auth in `.railway-deploy.local`.
+
+### Manual variables (Railway dashboard)
+
+| Variable | Purpose |
+|----------|---------|
+| `GEXBOT_API_KEY` | GEXBot Quant Bearer |
+| `UNUSUAL_WHALES_API_KEY` | Option chain + flow |
+| `TERMINAL_AUTH_USER` | Basic auth |
+| `TERMINAL_AUTH_PASSWORD` | Basic auth |
+| `TERMINAL_CHAIN_PROVIDER` | `auto` (default) |
+| `TERMINAL_PREWARM_HIST` | `1` |
+| `TERMINAL_VENDOR_LIVE_POLLER` | `1` |
+
+Public URL (existing project): `https://quantlab-terminal-production.up.railway.app`  
+Health: `GET /api/health` (no auth)
+
+### Legacy ThetaData rollback
+
+Local only: `pip install -r requirements-thetadata.txt` (needs Python 3.12+).  
+Cloud Docker image no longer bundles `thetadata` — use vendor keys on Railway.
+
+## Render (alternative)
 
 ### Blueprint
 
@@ -69,10 +109,6 @@ Health check (no auth): `GET /api/health` — includes `chain_provider`, cache f
 ### Keep-alive on free tier (not recommended for trading hours)
 
 If you must use Render Free, use an external cron (e.g. [cron-job.org](https://cron-job.org)) to `GET https://your-app.onrender.com/api/health` every **10 minutes** during RTH only. Still expect occasional cold starts.
-
-## Railway (legacy / optional)
-
-Still supported via `railway.toml` + `scripts/deploy_railway.ps1` (ThetaData-oriented). For vendor mode, set `GEXBOT_API_KEY` / `UNUSUAL_WHALES_API_KEY` in Railway variables manually instead of the deploy script defaults.
 
 ## Local Docker smoke test
 
