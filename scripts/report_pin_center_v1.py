@@ -91,7 +91,12 @@ def main(argv: list[str] | None = None) -> int:
         if result.get("fused_beats_primary_rate") is not None:
             print(f"fused <= primary: {result['fused_beats_primary_rate']:.1%}")
         print(f"V2 30m hit: {result.get('v2_primary_hit_30m_rate')}")
-        print(f"v1_pass={result['v1_pass']}  blocker={result.get('v1_blocker')}")
+        print(
+            f"v1_pass={result['v1_pass']}  tier={result.get('v1_tier')}  "
+            f"v2_pass={result.get('v2_pass')}  v2_tier={result.get('v2_tier')}"
+        )
+        if not result["v1_pass"]:
+            print(f"  v1_blocker: {result.get('v1_blocker')}")
         print(f"wrote {summary_path}")
         if sessions:
             print(f"wrote {sessions_path}")
@@ -105,8 +110,8 @@ def main(argv: list[str] | None = None) -> int:
             print(
                 f"  pin>={r['pin_min']:.0f}  n={r['n_sessions']:3d}  "
                 f"med_fused={r['median_abs_close_minus_fused']:.2f}  "
-                f"med_king={r['median_abs_close_minus_king']:.2f}  "
-                f"v1_pass={r['v1_pass']}"
+                f"v1={r['v1_pass']}({r.get('v1_tier')})  "
+                f"v2={r.get('v2_pass')}({r.get('v2_tier')})"
             )
     return 0 if any(r.get("status") == "ok" for r in summaries) else 1
 

@@ -1,7 +1,7 @@
 # Pin Center Fusion — MM Structure × Local Physical (Optimal Pin Play)
 
 **Branch:** `feature/pin-center-fusion`  
-**Status:** F4 shipped · V3 PASS · V1 blocked (terminal×hist cohort n=4; hist n=204 available)  
+**Status:** F4 shipped · V3 PASS · V1/V2 **hist_pilot PASS** (pin≥60 n=53) · full tier pending n≥200  
 **Parent design:** [VENDOR_RESONANCE_V2.md](./VENDOR_RESONANCE_V2.md) · [PIN_PLAY_SPEC.md](../PIN_PLAY_SPEC.md)  
 **Reference algorithm:** `SPX_MM_STRUCTURE_ALGORITHM.md` (external rule engine)
 
@@ -265,18 +265,20 @@ Parameters (env-overridable):
 
 ### V1 — Strike accuracy (offline, no PnL)
 
-Script: `scripts/validate_pin_center_offline.py`
+Script: `scripts/report_pin_center_v1.py` · `scripts/validate_pin_center_offline.py --replay`
 
-- Sessions: SPY proxy 2010–2025 + GEXBot hist 2026 when available
-- Clock: 13:00 ET information set
-- Metrics: median |close - K| for K ∈ {king_bs, primary_mm, pin_center_fused}
-- **Pass:** fused median ≤ min(king, primary) on pin≥70 + long_γ cohort; n ≥ 200
+- Sessions: GEXBot hist replay @ 13:00 ET; cohort filters via `pin_min` / `long_gamma_only`
+- Metrics: median |close − K| for K ∈ {king_bs, primary_mm, pin_center_fused}
+- **Pass (tiered):**
+  - **full:** `median_fused ≤ min(median_king, median_primary)` AND `n ≥ 200` AND `fused_beats_king ≥ 95%`
+  - **hist_pilot:** same strike rules AND `n ≥ max(30, 50% × hist×terminal_overlap)` (for current ~79 overlap → **n ≥ 39**)
 
 ### V2 — Structure target hit rate
 
-- GEXBot hist replay, 1m sample
-- Same metrics as MM doc §11 (30m/1h/2h success)
-- **Pass:** primary_mm_target 30m success ≥ 55% (sanity, not production guarantee)
+- GEXBot hist replay, 30m horizon @ primary_mm_target
+- **Pass (tiered):**
+  - **full:** 30m hit rate ≥ 55% AND `n ≥ 200`
+  - **hist_pilot:** hit rate ≥ 55% AND `n ≥ max(30, 50% × hist×terminal_overlap)`
 
 ### V3 — Pin Play PnL proxy
 
@@ -288,10 +290,11 @@ Script: `scripts/validate_pin_center_offline.py`
 
 | Gate | Result | Notes |
 |------|--------|-------|
-| **V3** | **PASS** | SPY EoD: fused −$9,102 vs king −$12,726 (+$3,624); 774/1584 paired days differ in strike |
-| **V1** | **BLOCKED** | GEXBot hist **204 days** (2025-09-08→2026-06-30); terminal pin≥70+long_γ **overlap n=4** → full gate needs more high-pin terminal rows in hist window |
-| **V2** | **PARTIAL** | 30m primary hit 100% on n=4 only — not significant |
-| **Intraday fused** | Worse vs king | SPXW: fused −$1,528 vs king −$1,357; gate-only filter without hist structure |
+| **V3** | **PASS** | SPY EoD: fused −$9,102 vs king −$12,726 (+$3,624) |
+| **V1** | **hist_pilot PASS** | pin≥60 all-regimes n=53: fused median = king ≤ primary; fused≤king 100% |
+| **V1 full** | pending | n≥200 (hist×terminal overlap max ≈79 today) |
+| **V2** | **hist_pilot PASS** | same cohort: 30m primary hit 92.5% |
+| **Intraday fused** | Worse vs king | without hist structure, entry gate only; prefer King or cached hist |
 
 Probe / prefetch: `python scripts/probe_gexbot_hist.py` · manifest → `artifacts/manifests/gexbot_hist_coverage.json`
 

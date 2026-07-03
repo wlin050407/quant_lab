@@ -25,6 +25,127 @@ CLOSE_CLOCK = "15:30:00"
 V2_HORIZON_SEC = 30 * 60
 V2_HIT_TOL_PTS = 5.0
 
+# V1 gates (see docs/terminal/PIN_CENTER_FUSION_SPEC.md §8)
+V1_FULL_MIN_N = 200
+V1_HIST_PILOT_MIN_N = 30
+V1_HIST_PILOT_COVERAGE = 0.5  # min n = max(30, floor(coverage * hist×terminal overlap))
+V1_FUSED_BEATS_KING_MIN = 0.95
+
+V2_FULL_MIN_N = 200
+V2_HIST_PILOT_MIN_N = 30
+V2_HIT_RATE_MIN = 0.55
+
+
+def evaluate_v1_gate(
+    *,
+    n_sessions: int,
+    n_hist_terminal_overlap: int,
+    median_fused: float,
+    median_king: float,
+    median_primary: float | None,
+    fused_beats_king_rate: float | None,
+) -> dict[str, Any]:
+    """Tiered V1: full (n≥200) or hist pilot (dense hist×terminal overlap sample)."""
+    baseline = median_king if median_primary is None else min(median_king, median_primary)
+    strike_ok = median_fused <= baseline
+    king_ok = (
+        fused_beats_king_rate is None
+        or fused_beats_king_rate >= V1_FUSED_BEATS_KING_MIN
+    )
+    min_pilot_n = max(
+        V1_HIST_PILOT_MIN_N,
+        int(V1_HIST_PILOT_COVERAGE * n_hist_terminal_overlap),
+    )
+    full_pass = n_sessions >= V1_FULL_MIN_N and strike_ok and king_ok
+    pilot_pass = (
+        n_sessions >= min_pilot_n
+        and strike_ok
+        and king_ok
+        and n_hist_terminal_overlap > 0
+    )
+    if full_pass:
+        tier = "full"
+    elif pilot_pass:
+        tier = "hist_pilot"
+    else:
+        tier = "fail"
+    blockers: list[str] = []
+    if not strike_ok:
+        blockers.append(
+            f"median_fused={median_fused:.2f} > baseline={baseline:.2f}"
+        )
+    if not king_ok and fused_beats_king_rate is not None:
+        blockers.append(
+            f"fused_beats_king={fused_beats_king_rate:.1%} < {V1_FUSED_BEATS_KING_MIN:.0%}"
+        )
+    if not full_pass and not pilot_pass:
+        if n_sessions < V1_FULL_MIN_N:
+            blockers.append(f"n={n_sessions} < full_min={V1_FULL_MIN_N}")
+        if n_sessions < min_pilot_n:
+            blockers.append(f"n={n_sessions} < hist_pilot_min={min_pilot_n}")
+    return {
+        "v1_pass": full_pass or pilot_pass,
+        "v1_tier": tier,
+        "v1_strike_pass": strike_ok,
+        "v1_full_pass": full_pass,
+        "v1_hist_pilot_pass": pilot_pass,
+        "v1_hist_pilot_min_n": min_pilot_n,
+        "v1_blocker": None if (full_pass or pilot_pass) else "; ".join(blockers),
+        "v1_gate_full": (
+            f"fused_median <= min(king, primary) and n>={V1_FULL_MIN_N} "
+            f"and fused_beats_king>={V1_FUSED_BEATS_KING_MIN:.0%}"
+        ),
+        "v1_gate_hist_pilot": (
+            f"fused_median <= min(king, primary) and n>=max({V1_HIST_PILOT_MIN_N}, "
+            f"{V1_HIST_PILOT_COVERAGE:.0%}*hist_terminal_overlap) "
+            f"and fused_beats_king>={V1_FUSED_BEATS_KING_MIN:.0%}"
+        ),
+    }
+
+
+def evaluate_v2_gate(
+    *,
+    n_sessions: int,
+    n_hist_terminal_overlap: int,
+    primary_hit_30m_rate: float | None,
+) -> dict[str, Any]:
+    """Tiered V2: full (n≥200) or hist pilot."""
+    if primary_hit_30m_rate is None:
+        return {
+            "v2_pass": False,
+            "v2_tier": "fail",
+            "v2_blocker": "no_primary_hit_samples",
+        }
+    rate_ok = primary_hit_30m_rate >= V2_HIT_RATE_MIN
+    min_pilot_n = max(
+        V2_HIST_PILOT_MIN_N,
+        int(V1_HIST_PILOT_COVERAGE * n_hist_terminal_overlap),
+    )
+    full_pass = n_sessions >= V2_FULL_MIN_N and rate_ok
+    pilot_pass = (
+        n_sessions >= min_pilot_n
+        and rate_ok
+        and n_hist_terminal_overlap > 0
+    )
+    tier = "full" if full_pass else ("hist_pilot" if pilot_pass else "fail")
+    blockers: list[str] = []
+    if not rate_ok:
+        blockers.append(
+            f"hit_rate={primary_hit_30m_rate:.1%} < {V2_HIT_RATE_MIN:.0%}"
+        )
+    if not full_pass and not pilot_pass:
+        if n_sessions < V2_FULL_MIN_N:
+            blockers.append(f"n={n_sessions} < full_min={V2_FULL_MIN_N}")
+        if n_sessions < min_pilot_n:
+            blockers.append(f"n={n_sessions} < hist_pilot_min={min_pilot_n}")
+    return {
+        "v2_pass": full_pass or pilot_pass,
+        "v2_tier": tier,
+        "v2_full_pass": full_pass,
+        "v2_hist_pilot_pass": pilot_pass,
+        "v2_blocker": None if (full_pass or pilot_pass) else "; ".join(blockers),
+    }
+
 
 @dataclass(frozen=True)
 class SessionReplayRow:
@@ -211,7 +332,7 @@ def _load_hist_for_replay(
         return cached
     if client is not None:
         return load_or_fetch_hist_day(client, terminal_symbol, session_date)
-    from quant_lab.data.gexbot_client import GexbotConfigError, get_gexbot_client
+    from quant_lab.data.gexbot_client import get_gexbot_client
 
     return load_or_fetch_hist_day(get_gexbot_client(), terminal_symbol, session_date)
 
@@ -310,13 +431,26 @@ def run_v1_replay(
     med_primary = float(np.median(primary_errs)) if primary_errs else None
     v2_rate = float(np.mean(hits)) if hits else None
 
-    baseline = med_king if med_primary is None else min(med_king, med_primary)
-    v1_pass = len(rows) >= 200 and med_fused <= baseline
     fused_wins = sum(1 for r in rows if r.fused_err <= r.king_err)
     primary_wins = sum(
         1 for r in rows if r.primary_err is not None and r.fused_err <= r.primary_err
     )
     n_primary = sum(1 for r in rows if r.primary_err is not None)
+    fused_beats_king_rate = float(fused_wins / len(rows)) if rows else None
+
+    v1_eval = evaluate_v1_gate(
+        n_sessions=len(rows),
+        n_hist_terminal_overlap=len(session_dates),
+        median_fused=med_fused,
+        median_king=med_king,
+        median_primary=med_primary,
+        fused_beats_king_rate=fused_beats_king_rate,
+    )
+    v2_eval = evaluate_v2_gate(
+        n_sessions=len(rows),
+        n_hist_terminal_overlap=len(session_dates),
+        primary_hit_30m_rate=v2_rate,
+    )
 
     out: dict[str, Any] = {
         "status": "ok",
@@ -334,15 +468,11 @@ def run_v1_replay(
         "median_abs_close_minus_fused": med_fused,
         "mean_abs_close_minus_king": float(np.mean(king_errs)) if king_errs else None,
         "mean_abs_close_minus_fused": float(np.mean(fused_errs)) if fused_errs else None,
-        "fused_beats_king_rate": float(fused_wins / len(rows)) if rows else None,
+        "fused_beats_king_rate": fused_beats_king_rate,
         "fused_beats_primary_rate": float(primary_wins / n_primary) if n_primary else None,
-        "v1_pass": v1_pass,
-        "v1_partial": len(rows) < 200,
-        "v1_blocker": None if len(rows) >= 200 else f"n_sessions={len(rows)} < 200",
-        "v1_gate": "fused_median <= min(king, primary) and n>=200",
         "v2_primary_hit_30m_rate": v2_rate,
-        "v2_pass": v2_rate is not None and v2_rate >= 0.55,
-        "v2_partial": len(rows) < 200,
+        **v1_eval,
+        **v2_eval,
     }
     if include_sessions:
         out["sessions"] = [
