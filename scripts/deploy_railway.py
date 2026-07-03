@@ -146,7 +146,7 @@ def _resolve_credentials() -> tuple[str, dict[str, str]]:
     if gexbot:
         pairs: dict[str, str] = {
             "GEXBOT_API_KEY": gexbot,
-            "TERMINAL_CHAIN_PROVIDER": "auto",
+            "TERMINAL_CHAIN_PROVIDER": "vendor",
             "TERMINAL_PREWARM_HIST": "1",
             "TERMINAL_VENDOR_LIVE_POLLER": "1",
         }
