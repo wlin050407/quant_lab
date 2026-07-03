@@ -7,11 +7,11 @@ __pycache__/
 .git/
 .gitignore
 
-data/
+/data/
 !data/raw/.gitkeep
 !data/processed/.gitkeep
 
-artifacts/
+/artifacts/
 
 .env
 .env.*

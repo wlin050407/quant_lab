@@ -7,8 +7,8 @@ __pycache__/
 .ruff_cache/
 .git/
 
-artifacts/
-data/
+/artifacts/
+/data/
 logs/
 
 .env
