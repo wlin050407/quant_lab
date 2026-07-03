@@ -122,22 +122,6 @@ def _flow_to_session_frames(
     return pd.DataFrame(vol_rows), pd.DataFrame(signed_rows)
 
 
-def _reference_oi_from_hist(
-    gexbot: GexbotClient,
-    terminal_symbol: str,
-    session_date: date,
-) -> pd.DataFrame | None:
-    """Best-effort 09:30 OI reference via cached GEXBot hist (UW chain still supplies levels)."""
-    try:
-        hist = load_or_fetch_hist_day(gexbot, terminal_symbol, session_date)
-        snap = snapshot_at_time(hist, session_date, "09:30:00")
-        # GEXBot hist does not expose per-contract OI; reference comes from session cache instead.
-        _ = snap
-    except (FileNotFoundError, OSError, ValueError):
-        return None
-    return None
-
-
 def build_0dte_chain_from_vendors(
     gexbot: GexbotClient,
     uw: UnusualWhalesClient | None,
@@ -204,8 +188,6 @@ def build_0dte_chain_from_vendors(
     ref_oi = reference_oi
     if chain_mode in ("pin", "full") and ref_oi is None:
         ref_oi = get_reference_oi(terminal_symbol, session_date)
-    if chain_mode in ("pin", "full") and ref_oi is None:
-        ref_oi = _reference_oi_from_hist(gexbot, terminal_symbol, session_date)
 
     session_vol: pd.DataFrame | None = None
     session_signed: pd.DataFrame | None = None

@@ -2,17 +2,25 @@
 
 from __future__ import annotations
 
+import gc
 import json
 import logging
+import tempfile
+import threading
 from datetime import date
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 import pandas as pd
+import requests
 
 from quant_lab.config import settings
-from quant_lab.data.gexbot_client import GexbotClient, gexbot_ticker
+from quant_lab.data.gexbot_client import (
+    DEFAULT_TIMEOUT_SECONDS,
+    GexbotClient,
+    gexbot_ticker,
+)
 from quant_lab.data.intraday_time import session_datetime
 from quant_lab.data.thetadata_storage import load_parquet, save_parquet
 
@@ -20,6 +28,9 @@ log = logging.getLogger(__name__)
 
 DEFAULT_PACKAGE = "classic"
 DEFAULT_CATEGORY = "gex_zero"
+
+# One hist download at a time — avoids Railway OOM from parallel full-day JSON pulls.
+_download_lock = threading.Lock()
 
 
 def gexbot_hist_cache_root() -> Path:
@@ -41,8 +52,9 @@ def _cache_path(ticker: str, package: str, category: str, session_date: date) ->
 
 
 def _normalize_hist_rows(rows: list[dict[str, Any]]) -> pd.DataFrame:
+    """Keep only replay fields — full strike payloads are not stored (memory)."""
     if not rows:
-        return pd.DataFrame(columns=["timestamp_unix", "spot", "zero_gamma", "payload_json"])
+        return pd.DataFrame(columns=["timestamp_unix", "spot", "zero_gamma"])
     records: list[dict[str, Any]] = []
     for row in rows:
         ts = int(row.get("timestamp", 0))
@@ -51,12 +63,50 @@ def _normalize_hist_rows(rows: list[dict[str, Any]]) -> pd.DataFrame:
                 "timestamp_unix": ts,
                 "spot": float(row.get("spot", np.nan)),
                 "zero_gamma": float(row.get("zero_gamma", np.nan)),
-                "payload_json": json.dumps(row, separators=(",", ":")),
             }
         )
     df = pd.DataFrame.from_records(records)
-    df = df.sort_values("timestamp_unix").reset_index(drop=True)
-    return df
+    return df.sort_values("timestamp_unix").reset_index(drop=True)
+
+
+def _download_hist_slim_rows(
+    client: GexbotClient,
+    ticker: str,
+    package: str,
+    category: str,
+    session_date: date,
+) -> list[dict[str, Any]]:
+    """Stream hist JSON to disk, extract slim rows, drop heavy strike arrays early."""
+    url = client.hist_download_url(ticker, package, category, session_date)
+    with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as tmp:
+        tmp_path = Path(tmp.name)
+    try:
+        with requests.get(url, stream=True, timeout=DEFAULT_TIMEOUT_SECONDS) as resp:
+            resp.raise_for_status()
+            with tmp_path.open("wb") as out:
+                for chunk in resp.iter_content(chunk_size=1024 * 1024):
+                    if chunk:
+                        out.write(chunk)
+        with tmp_path.open(encoding="utf-8") as handle:
+            payload = json.load(handle)
+        if not isinstance(payload, list):
+            raise ValueError(f"expected hist JSON array for {session_date}, got {type(payload)}")
+        slim: list[dict[str, Any]] = []
+        for row in payload:
+            if not isinstance(row, dict):
+                continue
+            slim.append(
+                {
+                    "timestamp": row.get("timestamp", 0),
+                    "spot": row.get("spot", np.nan),
+                    "zero_gamma": row.get("zero_gamma", np.nan),
+                }
+            )
+        del payload
+        gc.collect()
+        return slim
+    finally:
+        tmp_path.unlink(missing_ok=True)
 
 
 def load_or_fetch_hist_day(
@@ -75,12 +125,15 @@ def load_or_fetch_hist_day(
         return load_parquet(path)
 
     log.info("downloading GEXBot hist %s %s/%s %s", ticker, package, category, session_date)
-    rows = client.download_hist_json(ticker, package, category, session_date)
-    df = _normalize_hist_rows(rows)
-    if df.empty:
-        raise FileNotFoundError(f"empty GEXBot hist for {ticker} on {session_date}")
-    save_parquet(df, path)
-    return df
+    with _download_lock:
+        if path.is_file() and not force_refresh:
+            return load_parquet(path)
+        rows = _download_hist_slim_rows(client, ticker, package, category, session_date)
+        df = _normalize_hist_rows(rows)
+        if df.empty:
+            raise FileNotFoundError(f"empty GEXBot hist for {ticker} on {session_date}")
+        save_parquet(df, path)
+        return df
 
 
 def snapshot_at_unix(hist: pd.DataFrame, target_unix: int) -> dict[str, Any]:
@@ -91,8 +144,12 @@ def snapshot_at_unix(hist: pd.DataFrame, target_unix: int) -> dict[str, Any]:
     idx = int(np.searchsorted(ts, target_unix, side="right") - 1)
     if idx < 0:
         idx = 0
-    payload_raw = hist.iloc[idx]["payload_json"]
-    return json.loads(str(payload_raw))
+    row = hist.iloc[idx]
+    return {
+        "timestamp": int(row["timestamp_unix"]),
+        "spot": float(row["spot"]),
+        "zero_gamma": float(row["zero_gamma"]),
+    }
 
 
 def snapshot_at_time(
