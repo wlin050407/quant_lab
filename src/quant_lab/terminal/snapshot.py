@@ -1190,8 +1190,14 @@ def build_dashboard(
                     chain, spot, symbol=symbol, asof=asof, hours_to_close=session_hours
                 )
         except FileNotFoundError:
+            if resolve_terminal_chain_provider() == "vendor":
+                raise
             log.info("intraday unavailable for %s %s — falling back to EoD", symbol, iso)
         except Exception as exc:
+            if resolve_terminal_chain_provider() == "vendor":
+                raise FileNotFoundError(
+                    f"no intraday chain for {symbol} on {iso} @ {time_of_day}"
+                ) from exc
             log.warning(
                 "intraday load error for %s %s: %s — falling back to EoD",
                 symbol,

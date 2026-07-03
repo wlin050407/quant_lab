@@ -258,6 +258,10 @@ export function HeatmapPanel({
   if (!panel.available || !panel.heatmap?.length) {
     const supportsLive =
       LIVE_INTRADAY_SYMBOLS.has(panel.symbol) || sym === "SPX" || sym === "SPXW";
+    const isVendor =
+      panel.data_source === "vendor" ||
+      panel.data_source === "vendor_live" ||
+      (panel.data_mode ?? "").includes("GEXBot");
     return (
       <div className={`heatmap-panel inactive${primary ? " primary" : ""}`}>
         <div className="heatmap-header">
@@ -269,10 +273,14 @@ export function HeatmapPanel({
         <div className="empty-panel">
           <p>{panel.data_mode || "No option chain for this date"}</p>
           {supportsLive ? (
-            <>
-              <small>ThetaData live 0DTE · needs credentials + market hours</small>
-              <div className="empty-panel-cta">Demo: 2023-07-11 · 13:00 ET</div>
-            </>
+            isVendor ? (
+              <small>GEXBot+UW intraday · chain unavailable for this date/time</small>
+            ) : (
+              <>
+                <small>ThetaData live 0DTE · needs credentials + market hours</small>
+                <div className="empty-panel-cta">Demo: 2023-07-11 · 13:00 ET</div>
+              </>
+            )
           ) : (
             <small>No live path for this symbol</small>
           )}

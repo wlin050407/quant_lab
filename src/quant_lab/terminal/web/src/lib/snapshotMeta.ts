@@ -7,8 +7,10 @@ export function dataSourceLabel(snapshot: DashboardSnapshot): string {
     if (snapshot.meta?.live_follow) return "ThetaData live · follow";
     return "ThetaData live";
   }
+  if (src === "vendor_live") return "GEXBot+UW live";
+  if (src === "vendor") return "GEXBot+UW";
   const mode = snapshot.meta?.data_mode ?? "";
-  if (mode.includes("ThetaData")) return "ThetaData";
+  if (mode.includes("GEXBot")) return "GEXBot+UW";
   if (mode.toLowerCase().includes("eod")) return "EoD chain";
   return "Research snapshot";
 }

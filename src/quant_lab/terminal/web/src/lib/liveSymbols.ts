@@ -1,4 +1,4 @@
-/** Symbols with ThetaData live 0DTE chain on today's session. */
+/** Symbols with vendor live 0DTE chain on today's session (^SPX, SPY, QQQ). */
 export const LIVE_INTRADAY_SYMBOLS = new Set(["^SPX", "SPY", "QQQ"]);
 
 function weekdayEt(iso: string): number {

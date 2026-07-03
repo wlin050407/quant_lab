@@ -12,6 +12,8 @@ python-dotenv>=1.0          # load secrets from project-root .env
 fastapi>=0.115              # Ultimate Terminal M4 local web API
 uvicorn[standard]>=0.32      # serve Terminal UI
 httpx>=0.27                 # FastAPI TestClient in tests
+ijson>=3.2                  # stream-parse large GEXBot hist JSON without OOM
+
 # ThetaData optional — cloud vendor deploy does not need it. Local rollback:
 #   pip install -r requirements-thetadata.txt
 
