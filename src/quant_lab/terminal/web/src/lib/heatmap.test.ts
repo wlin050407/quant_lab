@@ -2,8 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   computeSpotScrollTop,
   formatStrikeAttr,
-  heatmapBarIntensity,
-  heatmapScaleMaxBn,
   isNearestSpotStrike,
   nearestStrikeToSpot,
   spotTopPct,
@@ -41,15 +39,5 @@ describe("formatStrikeAttr", () => {
   it("formats strike attrs without float drift", () => {
     expect(formatStrikeAttr(380)).toBe("380");
     expect(formatStrikeAttr(380.5)).toBe("380.5");
-  });
-});
-
-describe("heatmapBarIntensity", () => {
-  it("keeps body strikes visible when king dominates net GEX", () => {
-    const abs = [42.7, 5.1, 0.8, 0.5, 0.05];
-    const scale = heatmapScaleMaxBn(abs);
-    expect(scale).toBeLessThan(42.7);
-    expect(heatmapBarIntensity(0.8, scale)).toBeGreaterThan(0.25);
-    expect(heatmapBarIntensity(42.7, scale)).toBe(1);
   });
 });
