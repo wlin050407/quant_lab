@@ -1,14 +1,21 @@
 import type { ChainFlowMode } from "../types/snapshot";
 
+import { isLocalDevHost } from "./terminalDeploy";
+
 const STORAGE_KEY = "quant_lab_chain_flow_mode";
 
 export function loadChainFlowMode(): ChainFlowMode {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    return raw === "full" ? "full" : "pin";
+    if (raw === "full" || raw === "pin") return raw;
   } catch {
-    return "pin";
+    /* ignore quota / private mode */
   }
+  // Cloud vendor deploy: default Precise when the user has not chosen yet.
+  if (typeof window !== "undefined" && !isLocalDevHost()) {
+    return "full";
+  }
+  return "pin";
 }
 
 export function saveChainFlowMode(mode: ChainFlowMode): void {

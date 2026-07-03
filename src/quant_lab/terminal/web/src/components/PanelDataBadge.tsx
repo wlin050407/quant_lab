@@ -1,8 +1,11 @@
 import type { PanelSnapshot } from "../types/snapshot";
 
+import { isLiveSnapshotSource } from "../lib/terminalDeploy";
+
 function sourceLabel(source: string | undefined): string {
   switch (source) {
     case "thetadata_live":
+    case "vendor_live":
       return "Live";
     case "thetadata":
       return "Intraday";
@@ -17,7 +20,7 @@ function sourceLabel(source: string | undefined): string {
 
 export function PanelDataBadge({ panel, compact = false }: { panel: PanelSnapshot; compact?: boolean }) {
   const source = panel.data_source ?? "unavailable";
-  const isLive = source === "thetadata_live";
+  const isLive = isLiveSnapshotSource(source);
   const isEod = source === "eod";
   const time = panel.intraday_time;
   const mode = panel.data_mode;

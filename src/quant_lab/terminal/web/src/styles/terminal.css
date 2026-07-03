@@ -278,6 +278,12 @@ html[data-locale="zh"] {
   color: rgba(103, 232, 249, 0.88);
 }
 
+.btn-toolbar--demo:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+  color: var(--muted);
+}
+
 .live-dot {
   width: 5px;
   height: 5px;

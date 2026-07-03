@@ -17,14 +17,17 @@ import { KeyboardHints } from "../components/KeyboardHints";
 import type { ExposureMetric, HeatmapViewMode } from "../types/snapshot";
 import { loadChainFlowMode, saveChainFlowMode } from "../lib/chainFlowMode";
 import { isLivePollCandidate, lastTradingSessionEt, pickInitialDate } from "../lib/liveSymbols";
+import {
+  DEMO_SPX_SESSION,
+  isDemoSessionInDates,
+  isLiveSnapshotSource,
+} from "../lib/terminalDeploy";
 import type { ChainFlowMode } from "../types/snapshot";
 import {
   isLiveSessionTime,
   LIVE_SESSION_TIME,
   PIN_SESSION_TIMES,
 } from "../lib/sessionTime";
-
-const DEMO_SPX = { symbol: "^SPX", date: "2023-07-11", time: "13:00:00" };
 
 export function IndexTerminalApp() {
   const [symbol, setSymbol] = useState("^SPX");
@@ -38,6 +41,7 @@ export function IndexTerminalApp() {
   const { theme, toggleTheme } = useTheme();
 
   const datesQuery = useDates(symbol);
+  const spxDatesQuery = useDates("^SPX");
   const dates = datesQuery.data?.dates ?? [];
   const today = datesQuery.data?.today ?? "";
 
@@ -55,6 +59,7 @@ export function IndexTerminalApp() {
     : "";
 
   const livePollCandidate = isLivePollCandidate(symbol, today, date, defaultDate);
+  const demoAvailable = isDemoSessionInDates(spxDatesQuery.data?.dates ?? []);
 
   useEffect(() => {
     if (livePollCandidate && !isLiveSessionTime(intradayTime)) {
@@ -78,6 +83,7 @@ export function IndexTerminalApp() {
 
   const snapshot = snapshotQuery.data;
   const sessionHold = snapshot?.availability === "hold";
+  const isLive = isLiveSnapshotSource(snapshot?.meta?.data_source, snapshot?.meta?.live_follow);
 
   useEffect(() => {
     if (sessionHold || !snapshotQuery.error || !datesQuery.data) return;
@@ -132,10 +138,11 @@ export function IndexTerminalApp() {
   );
 
   const loadDemo = useCallback(() => {
-    setSymbol(DEMO_SPX.symbol);
-    setDate(DEMO_SPX.date);
-    setIntradayTime(DEMO_SPX.time);
-  }, []);
+    if (!demoAvailable) return;
+    setSymbol(DEMO_SPX_SESSION.symbol);
+    setDate(DEMO_SPX_SESSION.date);
+    setIntradayTime(DEMO_SPX_SESSION.time);
+  }, [demoAvailable]);
 
   const loadLive = useCallback(() => {
     setSymbol("^SPX");
@@ -196,7 +203,8 @@ export function IndexTerminalApp() {
         onLoadLive={loadLive}
         onGoHome={() => navigateTo("home")}
         today={today}
-        isLive={snapshot?.meta?.data_source === "thetadata_live"}
+        isLive={isLive}
+        demoAvailable={demoAvailable}
         livePollCandidate={livePollCandidate}
         effectiveIntradayTime={snapshot?.meta?.intraday_time ?? null}
         onRefresh={() => {

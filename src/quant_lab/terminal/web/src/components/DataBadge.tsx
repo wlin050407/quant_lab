@@ -1,11 +1,12 @@
 import { dataSourceLabel } from "../lib/snapshotMeta";
+import { isLiveSnapshotSource } from "../lib/terminalDeploy";
 import { regimeShort } from "../lib/format";
 import type { DashboardSnapshot } from "../types/snapshot";
 
 /** @deprecated Merged into InstrumentStrip — kept for tests / legacy imports */
 export function DataBadge({ snapshot }: { snapshot: DashboardSnapshot }) {
   const source = dataSourceLabel(snapshot);
-  const isLive = snapshot.meta?.data_source === "thetadata_live";
+  const isLive = isLiveSnapshotSource(snapshot.meta?.data_source, snapshot.meta?.live_follow);
   const isIntraday = Boolean(snapshot.meta?.intraday_time);
   const timeLabel = isIntraday ? `${snapshot.meta?.intraday_time} ET` : "EoD close";
   const strikes = snapshot.heatmap?.length ?? 0;

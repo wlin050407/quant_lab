@@ -26,6 +26,7 @@ interface TopBarProps {
   onGoHome?: () => void;
   today: string;
   isLive: boolean;
+  demoAvailable?: boolean;
   livePollCandidate?: boolean;
   effectiveIntradayTime?: string | null;
   onRefresh: () => void;
@@ -52,6 +53,7 @@ export function TopBar({
   onGoHome,
   today,
   isLive,
+  demoAvailable = false,
   livePollCandidate = false,
   effectiveIntradayTime,
   onRefresh,
@@ -140,7 +142,7 @@ export function TopBar({
               type="button"
               className={`btn-toolbar btn-toolbar--live${isLive ? " active" : ""}`}
               onClick={onLoadLive}
-              title={`Jump to latest ^SPX session via ThetaData (T)${today ? ` · ${today}` : ""}`}
+              title={`Jump to today's ^SPX live session (GEXBot+UW) (T)${today ? ` · ${today}` : ""}`}
             >
               {isLive ? <span className="live-dot" aria-hidden /> : null}
               Live
@@ -148,8 +150,13 @@ export function TopBar({
             <button
               type="button"
               className="btn-toolbar btn-toolbar--demo"
+              disabled={!demoAvailable}
               onClick={onLoadDemo}
-              title="Load SPX Pin Play demo (2023-07-11 13:00)"
+              title={
+                demoAvailable
+                  ? "Load SPX Pin Play demo (2023-07-11 13:00) — local parquet"
+                  : "Demo needs local intraday parquet (2023-07-11); not available on cloud"
+              }
             >
               Demo
             </button>
