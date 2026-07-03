@@ -181,6 +181,7 @@ def run_v1_replay(
     pin_min: float = 70.0,
     client: Any | None = None,
     max_sessions: int = 400,
+    include_sessions: bool = False,
 ) -> dict[str, Any]:
     """V1 gate: median |close - K| for king / primary / fused on GEXBot hist sessions."""
     path = _terminal_path(terminal_symbol)
@@ -255,15 +256,25 @@ def run_v1_replay(
 
     baseline = med_king if med_primary is None else min(med_king, med_primary)
     v1_pass = len(rows) >= 200 and med_fused <= baseline
+    fused_wins = sum(1 for r in rows if r.fused_err <= r.king_err)
+    primary_wins = sum(
+        1 for r in rows if r.primary_err is not None and r.fused_err <= r.primary_err
+    )
+    n_primary = sum(1 for r in rows if r.primary_err is not None)
 
-    return {
+    out: dict[str, Any] = {
         "status": "ok",
         "symbol": terminal_symbol,
+        "pin_min": pin_min,
         "n_sessions": len(rows),
         "skipped_no_hist": skipped_no_hist,
         "median_abs_close_minus_king": med_king,
         "median_abs_close_minus_primary": med_primary,
         "median_abs_close_minus_fused": med_fused,
+        "mean_abs_close_minus_king": float(np.mean(king_errs)) if king_errs else None,
+        "mean_abs_close_minus_fused": float(np.mean(fused_errs)) if fused_errs else None,
+        "fused_beats_king_rate": float(fused_wins / len(rows)) if rows else None,
+        "fused_beats_primary_rate": float(primary_wins / n_primary) if n_primary else None,
         "v1_pass": v1_pass,
         "v1_partial": len(rows) < 200,
         "v1_blocker": None if len(rows) >= 200 else f"n_sessions={len(rows)} < 200",
@@ -272,3 +283,20 @@ def run_v1_replay(
         "v2_pass": v2_rate is not None and v2_rate >= 0.55,
         "v2_partial": len(rows) < 200,
     }
+    if include_sessions:
+        out["sessions"] = [
+            {
+                "session_date": r.session_date,
+                "close_spot": r.close_spot,
+                "king_k": r.king_k,
+                "primary_k": r.primary_k,
+                "fused_k": r.fused_k,
+                "king_err": r.king_err,
+                "primary_err": r.primary_err,
+                "fused_err": r.fused_err,
+                "fused_beats_king": r.fused_err <= r.king_err,
+                "primary_hit_30m": r.primary_hit_30m,
+            }
+            for r in rows
+        ]
+    return out

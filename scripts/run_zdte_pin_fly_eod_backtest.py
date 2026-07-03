@@ -109,6 +109,7 @@ def _simulate_book(
     start: date | None,
     end: date | None,
     commission: float,
+    pin_min: float | None = None,
 ) -> tuple[pd.DataFrame, int]:
     n_attempts = 0
     trades: list[dict] = []
@@ -124,6 +125,10 @@ def _simulate_book(
         ts = pd.Timestamp(signal_date)
         if ts not in gex.index:
             continue
+        if pin_min is not None:
+            pin_val = _terminal_field(terminal, signal_date, "pin_score")
+            if not pd.notna(pin_val) or float(pin_val) < pin_min:
+                continue
         g_row = gex.loc[ts]
         td_ts = pd.Timestamp(trade_date)
         if td_ts not in close_lookup.index:
@@ -322,6 +327,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--long-gamma-mult", type=float, default=1.0)
     parser.add_argument("--short-gamma-mult", type=float, default=0.0)
     parser.add_argument("--undetermined-mult", type=float, default=0.75)
+    parser.add_argument(
+        "--pin-min",
+        type=float,
+        default=None,
+        help="skip signal days with terminal pin_score below threshold (e.g. 70 for pin_high)",
+    )
     parser.add_argument("--log-level", default="WARNING")
     args = parser.parse_args(argv)
 
@@ -363,6 +374,7 @@ def main(argv: list[str] | None = None) -> int:
             start=args.start,
             end=args.end,
             commission=args.commission,
+            pin_min=args.pin_min,
         )
         attempts_by_mode[mode] = n_attempts
         if trades_df.empty:
@@ -384,7 +396,7 @@ def main(argv: list[str] | None = None) -> int:
 
     print(f"=== Pin Play EoD iron fly: {args.symbol} ===")
     print(
-        f"regime_filter={args.regime_filter}  pin sizing="
+        f"regime_filter={args.regime_filter}  pin_min={args.pin_min}  pin sizing="
         f"{args.weight_pin_high}/{args.weight_pin_mid}/{args.weight_pin_low}  "
         f"short_gamma={args.short_gamma_mult}x"
     )
