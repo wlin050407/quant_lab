@@ -13,6 +13,8 @@ data/external/
 !data/raw/.gitkeep
 !data/processed/.gitkeep
 
+artifacts/
+
 logs/
 
 .env

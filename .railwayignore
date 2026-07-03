@@ -1,3 +1,4 @@
+# Railway CLI upload filter (same globs as .gitignore). Keeps `railway up` small.
 .venv/
 __pycache__/
 *.py[cod]
@@ -5,27 +6,24 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 .git/
-.gitignore
-
-data/
-!data/raw/.gitkeep
-!data/processed/.gitkeep
 
 artifacts/
+data/
+logs/
 
 .env
 .env.*
 !.env.example
 creds.txt
+*.local
+.railway-deploy.local
 
 src/quant_lab/terminal/web/node_modules/
 tools/node/
 frontend/
-logs/
+
+# Docker build only needs src, config, scripts, requirements — skip docs/tests in upload
 docs/
 tests/
 *.md
 !docs/DEPLOY.md
-
-Dockerfile
-.dockerignore
